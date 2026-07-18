@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import pathlib
+import sys
 from typing import Any
 
 import yaml
@@ -10,19 +11,35 @@ import yaml
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG = ROOT / "config.yaml"
 
+# Resolución de config robusta para .app bundle y desarrollo:
+# 1. env DICTADOR_CONFIG  2. ~/.dictador/config.yaml (override usuario)
+# 3. config junto al binario (pyinstaller _MEIPASS / repo)
+def _config_candidates() -> list[pathlib.Path]:
+    cands: list[pathlib.Path] = []
+    env = os.environ.get("DICTADOR_CONFIG")
+    if env:
+        cands.append(pathlib.Path(env))
+    cands.append(pathlib.Path.home() / ".dictador" / "config.yaml")
+    # pyinstaller bundle
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        cands.append(pathlib.Path(meipass) / "config.yaml")
+    cands.append(DEFAULT_CONFIG)
+    return cands
+
 
 def _try_dotenv() -> None:
-    path = ROOT / ".env"
-    if not path.exists():
-        return
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
+    for path in (pathlib.Path.home() / ".dictador" / ".env", ROOT / ".env"):
+        if not path.exists():
             continue
-        k, v = line.split("=", 1)
-        k, v = k.strip(), v.strip()
-        if k and k not in os.environ:
-            os.environ[k] = v
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            k, v = k.strip(), v.strip()
+            if k and k not in os.environ:
+                os.environ[k] = v
 
 
 def _deep_get(d: dict, path: str, default: Any = None) -> Any:
@@ -85,7 +102,10 @@ class Config:
 
 def load_config(path: pathlib.Path | str | None = None) -> Config:
     _try_dotenv()
-    p = pathlib.Path(path) if path else DEFAULT_CONFIG
+    if path:
+        p = pathlib.Path(path)
+    else:
+        p = next((c for c in _config_candidates() if c.exists()), DEFAULT_CONFIG)
     data = yaml.safe_load(p.read_text(encoding="utf-8")) if p.exists() else {}
     return Config(data)
 
