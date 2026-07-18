@@ -24,8 +24,13 @@ audio:
 
 # --- Hotkeys (pynput key strings) ---
 hotkeys:
-  # Toggle grabación. Combo como lista de teclas. Ej: ["cmd_r"], ["ctrl","space"], ["f5"]
-  toggle: ["f5"]
+  # Modo del botón de dictado:
+  #   "hold"   = push-to-talk: mantén pulsado para hablar, suelta para terminar (estilo Wispr)
+  #   "toggle" = pulsa para empezar, pulsa/te callas para terminar
+  toggle_mode: "hold"
+  # Tecla de dictado. En modo "hold" debe ser UNA tecla (p.ej. "cmd_r", "alt_r", "f6").
+  # Evita F5 (macOS lo roba para Siri) y otras teclas con función del sistema.
+  toggle: ["cmd_r"]
   # Cambiar al modo siguiente
   cycle_mode: ["ctrl","shift","m"]
   # Pegar manualmente el último resultado (si auto_paste está apagado)

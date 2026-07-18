@@ -46,11 +46,15 @@ class DictadorApp(rumps.App):
             template=True,
         )
         self._build_menu()
+        self._toggle_mode = cfg.get("hotkeys.toggle_mode", "toggle")
         self._hotkey = HotkeyManager(
-            toggle_keys=cfg.get("hotkeys.toggle", ["f5"]),
+            toggle_mode=self._toggle_mode,
+            toggle_keys=cfg.get("hotkeys.toggle", ["cmd_r"]),
             cycle_keys=cfg.get("hotkeys.cycle_mode", ["ctrl", "shift", "m"]),
             paste_keys=cfg.get("hotkeys.paste_last", ["ctrl", "shift", "v"]),
             on_toggle=self.toggle_record,
+            on_start=self.start_record,
+            on_stop=self.stop_record,
             on_cycle=self.cycle_mode,
             on_paste=self.paste_last,
         )
@@ -116,14 +120,33 @@ class DictadorApp(rumps.App):
         elif state == "RECORDING":
             self._stop_record(force=True)
 
+    def start_record(self):
+        """Push-to-talk: tecla pulsada -> empieza a grabar (si está IDLE)."""
+        with self._lock:
+            if self._state != "IDLE":
+                return
+        self._start_record()
+
+    def stop_record(self):
+        """Push-to-talk: tecla soltada -> termina la grabación."""
+        with self._lock:
+            if self._state != "RECORDING":
+                return
+        self._stop_record(force=True)
+
     def _start_record(self):
         with self._lock:
             self._state = "RECORDING"
         self._refresh_title()
+        # En modo hold, el usuario controla el fin con la tecla: desactivamos el
+        # auto-stop por silencio (valor muy alto) para que no cierre al pausar a pensar.
+        silence = self.cfg.get("audio.silence_to_stop", 1.2)
+        if self._toggle_mode == "hold":
+            silence = 9999.0
         acfg = audio.AudioConfig(
             device=self.cfg.get("audio.device"),
             vad_aggressiveness=self.cfg.get("audio.vad_aggressiveness", 2),
-            silence_to_stop=self.cfg.get("audio.silence_to_stop", 1.2),
+            silence_to_stop=silence,
             max_duration=self.cfg.get("audio.max_duration", 60.0),
             min_duration=self.cfg.get("audio.min_duration", 0.4),
         )
@@ -241,6 +264,12 @@ class DictadorApp(rumps.App):
 
     # ---------- lifecycle ----------
     def run(self):
+        # Crea NSApplication en el main thread ANTES de iniciar pynput: el Listener
+        # de pynput llama a TIS/TSM desde su hilo y si compite con la inicialización
+        # de NSApplication (que también toca TSM) macOS aborta con SIGABRT.
+        from AppKit import NSApplication
+
+        _ = NSApplication.sharedApplication()
         # arranca whisper-server en background para que el primer dictado no pague el coste
         threading.Thread(target=self._warmup, daemon=True).start()
         self._hotkey.start()
