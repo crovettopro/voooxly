@@ -9,10 +9,23 @@ from .config import get_config
 
 
 def _setup_logging(level: str):
+    handlers: list[logging.Handler] = [logging.StreamHandler()]
+    # en .app bundle (console=False) stderr se pierde -> log también a archivo
+    try:
+        import os
+        from pathlib import Path
+
+        log_dir = Path.home() / ".dictador" / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        handlers.append(logging.FileHandler(log_dir / "dictador.log", encoding="utf-8"))
+    except Exception:
+        pass
     logging.basicConfig(
         level=getattr(logging, level.upper(), logging.INFO),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         datefmt="%H:%M:%S",
+        handlers=handlers,
+        force=True,
     )
 
 
