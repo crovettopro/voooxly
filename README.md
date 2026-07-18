@@ -120,9 +120,25 @@ bash scripts/package.sh
 
 El receptor solo necesita descomprimir y ejecutar `bash install.sh`: instala
 whisper-cpp con brew, descarga el modelo, copia el app, lo firma ad-hoc en su
-Mac (evita el "app dañada" de Gatekeeper) y le guía con los permisos. Para
-distribución seria (sin instalador, doble-click y listo) haría falta Developer
-ID de Apple (99$/año) + notarización.
+Mac (evita el "app dañada" de Gatekeeper) y le guía con los permisos.
+
+### Release público (DMG notarizado)
+
+Para que cualquiera pueda instalarlo con doble clic, sin instalador ni terminal:
+
+```bash
+./scripts/release.sh --dry-run   # ensayo: valida firma y DMG sin cuenta Apple
+./scripts/release.sh             # release real: firma Developer ID + notariza
+```
+
+Requiere un certificado **Developer ID Application** y un perfil de notarización
+guardado — los cuatro pasos de preparación (una sola vez) están en
+[docs/RELEASING.md](docs/RELEASING.md), junto con el porqué de cada decisión.
+
+Al primer arranque, un asistente (`src/dictador/onboarding.py`) guía al usuario
+por micrófono, Accesibilidad, descarga del modelo y motor de IA; se puede probar
+aislado con `python -m dictador --onboarding`. La app avisa de versiones nuevas
+consultando el `appcast.json` publicado en la landing (`web/`).
 
 Gotchas de build aprendidos a base de golpes:
 - El dict del spec es `info_plist=` (no `plist=` — se ignora en silencio) y el
