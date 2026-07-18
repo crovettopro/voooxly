@@ -18,7 +18,9 @@ import requests
 
 log = logging.getLogger("dictador.updates")
 
-APPCAST_URL = "https://voxly.vercel.app/appcast.json"
+# OJO: voxly.vercel.app pertenece a OTRO usuario de Vercel; nuestro dominio
+# de producción es usevoxly.vercel.app (proyecto "voxly" de crovettopro).
+APPCAST_URL = "https://usevoxly.vercel.app/appcast.json"
 # Fuera del .app (ejecutando desde el repo) no hay Info.plist del que leer.
 FALLBACK_VERSION = "1.0.0"
 
