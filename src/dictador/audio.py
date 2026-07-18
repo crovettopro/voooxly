@@ -116,18 +116,18 @@ class Recorder:
             while len(self._recent) > max_recent:
                 self._recent.popleft()
 
-        if is_speech:
-            with self._lock:
+        # Capturamos SIEMPRE el audio (no solo lo que el VAD marca como voz):
+        # si el VAD falla o el micro está bajo, seguimos teniendo audio real para
+        # transcribir. El VAD solo se usa para endpointing por silencio.
+        with self._lock:
+            self._frames.append(frame)
+            if is_speech:
                 self._silence_frames = 0
                 self._has_speech = True
-                self._frames.append(frame)
-        elif self._has_speech:
-            # mantén un poco de silencio para naturalidad, pero cuenta
-            with self._lock:
-                self._frames.append(frame)
+            elif self._has_speech:
                 self._silence_frames += 1
 
-        # endpointing
+        # endpointing (en modo hold silence_to_stop es ~infinito, así que no corta)
         silence_secs = (self._silence_frames * FRAME_MS / 1000.0)
         elapsed = time.monotonic() - self._start_ts
         if self._has_speech and silence_secs >= self.cfg.silence_to_stop:
