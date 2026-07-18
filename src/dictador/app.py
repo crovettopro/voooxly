@@ -13,12 +13,13 @@ import json
 import logging
 import os
 import plistlib
+import subprocess
 import threading
 import time
 
 import rumps
 
-from . import audio, modes, output, refine, stt
+from . import audio, modes, output, refine, setup_checks, stt, updates
 from .config import get_config
 from .hotkey import HotkeyManager
 from .overlay import Overlay
@@ -130,6 +131,9 @@ class DictadorApp(rumps.App):
         self.ai = rumps.MenuItem("AI: detecting…", callback=self._redetect_ai)
         self.health = rumps.MenuItem("Backend status…", callback=self.show_health)
         self.quit = rumps.MenuItem("Quit Voxly", callback=self._quit)
+        # Oculto hasta que el comprobador encuentre una versión nueva (ver _warmup).
+        self.update_item = rumps.MenuItem("Update available", callback=self._open_update)
+        self._update_url = ""
 
         # Recent: los últimos dictados, clic = volver a copiarlos al portapapeles.
         # Los items se PRE-crean ocultos: añadir/quitar items de un NSMenu desde el
@@ -162,8 +166,12 @@ class DictadorApp(rumps.App):
             self.health,
             settings,
             rumps.separator,
+            self.update_item,
             self.quit,
         ]
+        # setHidden_ debe ir DESPUÉS de asignar self.menu: hasta entonces rumps no
+        # ha creado el NSMenuItem real y el ocultado se pierde.
+        self.update_item._menuitem.setHidden_(True)
         self._refresh_title()
 
     def _make_mode_cb(self, key):
@@ -500,6 +508,10 @@ class DictadorApp(rumps.App):
         else:
             rumps.notification("Voxly", "AI engine", self.ai.title)
 
+    def _open_update(self, _sender):
+        if self._update_url:
+            subprocess.run(["open", self._update_url], check=False)
+
     def show_health(self, _sender):
         h = refine.health()
         msg = " · ".join(f"{k}: {'✓' if v else '✗'}" for k, v in h.items())
@@ -533,6 +545,16 @@ class DictadorApp(rumps.App):
                 self._overlay.build()
             except Exception as e:
                 log.warning("No se pudo construir el overlay: %s", e)
+        # Primer arranque (o permiso revocado): el asistente explica qué falta y
+        # guía cada paso. Va aquí, en el main thread, porque NSWindow no puede
+        # instanciarse fuera de él. No bloquea: la ventana convive con la app.
+        try:
+            if setup_checks.needs_setup():
+                from .onboarding import show_onboarding
+
+                show_onboarding()
+        except Exception as e:
+            log.warning("No pude mostrar el onboarding: %s", e)
         # arranca whisper-server en background para que el primer dictado no pague el coste
         threading.Thread(target=self._warmup, daemon=True).start()
         self._hotkey.start()
@@ -578,6 +600,15 @@ class DictadorApp(rumps.App):
         # 2) detección del motor LLM disponible
         try:
             self._update_ai_item(force=True)
+        except Exception:
+            pass
+        # 3) aviso de versión nueva (silencioso si no hay red o el appcast falla)
+        try:
+            info = updates.check()
+            if info:
+                self._update_url = info["url"]
+                self.update_item.title = f"Update to {info['version']} →"
+                self.update_item._menuitem.setHidden_(False)
         except Exception:
             pass
         # Keepalive: en Macs con poca RAM macOS pagina el modelo (~1.6GB) tras

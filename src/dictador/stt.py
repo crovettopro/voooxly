@@ -30,6 +30,9 @@ _server_proc: subprocess.Popen | None = None
 _server_lock = threading.Lock()
 _server_url: str = "http://127.0.0.1:8080"
 _server_ready = threading.Event()
+# El onboarding y el warmup pueden pedir el modelo a la vez: sin esto, dos
+# descargas escribirían sobre el mismo .part y lo dejarían corrupto.
+_download_lock = threading.Lock()
 
 
 def _find_model() -> str | None:
@@ -59,7 +62,20 @@ def find_model() -> str | None:
 
 
 def ensure_model(progress_cb=None) -> str | None:
-    """Devuelve la ruta del modelo, descargándolo si no existe (con progreso 0-100)."""
+    """Devuelve la ruta del modelo, descargándolo si no existe (con progreso 0-100).
+
+    Serializado: si dos hilos lo piden a la vez (onboarding + warmup), el segundo
+    espera y encuentra el modelo ya descargado en vez de duplicar la descarga.
+    """
+    m = _find_model()
+    if m:
+        return m
+    with _download_lock:
+        return _download_model(progress_cb)
+
+
+def _download_model(progress_cb=None) -> str | None:
+    # Re-comprobación dentro del lock: puede haberlo bajado quien lo tenía cogido.
     m = _find_model()
     if m:
         return m
