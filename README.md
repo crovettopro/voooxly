@@ -21,6 +21,10 @@ Markdown notes — and the result is pasted right where your cursor is.
   or any OpenAI-compatible endpoint — auto-detected. Without any, Voxly pastes the
   raw transcription, which Whisper already punctuates well.
 - **Global hotkey + menu bar + live HUD** with real-time transcription.
+- **Stays out of your way**: pauses Spotify/Music while you dictate and resumes
+  them after; Esc cancels; hold + Shift latches into hands-free recording.
+- **Personal dictionary** (teach it names and jargon, add `wrong -> right`
+  replacements), **persistent searchable history** and **usage stats**.
 - **Free.** No account, no subscription, no telemetry.
 
 ## Using Voxly
@@ -30,6 +34,7 @@ Voxly to Applications, and a first-run assistant walks you through microphone
 and Accessibility permissions, the model download and (optionally) an AI engine.
 
 - **Right ⌘ (hold)** — push-to-talk: speak while holding, release to finish.
+- **Right ⌘ + Shift** — latch: recording locks hands-free; tap right ⌘ to finish.
 - **Esc** — cancel the dictation in progress; nothing is pasted.
 - **Ctrl+Shift+M** — cycle modes.
 - **Ctrl+Shift+V** — paste the last result again.
@@ -48,8 +53,10 @@ Key and behavior are configurable (`config.yaml > hotkeys`).
 | **Markdown notes** | A real Markdown note: `##` title, sections, checkboxes for to-dos |
 | **Verbatim** | Exactly what you said — no LLM, no rewriting |
 
-Switch from the menu bar or with Ctrl+Shift+M. Define your own in
-`src/dictador/modes.py`.
+Switch modes from the menu bar or with Ctrl+Shift+M. To make every mode follow
+your personal style, add free-text rules in `config.yaml > llm.custom_rules`
+("Never use semicolons", "Spell it Ucademy", …). Building from source? You can
+define whole new modes in `src/dictador/modes.py`.
 
 ## Privacy model
 

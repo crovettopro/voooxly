@@ -30,13 +30,32 @@ from pynput import keyboard
 log = logging.getLogger("dictador.hotkey")
 
 
+# Virtual keycodes ANSI de macOS (kVK_ANSI_*) → letra. Fallback para cuando
+# pynput no trae char (p.ej. con Cmd pulsado en algunos layouts).
+_VK_DARWIN = {
+    0: "a", 11: "b", 8: "c", 2: "d", 14: "e", 3: "f", 5: "g", 4: "h",
+    34: "i", 38: "j", 40: "k", 37: "l", 46: "m", 45: "n", 31: "o", 35: "p",
+    12: "q", 15: "r", 1: "s", 17: "t", 32: "u", 9: "v", 13: "w", 7: "x",
+    16: "y", 6: "z",
+}
+
+
 def _norm(key) -> str:
-    """Normaliza una tecla pynput a un nombre lowercase estable."""
+    """Normaliza una tecla pynput a un nombre lowercase estable.
+
+    GOTCHA macOS: con Ctrl pulsado, una letra NO llega como su char sino como
+    su carácter de control (Ctrl+M = '\\r', Ctrl+V = '\\x16'…), así que el combo
+    ctrl+shift+m jamás casaría comparando chars crudos. Se deshace el mapeo
+    (\\x01-\\x1a → a-z) y, si no hay char, se cae al virtual keycode ANSI.
+    """
     if isinstance(key, keyboard.KeyCode):
-        if key.char:
-            return key.char.lower()
-        # teclas virtuales sin char (raro en mac)
-        return ""
+        ch = key.char
+        if ch and len(ch) == 1 and 1 <= ord(ch) <= 26:
+            return chr(ord(ch) + 96)  # control char → letra
+        if ch:
+            return ch.lower()
+        vk = getattr(key, "vk", None)
+        return _VK_DARWIN.get(vk, "")
     name = getattr(key, "name", "").lower()
     # unificar cmd/cmd_l/cmd_r para combos pero conservar cmd_r para hold
     return name

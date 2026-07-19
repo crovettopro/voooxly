@@ -23,7 +23,7 @@ log = logging.getLogger("dictador.updates")
 # de producción es usevoxly.vercel.app (proyecto "voxly" de crovettopro).
 APPCAST_URL = "https://usevoxly.vercel.app/appcast.json"
 # Fuera del .app (ejecutando desde el repo) no hay Info.plist del que leer.
-FALLBACK_VERSION = "1.0.0"
+FALLBACK_VERSION = "1.0.1"
 
 
 def _parse(v: str) -> tuple[int, ...] | None:
