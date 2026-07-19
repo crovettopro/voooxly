@@ -228,6 +228,15 @@
   .foot-row { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; justify-content: space-between; }
   footer a { color: var(--fg-muted); }
 
+  /* ---------- motion ---------- */
+  /* .reveal es inerte por defecto (sin JS o con reduced-motion todo se ve);
+     solo anima cuando el usuario acepta movimiento */
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal { opacity: 0; transform: translateY(18px); transition: opacity .6s cubic-bezier(.22,.9,.24,1), transform .6s cubic-bezier(.22,.9,.24,1); }
+    .reveal.visible { opacity: 1; transform: none; }
+    .wrote { transition: opacity .4s cubic-bezier(.22,.9,.24,1); }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
   }
@@ -381,6 +390,23 @@
 </footer>
 
 <script>
+(function () {
+  /* reveals al scroll: la clase se asigna aquí (no en el HTML) para que sin
+     JS nada dependa de ella y el contenido siempre sea visible */
+  if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches && "IntersectionObserver" in window) {
+    var targets = document.querySelectorAll(
+      "section .section-head, section .spec-row, section .step, section .modes, " +
+      ".freeband .wrap, .table-scroll, .faq details, .close h2, .close p, .close .cta-row"
+    );
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) { e.target.classList.add("visible"); io.unobserve(e.target); }
+      });
+    }, { threshold: .15, rootMargin: "0px 0px -5% 0px" });
+    targets.forEach(function (el) { el.classList.add("reveal"); io.observe(el); });
+  }
+})();
+
 (function () {
   var TAKES = [
     {
