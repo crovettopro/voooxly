@@ -12,7 +12,7 @@ import os
 import subprocess
 import time
 
-log = logging.getLogger("dictador.output")
+log = logging.getLogger("voooxly.output")
 
 
 def copy_to_clipboard(text: str, html: str | None = None) -> None:

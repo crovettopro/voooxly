@@ -4,7 +4,7 @@ que el usuario tenía parado.
 """
 from unittest.mock import MagicMock, patch
 
-from dictador import media
+from voooxly import media
 
 
 def _run_result(stdout: str):
@@ -17,12 +17,12 @@ def test_pausa_solo_los_que_estan_sonando():
         script = cmd[-1]
         return _run_result("paused" if "Spotify" in script else "no")
 
-    with patch("dictador.media.subprocess.run", side_effect=fake_run):
+    with patch("voooxly.media.subprocess.run", side_effect=fake_run):
         assert media.pause_playing() == ["Spotify"]
 
 
 def test_pausa_ninguno_si_nada_suena():
-    with patch("dictador.media.subprocess.run", return_value=_run_result("no")):
+    with patch("voooxly.media.subprocess.run", return_value=_run_result("no")):
         assert media.pause_playing() == []
 
 
@@ -33,12 +33,12 @@ def test_un_reproductor_colgado_no_estorba_al_resto():
             raise OSError("osascript colgado")
         return _run_result("paused")
 
-    with patch("dictador.media.subprocess.run", side_effect=fake_run):
+    with patch("voooxly.media.subprocess.run", side_effect=fake_run):
         assert media.pause_playing() == ["Music"]
 
 
 def test_resume_solo_reanuda_lo_pausado():
-    with patch("dictador.media.subprocess.run", return_value=_run_result("")) as run:
+    with patch("voooxly.media.subprocess.run", return_value=_run_result("")) as run:
         media.resume(["Spotify"])
     scripts = [call.args[0][-1] for call in run.call_args_list]
     assert len(scripts) == 1
@@ -47,7 +47,7 @@ def test_resume_solo_reanuda_lo_pausado():
 
 
 def test_resume_con_lista_vacia_no_llama_a_osascript():
-    with patch("dictador.media.subprocess.run") as run:
+    with patch("voooxly.media.subprocess.run") as run:
         media.resume([])
     run.assert_not_called()
 

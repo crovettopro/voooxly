@@ -1,4 +1,4 @@
-# Publicar una versión de Voxly
+# Publicar una versión de Voooxly
 
 Cómo pasar del código a un DMG que cualquiera pueda descargar e instalar.
 
@@ -38,7 +38,7 @@ La notarización no acepta tu contraseña normal de Apple ID.
 
 1. Entra en [appleid.apple.com](https://appleid.apple.com) → **Sign-In and Security**
    → **App-Specific Passwords**.
-2. Genera una nueva (nómbrala "voxly-notarization") y **cópiala**: solo se muestra
+2. Genera una nueva (nómbrala "voooxly-notarization") y **cópiala**: solo se muestra
    una vez.
 
 ### 3. Guardar el perfil de notarización
@@ -46,7 +46,7 @@ La notarización no acepta tu contraseña normal de Apple ID.
 Esto deja las credenciales en el llavero para que el script no las pida cada vez:
 
 ```bash
-xcrun notarytool store-credentials voxly \
+xcrun notarytool store-credentials voooxly \
   --apple-id tu-email@ejemplo.com \
   --team-id TH7LG6UP8H \
   --password <la-contraseña-específica-del-paso-2>
@@ -55,7 +55,7 @@ xcrun notarytool store-credentials voxly \
 Verifica:
 
 ```bash
-xcrun notarytool history --keychain-profile voxly
+xcrun notarytool history --keychain-profile voooxly
 ```
 
 ### 4. Crear el repositorio de GitHub para las descargas
@@ -63,7 +63,7 @@ xcrun notarytool history --keychain-profile voxly
 Los DMG se sirven desde GitHub Releases (gratis y sin límite de tráfico):
 
 ```bash
-gh repo create voxly --public --source=. --remote=origin
+gh repo create voooxly --public --source=. --remote=origin
 ```
 
 ---
@@ -72,11 +72,11 @@ gh repo create voxly --public --source=. --remote=origin
 
 ### 1. Subir el número de versión
 
-En `Voxly.spec`, ambos campos a la vez:
+En `Voooxly.spec`, ambos campos a la vez:
 
 ```python
-"CFBundleVersion": "1.0.1",
-"CFBundleShortVersionString": "1.0.1",
+"CFBundleVersion": "1.0.0",
+"CFBundleShortVersionString": "1.0.0",
 ```
 
 ### 2. Ensayo (opcional pero recomendado)
@@ -98,19 +98,19 @@ Hace, en orden: compila → copia fuera de iCloud → firma de dentro afuera con
 hardened runtime → notariza la app (unos minutos) → staplea → crea el DMG →
 firma y notariza el DMG → verifica con `spctl` lo mismo que verá Gatekeeper.
 
-El resultado queda en `~/.dictador/release/Voxly-<versión>.dmg`.
+El resultado queda en `~/.voooxly/release/Voooxly-<versión>.dmg`.
 
 ### 4. Subir el DMG a GitHub Releases
 
 ```bash
-gh release create v1.0.1 ~/.dictador/release/Voxly-1.0.1.dmg \
-  --title "Voxly 1.0.1" --notes "Qué ha cambiado…"
+gh release create v1.0.0 ~/.voooxly/release/Voooxly-1.0.0.dmg \
+  --title "Voooxly 1.0.0" --notes "Qué ha cambiado…"
 ```
 
 ### 5. Actualizar el appcast y desplegar la web
 
 En `web/appcast.json`, poner la versión nueva y la URL del DMG. Las apps ya
-instaladas lo consultan al arrancar y muestran "Update to 1.0.1 →" en el menú.
+instaladas lo consultan al arrancar y muestran "Update to 1.0.0 →" en el menú.
 
 ```bash
 cd web && vercel --prod
@@ -120,7 +120,7 @@ cd web && vercel --prod
 
 ## Por qué el proyecto está montado así
 
-**Por qué no el Mac App Store.** Voxly necesita un hotkey global y pegar texto en
+**Por qué no el Mac App Store.** Voooxly necesita un hotkey global y pegar texto en
 apps de terceros; el sandbox obligatorio del App Store prohíbe ambas cosas. Es el
 mismo motivo por el que Wispr Flow, superwhisper y MacWhisper se distribuyen
 fuera de la tienda.
@@ -128,7 +128,7 @@ fuera de la tienda.
 **Por qué se firma fuera de iCloud.** El repo vive en `~/Desktop`, que iCloud
 sincroniza, y iCloud reinyecta atributos extendidos continuamente. Firmar allí
 falla con `resource fork, Finder information, or similar detritus not allowed`.
-El script copia el bundle a `~/.dictador/release/` antes de tocarlo.
+El script copia el bundle a `~/.voooxly/release/` antes de tocarlo.
 
 **Por qué se firman los binarios internos uno a uno.** Los `libggml-*` se cargan
 por `dlopen` en tiempo de ejecución, así que necesitan firma propia: sin ella la
@@ -145,7 +145,7 @@ arm64. Para dar soporte a Intel habría que compilar un binario universal.
 | Síntoma | Causa y solución |
 |---|---|
 | `no hay certificado 'Developer ID Application'` | Falta el paso 1 de la preparación |
-| `no existe el perfil de notarización 'voxly'` | Falta el paso 3 |
+| `no existe el perfil de notarización 'voooxly'` | Falta el paso 3 |
 | `resource fork ... detritus not allowed` | Algo se está firmando dentro de iCloud; el script ya lo evita, revisa que no hayas cambiado `WORK` |
-| Notarización rechazada | `xcrun notarytool log <submission-id> --keychain-profile voxly` da el motivo exacto, normalmente un binario sin firmar o sin hardened runtime |
+| Notarización rechazada | `xcrun notarytool log <submission-id> --keychain-profile voooxly` da el motivo exacto, normalmente un binario sin firmar o sin hardened runtime |
 | La app abre pero el hotkey no va | Accesibilidad no concedida; el onboarding lo guía. Al reinstalar cambia la firma y macOS revoca el permiso |

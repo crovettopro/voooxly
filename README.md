@@ -1,14 +1,14 @@
-# Voxly — private, on-device voice dictation for macOS
+# Voooxly — private, on-device voice dictation for macOS
 
 **Hold a key, speak, let go — polished text appears in whatever app you're using.**
 100% local speech-to-text on Apple Silicon: your voice never leaves your Mac.
 
-Voxly doesn't just transcribe. An LLM **rewrites what you said according to the
+Voooxly doesn't just transcribe. An LLM **rewrites what you said according to the
 active mode** — organize your thoughts, draft a reply, shape an AI prompt, take
 Markdown notes — and the result is pasted right where your cursor is.
 
-🌐 **Website & download:** [usevoxly.vercel.app](https://usevoxly.vercel.app) ·
-📦 **Latest DMG:** [Releases](https://github.com/crovettopro/voxly/releases)
+🌐 **Website & download:** [voooxly.com](https://voooxly.com) ·
+📦 **Latest DMG:** [Releases](https://github.com/crovettopro/voooxly/releases)
 
 ## Features
 
@@ -18,7 +18,7 @@ Markdown notes — and the result is pasted right where your cursor is.
 - **Modes**: the same speech comes out as clean prose, a ready-to-send reply,
   a structured AI prompt, Markdown notes, a code spec, a summary or a translation.
 - **Bring your own AI (or none)**: cleanup runs through Ollama (local), Claude API
-  or any OpenAI-compatible endpoint — auto-detected. Without any, Voxly pastes the
+  or any OpenAI-compatible endpoint — auto-detected. Without any, Voooxly pastes the
   raw transcription, which Whisper already punctuates well.
 - **Global hotkey + menu bar + live HUD**: a status HUD shows `● Listening`
   with your words appearing in real time, `✦ Processing` while it polishes and
@@ -33,10 +33,10 @@ Markdown notes — and the result is pasted right where your cursor is.
   replacements), **persistent searchable history** and **usage stats**.
 - **Free.** No account, no subscription, no telemetry.
 
-## Using Voxly
+## Using Voooxly
 
-Download the DMG from [usevoxly.vercel.app](https://usevoxly.vercel.app), drag
-Voxly to Applications, and a first-run assistant walks you through microphone
+Download the DMG from [voooxly.com](https://voooxly.com), drag
+Voooxly to Applications, and a first-run assistant walks you through microphone
 and Accessibility permissions, the model download and (optionally) an AI engine.
 
 - **Right ⌘ (hold)** — push-to-talk: speak while holding, release to finish.
@@ -63,7 +63,7 @@ Key and behavior are configurable (`config.yaml > hotkeys`).
 Switch modes from the menu bar or with Ctrl+Shift+M. To make every mode follow
 your personal style, add free-text rules in `config.yaml > llm.custom_rules`
 ("Never use semicolons", "Spell it Ucademy", …). Building from source? You can
-define whole new modes in `src/dictador/modes.py`.
+define whole new modes in `src/voooxly/modes.py`.
 
 ## Privacy model
 
@@ -79,15 +79,15 @@ audio. With a local Ollama model or no AI at all, nothing leaves your machine.
 Requires an Apple Silicon Mac, [Homebrew](https://brew.sh) and [uv](https://docs.astral.sh/uv/).
 
 ```bash
-git clone https://github.com/crovettopro/voxly && cd voxly
+git clone https://github.com/crovettopro/voooxly && cd voooxly
 ./scripts/install.sh
 ```
 
 This installs `portaudio` + `whisper-cpp` (Homebrew), creates the venv with `uv`
-in `~/.dictador/venv`, copies `.env` and downloads the Whisper model to
-`~/.dictador/models/`.
+in `~/.voooxly/venv`, copies `.env` and downloads the Whisper model to
+`~/.voooxly/models/`.
 
-> **Why `~/.dictador`?** venv and models live outside any iCloud-synced folder.
+> **Why `~/.voooxly`?** venv and models live outside any iCloud-synced folder.
 > iCloud evicts large binaries and hangs builds — keep them out of Desktop/Documents.
 
 ### macOS permissions (prompted on first run)
@@ -106,16 +106,16 @@ If pasting doesn't work, it's almost always Accessibility/Automation not granted
 ./scripts/launch.sh --fg        # run in the foreground (live logs)
 ```
 
-> `launch.sh` sets `UV_PROJECT_ENVIRONMENT=~/.dictador/venv`. If you run
-> `uv run dictador` manually, export that variable first.
+> `launch.sh` sets `UV_PROJECT_ENVIRONMENT=~/.voooxly/venv`. If you run
+> `uv run voooxly` manually, export that variable first.
 
 ### Configuration
 
 Everything lives in `config.yaml`, with `.env` overrides (see `.env.example`):
 
-- `DICTADOR_LLM_BACKEND` = `ollama` | `claude` | `openai` | `none`
+- `VOOOXLY_LLM_BACKEND` = `ollama` | `claude` | `openai` | `none`
 - `ANTHROPIC_API_KEY` — cleanup with Claude (best rewriting quality)
-- `DICTADOR_APP_LANGUAGE` — force an output language (default: keep the language you spoke)
+- `VOOOXLY_APP_LANGUAGE` — force an output language (default: keep the language you spoke)
 
 Cleanup with a fully local model:
 
@@ -147,7 +147,7 @@ Each block is a swappable module: `stt.py`, `refine.py`, `output.py`, `modes.py`
 ### Tests
 
 ```bash
-UV_PROJECT_ENVIRONMENT=~/.dictador/venv uv run pytest tests/ -q
+UV_PROJECT_ENVIRONMENT=~/.voooxly/venv uv run pytest tests/ -q
 ```
 
 ### Building the app + public release
@@ -176,12 +176,6 @@ Hard-won build gotchas:
 
 ### Roadmap
 
-Shipping in 1.0.1: in-app update download, music auto-pause while dictating,
-persistent searchable history, personal dictionary with replacements, usage
-stats, hands-free latch (hold + Shift), custom cleanup rules, rich paste
-(rendered headings/lists in rich-text apps), redesigned status HUD and
-menu bar recording indicator with timer.
-
 Next up (1.1):
 
 - Edit Mode: select any text, speak an instruction, get it transformed.
@@ -190,6 +184,15 @@ Next up (1.1):
 ### Project layout
 
 ```
-src/dictador/  __main__ · app · audio · stt · refine · output · hotkey · overlay · modes · config
-config.yaml · scripts/ · web/ (landing + appcast) · docs/RELEASING.md
+src/voooxly/  __main__ · app · audio · stt · refine · output · hotkey · overlay · modes · config
+config.yaml · scripts/ · docs/RELEASING.md
 ```
+
+`vendor/whisper/` is **not** in git: it holds whisper.cpp binaries vendored from
+Homebrew, and `scripts/bundle-whisper.sh` rebuilds it automatically before any
+build that needs it.
+
+## License
+
+MIT — see [LICENSE](LICENSE). Third-party components bundled in the app are
+listed in [THIRD-PARTY.md](THIRD-PARTY.md).

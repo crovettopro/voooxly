@@ -5,7 +5,7 @@ media escritura) sin perder el resto.
 import json
 import stat
 
-from dictador import history
+from voooxly import history
 
 
 def test_append_y_load_devuelven_lo_ultimo_primero(tmp_path):

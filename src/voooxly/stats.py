@@ -1,6 +1,6 @@
 """Stats de uso: cuántos dictados, cuántas palabras, cuánto tecleo ahorrado.
 
-Contadores acumulativos en ~/.dictador/stats.json (no rota: son 3 números).
+Contadores acumulativos en ~/.voooxly/stats.json (no rota: son 3 números).
 El "typing saved" compara hablar (~150 wpm reales dictando) con teclear
 (~40 wpm de un tecleo medio): words/40 − words/150 minutos. Best-effort:
 unas stats rotas jamás estorban al dictado.
@@ -11,9 +11,9 @@ import json
 import logging
 from pathlib import Path
 
-log = logging.getLogger("dictador.stats")
+log = logging.getLogger("voooxly.stats")
 
-STATS_FILE = Path.home() / ".dictador" / "stats.json"
+STATS_FILE = Path.home() / ".voooxly" / "stats.json"
 
 TYPING_WPM = 40
 SPEAKING_WPM = 150

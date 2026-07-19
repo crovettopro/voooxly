@@ -1,34 +1,34 @@
 #!/bin/bash
-# Voxly fallback installer (for recipients whose Mac refuses to open the app
+# Voooxly fallback installer (for recipients whose Mac refuses to open the app
 # because the build wasn't notarized). scripts/package.sh copies this as
 # "install.sh" into the shareable zip. If the app IS notarized, dragging
-# Voxly.app to /Applications is all you need — this script is plan B.
+# Voooxly.app to /Applications is all you need — this script is plan B.
 #
 # What it does:
-#   1. Copies Voxly.app into /Applications
+#   1. Copies Voooxly.app into /Applications
 #   2. Strips quarantine and (if not Developer ID-signed) re-signs it ad-hoc
 #      ON THIS Mac — which makes Gatekeeper accept it
 #   3. Opens the permission panes and explains what to enable
 #
 # No Homebrew, no model download needed: the speech engine is embedded and
-# Voxly downloads its model on first launch.
+# Voooxly downloads its model on first launch.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-APP_SRC="$HERE/Voxly.app"
-APP=/Applications/Voxly.app
+APP_SRC="$HERE/Voooxly.app"
+APP=/Applications/Voooxly.app
 
-echo "══ Voxly installer ══"
+echo "══ Voooxly installer ══"
 
 if [ ! -d "$APP_SRC" ]; then
-  echo "ERROR: Voxly.app not found next to this script."; exit 1
+  echo "ERROR: Voooxly.app not found next to this script."; exit 1
 fi
 if [ "$(uname -m)" != "arm64" ]; then
   echo "WARNING: this build targets Apple Silicon (M1 or newer)."
 fi
 
 echo "→ Installing into /Applications…"
-osascript -e 'quit app "Voxly"' 2>/dev/null || true
+osascript -e 'quit app "Voooxly"' 2>/dev/null || true
 rm -rf "$APP"
 ditto "$APP_SRC" "$APP"
 xattr -cr "$APP"
@@ -42,7 +42,7 @@ fi
 
 echo ""
 echo "══ LAST STEP: macOS permissions (manual, once) ══"
-echo "In System Settings → Privacy & Security, add /Applications/Voxly.app"
+echo "In System Settings → Privacy & Security, add /Applications/Voooxly.app"
 echo "with the «+» button and enable it in BOTH panes:"
 echo "   • Accessibility"
 echo "   • Input Monitoring"

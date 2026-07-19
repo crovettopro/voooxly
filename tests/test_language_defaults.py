@@ -9,8 +9,8 @@ import pathlib
 
 import yaml
 
-from dictador import config as config_mod
-from dictador import modes
+from voooxly import config as config_mod
+from voooxly import modes
 
 CONFIG = pathlib.Path(__file__).resolve().parents[1] / "config.yaml"
 

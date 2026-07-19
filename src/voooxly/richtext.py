@@ -1,6 +1,6 @@
 """Markdown → HTML mínimo para el pegado con doble sabor.
 
-Cubre exactamente el subconjunto que emiten los modos de Voxly (##/###,
+Cubre exactamente el subconjunto que emiten los modos de Voooxly (##/###,
 bullets, numeradas, checkboxes, `code`, **negrita** residual) — no es un
 parser Markdown general. El HTML va al portapapeles JUNTO al texto plano:
 Mail/Gmail/Notion pegan títulos y listas de verdad; Terminal, Obsidian o un

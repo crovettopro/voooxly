@@ -17,7 +17,7 @@ import requests
 
 from . import modes
 
-log = logging.getLogger("dictador.refine")
+log = logging.getLogger("voooxly.refine")
 
 # Resultado cacheado de la auto-detección (backend "auto"). Se refresca con
 # detect_backend(force=True) — el menú "AI engine" y el keepalive lo hacen.
@@ -28,7 +28,7 @@ def detect_backend(cfg=None, force: bool = False) -> str:
     """Cascada de auto-detección del motor LLM disponible.
 
     ollama corriendo → claude (ANTHROPIC_API_KEY) → openai (key) → "none".
-    Con "none" Voxly pega la transcripción cruda: funciona sin IA instalada.
+    Con "none" Voooxly pega la transcripción cruda: funciona sin IA instalada.
     """
     global _detected
     if _detected is not None and not force:

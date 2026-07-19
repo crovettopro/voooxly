@@ -1,12 +1,12 @@
-# Configuración de Dictador. Cárgala con config.load_config().
+# Configuración de Voooxly. Cárgala con config.load_config().
 # Los valores de entorno (.env) tienen prioridad sobre lo de aquí.
 
 # --- STT (speech to text) — whisper.cpp ---
 stt:
   # whisper.cpp usa un modelo ggml .bin. Se busca automáticamente en
-  # ~/.dictador/models/ggml-large-v3-turbo-q5_0.bin (o -turbo / -large-v3 / -medium).
+  # ~/.voooxly/models/ggml-large-v3-turbo-q5_0.bin (o -turbo / -large-v3 / -medium).
   # El q5_0 cuantizado (~550MB) es el recomendado: en Macs de 8GB no se pagina.
-  # Sobreescribe con la ruta que quieras vía env DICTADOR_STT_MODEL_FILE.
+  # Sobreescribe con la ruta que quieras vía env VOOOXLY_STT_MODEL_FILE.
   model: "ggml-large-v3-turbo"
   # Diccionario personal: nombres propios, marcas y jerga que Whisper suele
   # escribir mal. Se pasan como "initial prompt" y sesgan la transcripción
@@ -103,7 +103,7 @@ app:
   language: null          # idioma de salida del refinador. null = conservar el
                           # idioma hablado (lo normal). Fíjalo solo si quieres
                           # que la salida sea siempre en un idioma concreto.
-  save_history: true      # guarda cada dictado en ~/.dictador/history.jsonl
+  save_history: true      # guarda cada dictado en ~/.voooxly/history.jsonl
                           # (0600, rota a 500 entradas) — alimenta Recent entre
                           # sesiones y "Search history…". false = solo en memoria.
   show_overlay: true      # HUD con transcripción en vivo

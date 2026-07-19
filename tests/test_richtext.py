@@ -1,7 +1,7 @@
 """markdown_to_html cubre EXACTAMENTE lo que emiten los modos: ##/###, bullets,
 numeradas, checkboxes, `code` y ** residual. Y nunca deja HTML sin escapar.
 """
-from dictador import modes, richtext
+from voooxly import modes, richtext
 
 
 def test_titulos_y_bullets():

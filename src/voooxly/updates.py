@@ -17,13 +17,13 @@ from pathlib import Path
 
 import requests
 
-log = logging.getLogger("dictador.updates")
+log = logging.getLogger("voooxly.updates")
 
-# OJO: voxly.vercel.app pertenece a OTRO usuario de Vercel; nuestro dominio
-# de producción es usevoxly.vercel.app (proyecto "voxly" de crovettopro).
-APPCAST_URL = "https://usevoxly.vercel.app/appcast.json"
+# OJO: voooxly.vercel.app pertenece a OTRO usuario de Vercel; nuestro dominio
+# de producción es voooxly.com (proyecto "voooxly" de crovettopro).
+APPCAST_URL = "https://voooxly.com/appcast.json"
 # Fuera del .app (ejecutando desde el repo) no hay Info.plist del que leer.
-FALLBACK_VERSION = "1.0.1"
+FALLBACK_VERSION = "1.0.0"
 
 
 def _parse(v: str) -> tuple[int, ...] | None:
@@ -98,7 +98,7 @@ def download(
     `progress_cb(pct)` recibe 0-100 si el servidor manda Content-Length.
     """
     dest_dir = dest_dir or Path.home() / "Downloads"
-    dest = dest_dir / f"Voxly-{version}.dmg"
+    dest = dest_dir / f"Voooxly-{version}.dmg"
     part = dest_dir / (dest.name + ".part")
     try:
         dest_dir.mkdir(parents=True, exist_ok=True)

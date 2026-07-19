@@ -1,6 +1,6 @@
-"""Generador del icono de Voxly: la comilla editorial — el habla hecha texto.
+"""Generador del icono de Voooxly: la comilla editorial — el habla hecha texto.
 
-Marca compartida con la landing (usevoxly.vercel.app): comilla doble de
+Marca compartida con la landing (voooxly.com): comilla doble de
 apertura serif (Iowan Old Style, la misma familia del sitio) en color papel
 sobre squircle teal. Sustituye a las barras de onda v1, demasiado parecidas
 al logo de Wispr Flow.
@@ -119,27 +119,27 @@ def draw_menubar_rec(scale: int) -> Image.Image:
 def preview():
     out = ASSETS / "preview"
     out.mkdir(parents=True, exist_ok=True)
-    path = out / "voxly-quote.png"
+    path = out / "voooxly-quote.png"
     draw_icon(512).save(path)
     print(path)
 
 
 def build():
     ASSETS.mkdir(exist_ok=True)
-    iconset = ASSETS / "Voxly.iconset"
+    iconset = ASSETS / "Voooxly.iconset"
     iconset.mkdir(exist_ok=True)
     for pts in (16, 32, 128, 256, 512):
         draw_icon(pts).save(iconset / f"icon_{pts}x{pts}.png")
         draw_icon(pts * 2).save(iconset / f"icon_{pts}x{pts}@2x.png")
     subprocess.run(
-        ["iconutil", "-c", "icns", str(iconset), "-o", str(ASSETS / "Voxly.icns")],
+        ["iconutil", "-c", "icns", str(iconset), "-o", str(ASSETS / "Voooxly.icns")],
         check=True,
     )
     for scale, name in ((1, "menubar.png"), (2, "menubar@2x.png")):
         draw_menubar(scale).save(ASSETS / name)
     for scale, name in ((1, "menubar-rec.png"), (2, "menubar-rec@2x.png")):
         draw_menubar_rec(scale).save(ASSETS / name)
-    print("OK: assets/Voxly.icns + assets/menubar*.png + menubar-rec*.png")
+    print("OK: assets/Voooxly.icns + assets/menubar*.png + menubar-rec*.png")
 
 
 if __name__ == "__main__":

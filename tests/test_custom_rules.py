@@ -3,7 +3,7 @@ prompt de cualquier modo (menos Verbatim) y no aparecer cuando están vacías.
 """
 from unittest.mock import patch
 
-from dictador.refine import Refiner
+from voooxly.refine import Refiner
 
 
 class _Cfg:

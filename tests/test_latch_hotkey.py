@@ -7,7 +7,7 @@ import time
 
 from pynput import keyboard
 
-from dictador.hotkey import HotkeyManager
+from voooxly.hotkey import HotkeyManager
 
 
 def _mk(on_start, on_stop, on_latch=None, on_cancel=None):

@@ -5,7 +5,7 @@ _on_stop, o la app se queda en RECORDING para siempre (visto en real).
 import threading
 import time
 
-from dictador import audio
+from voooxly import audio
 
 
 class _StreamColgado:

@@ -7,7 +7,7 @@ import threading
 
 from pynput import keyboard
 
-from dictador.hotkey import HotkeyManager
+from voooxly.hotkey import HotkeyManager
 
 
 def _mk(on_cycle=None, on_paste=None):
