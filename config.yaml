@@ -96,6 +96,9 @@ app:
   language: null          # idioma de salida del refinador. null = conservar el
                           # idioma hablado (lo normal). Fíjalo solo si quieres
                           # que la salida sea siempre en un idioma concreto.
+  save_history: true      # guarda cada dictado en ~/.dictador/history.jsonl
+                          # (0600, rota a 500 entradas) — alimenta Recent entre
+                          # sesiones y "Search history…". false = solo en memoria.
   show_overlay: true      # HUD con transcripción en vivo
   overlay_position: "bottom-right"   # "bottom-right" | "top-right" | "center"
   sounds: true            # clic sutil al empezar/terminar de grabar (menú: Settings → Sounds)
