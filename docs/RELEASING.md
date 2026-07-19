@@ -30,7 +30,7 @@ Comprueba que está:
 security find-identity -v -p codesigning | grep "Developer ID Application"
 ```
 
-Debe aparecer una línea con `Developer ID Application: Eduardo Crovetto (96Y828UCBL)`.
+Debe aparecer una línea con `Developer ID Application: Eduardo Crovetto (TH7LG6UP8H)`.
 
 ### 2. Crear una contraseña específica de app
 
@@ -48,7 +48,7 @@ Esto deja las credenciales en el llavero para que el script no las pida cada vez
 ```bash
 xcrun notarytool store-credentials voxly \
   --apple-id tu-email@ejemplo.com \
-  --team-id 96Y828UCBL \
+  --team-id TH7LG6UP8H \
   --password <la-contraseña-específica-del-paso-2>
 ```
 
