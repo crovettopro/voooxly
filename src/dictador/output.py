@@ -15,18 +15,23 @@ import time
 log = logging.getLogger("dictador.output")
 
 
-def copy_to_clipboard(text: str) -> None:
+def copy_to_clipboard(text: str, html: str | None = None) -> None:
     if not text:
         return
     # NSPasteboard directo: pbcopy interpreta stdin según LANG/LC_CTYPE, y al
     # lanzar la .app desde Finder no hay locale -> asume Mac Roman y rompe las
     # tildes (í -> √≠). Escribir el NSString evita la codificación por completo.
+    # Si llega `html`, se añade como segundo sabor (public.html): las apps de
+    # texto rico (Mail, Gmail, Notion) pegan títulos/listas renderizados y las
+    # de texto plano (Terminal, Obsidian, IDEs) siguen tomando el plano.
     try:
         from AppKit import NSPasteboard, NSPasteboardTypeString
 
         pb = NSPasteboard.generalPasteboard()
         pb.clearContents()
         pb.setString_forType_(text, NSPasteboardTypeString)
+        if html:
+            pb.setString_forType_(html, "public.html")
     except Exception as e:
         log.error("NSPasteboard falló (%s); fallback a pbcopy", e)
         try:
@@ -53,7 +58,7 @@ def paste_frontmost() -> bool:
         return False
 
 
-def deliver(text: str, auto_paste: bool, copy: bool) -> str:
+def deliver(text: str, auto_paste: bool, copy: bool, html: str | None = None) -> str:
     """Entrega el texto y devuelve cómo quedó, para que la UI pueda avisar:
 
     - "pasted": pegado en la app activa (lo normal).
@@ -63,7 +68,7 @@ def deliver(text: str, auto_paste: bool, copy: bool) -> str:
     if not text:
         return "failed"
     if copy:
-        copy_to_clipboard(text)
+        copy_to_clipboard(text, html)
     if auto_paste:
         # pequeño delay para que el portapapeles se asiente
         time.sleep(0.08)
