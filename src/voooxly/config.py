@@ -12,14 +12,14 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG = ROOT / "config.yaml"
 
 # Resolución de config robusta para .app bundle y desarrollo:
-# 1. env DICTADOR_CONFIG  2. ~/.dictador/config.yaml (override usuario)
+# 1. env VOOOXLY_CONFIG  2. ~/.voooxly/config.yaml (override usuario)
 # 3. config junto al binario (pyinstaller _MEIPASS / repo)
 def _config_candidates() -> list[pathlib.Path]:
     cands: list[pathlib.Path] = []
-    env = os.environ.get("DICTADOR_CONFIG")
+    env = os.environ.get("VOOOXLY_CONFIG")
     if env:
         cands.append(pathlib.Path(env))
-    cands.append(pathlib.Path.home() / ".dictador" / "config.yaml")
+    cands.append(pathlib.Path.home() / ".voooxly" / "config.yaml")
     # pyinstaller bundle
     meipass = getattr(sys, "_MEIPASS", None)
     if meipass:
@@ -29,7 +29,7 @@ def _config_candidates() -> list[pathlib.Path]:
 
 
 def _try_dotenv() -> None:
-    for path in (pathlib.Path.home() / ".dictador" / ".env", ROOT / ".env"):
+    for path in (pathlib.Path.home() / ".voooxly" / ".env", ROOT / ".env"):
         if not path.exists():
             continue
         for line in path.read_text(encoding="utf-8").splitlines():
@@ -54,17 +54,17 @@ def _deep_get(d: dict, path: str, default: Any = None) -> Any:
 
 # Map env overrides -> config keys
 _ENV_OVERRIDES = {
-    "DICTADOR_LLM_BACKEND": "llm.backend",
-    "DICTADOR_LLM_OLLAMA_MODEL": "llm.ollama.model",
-    "DICTADOR_LLM_OLLAMA_HOST": "llm.ollama.host",
-    "DICTADOR_LLM_CLAUDE_MODEL": "llm.claude.model",
-    "DICTADOR_STT_MODEL": "stt.model",
-    "DICTADOR_STT_LANGUAGE": "stt.language",
-    "DICTADOR_APP_MODE": "app.default_mode",
-    "DICTADOR_APP_LANGUAGE": "app.language",
-    "DICTADOR_APP_OVERLAY": "app.show_overlay",
-    "DICTADOR_AUDIO_SILENCE": "audio.silence_to_stop",
-    "DICTADOR_OUTPUT_AUTOPASTE": "output.auto_paste",
+    "VOOOXLY_LLM_BACKEND": "llm.backend",
+    "VOOOXLY_LLM_OLLAMA_MODEL": "llm.ollama.model",
+    "VOOOXLY_LLM_OLLAMA_HOST": "llm.ollama.host",
+    "VOOOXLY_LLM_CLAUDE_MODEL": "llm.claude.model",
+    "VOOOXLY_STT_MODEL": "stt.model",
+    "VOOOXLY_STT_LANGUAGE": "stt.language",
+    "VOOOXLY_APP_MODE": "app.default_mode",
+    "VOOOXLY_APP_LANGUAGE": "app.language",
+    "VOOOXLY_APP_OVERLAY": "app.show_overlay",
+    "VOOOXLY_AUDIO_SILENCE": "audio.silence_to_stop",
+    "VOOOXLY_OUTPUT_AUTOPASTE": "output.auto_paste",
 }
 
 

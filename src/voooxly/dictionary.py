@@ -2,12 +2,12 @@
 
 Dos mecanismos que se complementan:
 - **words** → van al initial prompt del whisper-server y SESGAN la
-  transcripción hacia esas grafías ("Voxly" en vez de "Boxli").
+  transcripción hacia esas grafías ("Voooxly" en vez de "Boxli").
 - **replacements** → corrección determinista sobre el texto FINAL (palabra
   completa, sin distinguir mayúsculas) para lo que Whisper sigue fallando
   aunque esté en el prompt.
 
-Vive en ~/.dictador/dictionary.json (editable a mano) y se añade desde el
+Vive en ~/.voooxly/dictionary.json (editable a mano) y se añade desde el
 menú: "wisperflow -> Wispr Flow" crea un reemplazo; "Ucademy" a secas, una
 palabra de sesgo. Best-effort siempre: un diccionario roto no estorba.
 """
@@ -18,9 +18,9 @@ import logging
 import re
 from pathlib import Path
 
-log = logging.getLogger("dictador.dictionary")
+log = logging.getLogger("voooxly.dictionary")
 
-DICT_FILE = Path.home() / ".dictador" / "dictionary.json"
+DICT_FILE = Path.home() / ".voooxly" / "dictionary.json"
 
 
 def load(path: Path | None = None) -> dict:

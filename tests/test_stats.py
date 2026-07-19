@@ -1,7 +1,7 @@
 """Stats acumulativas: nunca lanzan, nunca pierden lo acumulado y el resumen
 cuenta una historia útil ("typing saved") en vez de números crudos.
 """
-from dictador import stats
+from voooxly import stats
 
 
 def test_bump_acumula(tmp_path):

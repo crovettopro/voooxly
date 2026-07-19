@@ -4,7 +4,7 @@ La lógica va separada de la ventana de onboarding para poder testearla sin AppK
 
 Todo se comprueba en tiempo real, no con un flag guardado en preferencias: si el
 usuario revoca un permiso en Ajustes (o lo pierde tras reinstalar la app, que
-invalida la firma), Voxly tiene que enterarse y volver a guiarle.
+invalida la firma), Voooxly tiene que enterarse y volver a guiarle.
 """
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ import logging
 import subprocess
 from dataclasses import dataclass
 
-log = logging.getLogger("dictador.setup")
+log = logging.getLogger("voooxly.setup")
 
 ACCESSIBILITY_PANE = (
     "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"

@@ -24,15 +24,15 @@ from .config import get_config, resolve_language
 from .hotkey import HotkeyManager
 from .overlay import Overlay
 
-log = logging.getLogger("dictador")
+log = logging.getLogger("voooxly")
 
 # Preferencias que se tocan desde el menú (el config.yaml va DENTRO del .app y
-# es de solo lectura en la práctica): un json pequeño en ~/.dictador.
-PREFS_PATH = os.path.expanduser("~/.dictador/prefs.json")
+# es de solo lectura en la práctica): un json pequeño en ~/.voooxly.
+PREFS_PATH = os.path.expanduser("~/.voooxly/prefs.json")
 # "Start at login": un LaunchAgent clásico — sin APIs de ServiceManagement,
 # funciona igual lanzado desde el repo o desde /Applications.
 LAUNCH_AGENT = os.path.expanduser(
-    "~/Library/LaunchAgents/com.eduardocrovetto.dictador.plist"
+    "~/Library/LaunchAgents/com.eduardocrovetto.voooxly.plist"
 )
 HISTORY_SIZE = 10
 
@@ -54,7 +54,7 @@ def _save_prefs(prefs: dict) -> None:
         log.warning("No pude guardar prefs en %s", PREFS_PATH)
 
 
-class DictadorApp(rumps.App):
+class VoooxlyApp(rumps.App):
     def __init__(self):
         cfg = get_config()
         self.cfg = cfg
@@ -88,7 +88,7 @@ class DictadorApp(rumps.App):
         self._rec_shown = False
         self._timer_seq = 0
         super().__init__(
-            name="Voxly",
+            name="Voooxly",
             icon=icon_path,          # glyph template (se adapta a claro/oscuro)
             title=None if self._has_icon else "🎙",
             template=True,
@@ -149,7 +149,7 @@ class DictadorApp(rumps.App):
         self.ai = rumps.MenuItem("AI: detecting…", callback=self._redetect_ai)
         self.health = rumps.MenuItem("Backend status…", callback=self.show_health)
         self.stats_item = rumps.MenuItem("Usage stats…", callback=self._show_stats)
-        self.quit = rumps.MenuItem("Quit Voxly", callback=self._quit)
+        self.quit = rumps.MenuItem("Quit Voooxly", callback=self._quit)
         # Oculto hasta que el comprobador encuentre una versión nueva (ver _warmup).
         self.update_item = rumps.MenuItem("Update available", callback=self._open_update)
         self._update_url = ""
@@ -264,7 +264,7 @@ class DictadorApp(rumps.App):
         self.set_mode(keys[(i + 1) % len(keys)])
 
     def _refresh_title(self):
-        label = modes.MODES.get(self.mode, {}).get("label", "Voxly")
+        label = modes.MODES.get(self.mode, {}).get("label", "Voooxly")
         state = self._state
         # Barra de menú: glyph template en reposo; grabando = punto rojo +
         # cronómetro (lo lleva _rec_timer); procesando = glyph + "…".
@@ -506,10 +506,10 @@ class DictadorApp(rumps.App):
                     )
                     self._flash("🎤 No signal from the microphone", 2.5)
                     rumps.notification(
-                        "Voxly",
+                        "Voooxly",
                         "No signal from the microphone",
                         "Check the mic isn't muted, and System Settings → "
-                        "Privacy & Security → Microphone → Voxly.",
+                        "Privacy & Security → Microphone → Voooxly.",
                     )
                 else:
                     log.info("Descartado: sin voz (RMS=%.0f).", level)
@@ -599,7 +599,7 @@ class DictadorApp(rumps.App):
                 # El pegado falló pero el texto SÍ está en el portapapeles:
                 # sin este aviso el usuario ve que "no pasa nada" y lo pierde.
                 rumps.notification(
-                    "Voxly",
+                    "Voooxly",
                     "Couldn't paste into the active app",
                     "Your text is on the clipboard — press ⌘V to paste it.",
                 )
@@ -648,7 +648,7 @@ class DictadorApp(rumps.App):
     def _search_history(self, _sender):
         if not self._save_history_on():
             rumps.notification(
-                "Voxly", "History is off",
+                "Voooxly", "History is off",
                 "Set app.save_history: true in config.yaml to keep dictations.",
             )
             return
@@ -664,7 +664,7 @@ class DictadorApp(rumps.App):
             return
         hits = history.search(query, HISTORY_SIZE)
         if not hits:
-            rumps.notification("Voxly", "No matches", f'Nothing matches "{query}".')
+            rumps.notification("Voooxly", "No matches", f'Nothing matches "{query}".')
             return
         # Los resultados se sirven en el propio submenú Recent (clic = copiar);
         # el siguiente dictado lo devuelve a "Recent" normal.
@@ -674,7 +674,7 @@ class DictadorApp(rumps.App):
         self.recent_parent.title = f"Recent — “{query}”"
         self._refresh_recent()
         rumps.notification(
-            "Voxly", f"{len(hits)} match(es)",
+            "Voooxly", f"{len(hits)} match(es)",
             "They're in the Recent submenu — click one to copy it.",
         )
 
@@ -682,7 +682,7 @@ class DictadorApp(rumps.App):
         def cb(_sender):
             if i < len(self._history):
                 output.copy_to_clipboard(self._history[i])
-                rumps.notification("Voxly", "Copied to clipboard", self._history[i][:80])
+                rumps.notification("Voooxly", "Copied to clipboard", self._history[i][:80])
         return cb
 
     # ---------- settings ----------
@@ -713,21 +713,21 @@ class DictadorApp(rumps.App):
         try:
             desc = dictionary.add(entry)
         except ValueError as e:
-            rumps.notification("Voxly", "Not added", str(e))
+            rumps.notification("Voooxly", "Not added", str(e))
             return
         self.stt_prompt = self._build_stt_prompt()  # sesga ya el próximo dictado
-        rumps.notification("Voxly", "Added to dictionary", desc)
+        rumps.notification("Voooxly", "Added to dictionary", desc)
 
     def _install_launch_agent(self) -> bool:
         try:
             os.makedirs(os.path.dirname(LAUNCH_AGENT), exist_ok=True)
             with open(LAUNCH_AGENT, "wb") as f:
                 # `open -a` en vez del binario directo: no duplica instancia
-                # si Voxly ya está corriendo y sobrevive a que muevan el .app
+                # si Voooxly ya está corriendo y sobrevive a que muevan el .app
                 plistlib.dump(
                     {
-                        "Label": "com.eduardocrovetto.dictador",
-                        "ProgramArguments": ["/usr/bin/open", "-a", "Voxly"],
+                        "Label": "com.eduardocrovetto.voooxly",
+                        "ProgramArguments": ["/usr/bin/open", "-a", "Voooxly"],
                         "RunAtLoad": True,
                     },
                     f,
@@ -741,7 +741,7 @@ class DictadorApp(rumps.App):
         """Start at login viene activado de fábrica, UNA sola vez.
 
         Una app de hotkey solo sirve si está corriendo: si el usuario reinicia
-        y Voxly no arranca, el hotkey "no funciona". Si el usuario lo desactiva
+        y Voooxly no arranca, el hotkey "no funciona". Si el usuario lo desactiva
         en Settings, el flag en prefs evita re-activárselo jamás.
         """
         if self._prefs.get("login_default_applied"):
@@ -813,13 +813,13 @@ class DictadorApp(rumps.App):
         b = self._update_ai_item(force=True)
         if b == "none":
             rumps.notification(
-                "Voxly",
+                "Voooxly",
                 "No AI engine found",
                 "Start Ollama, or add ANTHROPIC_API_KEY / OPENAI_API_KEY to "
-                "~/.dictador/.env — then click here again.",
+                "~/.voooxly/.env — then click here again.",
             )
         else:
-            rumps.notification("Voxly", "AI engine", self.ai.title)
+            rumps.notification("Voooxly", "AI engine", self.ai.title)
 
     def _open_update(self, _sender):
         if not self._update_url or self._update_downloading:
@@ -833,7 +833,7 @@ class DictadorApp(rumps.App):
         # en el navegador (el comportamiento antiguo) para no dejarle tirado.
         version = self._update_version or "latest"
         rumps.notification(
-            "Voxly", f"Downloading Voxly {version}…",
+            "Voooxly", f"Downloading Voooxly {version}…",
             "The menu bar icon shows progress.",
         )
         try:
@@ -847,19 +847,19 @@ class DictadorApp(rumps.App):
         if path:
             subprocess.run(["open", str(path)], check=False)
             rumps.notification(
-                "Voxly", "Update downloaded",
-                "Drag Voxly into Applications to replace this version, then relaunch.",
+                "Voooxly", "Update downloaded",
+                "Drag Voooxly into Applications to replace this version, then relaunch.",
             )
         else:
             subprocess.run(["open", self._update_url], check=False)
 
     def _show_stats(self, _sender):
-        rumps.notification("Voxly", "Your dictation stats", stats.summary())
+        rumps.notification("Voooxly", "Your dictation stats", stats.summary())
 
     def show_health(self, _sender):
         h = refine.health()
         msg = " · ".join(f"{k}: {'✓' if v else '✗'}" for k, v in h.items())
-        rumps.notification("Voxly", "Backends", msg)
+        rumps.notification("Voooxly", "Backends", msg)
         self.status.title = msg
 
     def _quit(self, _sender):
@@ -909,7 +909,7 @@ class DictadorApp(rumps.App):
         try:
             if not stt.find_model():
                 rumps.notification(
-                    "Voxly",
+                    "Voooxly",
                     "Downloading speech model",
                     "~550MB, one time only — the menu bar icon shows progress.",
                 )
@@ -920,11 +920,11 @@ class DictadorApp(rumps.App):
                 ok_model = stt.ensure_model(progress_cb=_dl_progress)
                 self._refresh_title()
                 if ok_model:
-                    rumps.notification("Voxly", "Ready", "Speech model installed.")
+                    rumps.notification("Voooxly", "Ready", "Speech model installed.")
                 else:
                     rumps.notification(
-                        "Voxly", "Model download failed",
-                        "Check your connection and relaunch Voxly.",
+                        "Voooxly", "Model download failed",
+                        "Check your connection and relaunch Voooxly.",
                     )
         except Exception as e:
             log.warning("Auto-descarga de modelo falló: %s", e)
@@ -937,7 +937,7 @@ class DictadorApp(rumps.App):
             if not ok:
                 log.warning(
                     "whisper-server no arrancó. Verifica 'brew install whisper-cpp' "
-                    "y el modelo en ~/.dictador/models/ (ver README)."
+                    "y el modelo en ~/.voooxly/models/ (ver README)."
                 )
         except Exception as e:
             log.warning("Warmup STT falló (se intentará al primer uso): %s", e)
@@ -987,7 +987,7 @@ class DictadorApp(rumps.App):
             try:
                 stt.transcribe(ping, self.stt_model, "es")
                 # re-detección barata: si el usuario arrancó Ollama después de
-                # abrir Voxly, el menú se entera solo
+                # abrir Voooxly, el menú se entera solo
                 self._update_ai_item(force=True)
             except Exception:
                 pass

@@ -1,6 +1,6 @@
 """deliver() debe informar de cómo quedó la entrega, para que la UI avise
 cuando el pegado falla y el texto queda "solo" en el portapapeles."""
-import dictador.output as output
+import voooxly.output as output
 
 
 def _patch(monkeypatch, paste_ok: bool):

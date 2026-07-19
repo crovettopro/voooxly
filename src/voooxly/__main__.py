@@ -1,4 +1,4 @@
-"""Punto de entrada: `python -m dictador` o `dictador` tras instalar."""
+"""Punto de entrada: `python -m voooxly` o `voooxly` tras instalar."""
 from __future__ import annotations
 
 import argparse
@@ -15,9 +15,9 @@ def _setup_logging(level: str):
         import os
         from pathlib import Path
 
-        log_dir = Path.home() / ".dictador" / "logs"
+        log_dir = Path.home() / ".voooxly" / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
-        handlers.append(logging.FileHandler(log_dir / "dictador.log", encoding="utf-8"))
+        handlers.append(logging.FileHandler(log_dir / "voooxly.log", encoding="utf-8"))
     except Exception:
         pass
     logging.basicConfig(
@@ -30,7 +30,7 @@ def _setup_logging(level: str):
 
 
 def main():
-    p = argparse.ArgumentParser(prog="dictador", description="Dictado local pro tipo Wispr Flow.")
+    p = argparse.ArgumentParser(prog="voooxly", description="Dictado local pro tipo Wispr Flow.")
     p.add_argument("--check", action="store_true", help="Verifica deps y backends y sale.")
     p.add_argument("--devices", action="store_true", help="Lista dispositivos de entrada y sale.")
     p.add_argument("--onboarding", action="store_true",
@@ -69,9 +69,9 @@ def main():
         return
 
     # arranca la app de menú
-    from .app import DictadorApp
+    from .app import VoooxlyApp
 
-    DictadorApp().run()
+    VoooxlyApp().run()
 
 
 if __name__ == "__main__":

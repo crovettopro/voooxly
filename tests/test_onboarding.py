@@ -15,7 +15,7 @@ pytest.importorskip("AppKit")
 
 from AppKit import NSApplication  # noqa: E402
 
-from dictador import onboarding, setup_checks  # noqa: E402
+from voooxly import onboarding, setup_checks  # noqa: E402
 
 
 @pytest.fixture(scope="module", autouse=True)

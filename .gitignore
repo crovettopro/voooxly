@@ -22,3 +22,17 @@ models/
 # PyInstaller
 build/
 dist/
+
+# Binarios de whisper.cpp vendorizados desde Homebrew.
+# No viajan en git: scripts/bundle-whisper.sh los regenera antes de cada build.
+vendor/
+
+# Notas y planificación interna (se conservan en local, fuera del repo público)
+docs/superpowers/
+RESEARCH.md
+
+# La landing vive en su propio repo (voooxly-web)
+web/
+
+# checkpoints internos del tooling
+.planning/

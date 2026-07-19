@@ -27,7 +27,7 @@ import threading
 
 from pynput import keyboard
 
-log = logging.getLogger("dictador.hotkey")
+log = logging.getLogger("voooxly.hotkey")
 
 
 # Virtual keycodes ANSI de macOS (kVK_ANSI_*) → letra. Fallback para cuando

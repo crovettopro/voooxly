@@ -2,7 +2,7 @@
 
 Una sola ventana con una fila por requisito y su botón de acción. El estado se
 re-comprueba cada segundo con un NSTimer: cuando el usuario concede Accesibilidad
-en Ajustes, la fila se marca sola sin tener que reiniciar Voxly.
+en Ajustes, la fila se marca sola sin tener que reiniciar Voooxly.
 
 RESTRICCIÓN: NSWindow solo puede instanciarse en el hilo principal — igual que el
 NSPanel de overlay.py. Hacerlo desde otro hilo aborta el proceso con SIGABRT.
@@ -30,7 +30,7 @@ from Foundation import NSMakeRect, NSObject, NSTimer
 
 from . import setup_checks, stt
 
-log = logging.getLogger("dictador.onboarding")
+log = logging.getLogger("voooxly.onboarding")
 
 W, H = 540, 500
 ROW_H = 78
@@ -38,9 +38,9 @@ ROW_H = 78
 # key, título, explicación, texto del botón. El orden es el de check_all().
 STEPS = [
     ("mic", "Microphone",
-     "So Voxly can hear you. Your voice never leaves this Mac.", "Allow"),
+     "So Voooxly can hear you. Your voice never leaves this Mac.", "Allow"),
     ("accessibility", "Accessibility",
-     "Lets Voxly use the hotkey and paste text into any app.", "Open Settings"),
+     "Lets Voooxly use the hotkey and paste text into any app.", "Open Settings"),
     ("model", "Speech model",
      "One-time 547 MB download. Transcription runs offline.", "Download"),
     ("ai", "AI engine (optional)",
@@ -70,7 +70,7 @@ class OnboardingController(NSObject):
             NSBackingStoreBuffered,
             False,
         )
-        self._win.setTitle_("Welcome to Voxly")
+        self._win.setTitle_("Welcome to Voooxly")
         self._win.setReleasedWhenClosed_(False)
         content = self._win.contentView()
 

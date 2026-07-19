@@ -1,5 +1,5 @@
 #!/bin/bash
-# Crea un certificado de firma de código autofirmado "Dictador Dev" y lo instala
+# Crea un certificado de firma de código autofirmado "Voooxly Dev" y lo instala
 # confiado en el llavero. Con él, la firma del app es estable entre rebuilds y
 # macOS NO revoca los permisos TCC (Accesibilidad/Micrófono/etc.) en cada build.
 #
@@ -7,8 +7,8 @@
 # usuario al confiar el certificado (una sola vez).
 set -euo pipefail
 
-NAME="Dictador Dev"
-DIR="$HOME/.dictador/cert"
+NAME="Voooxly Dev"
+DIR="$HOME/.voooxly/cert"
 KEYCHAIN="$HOME/Library/Keychains/login.keychain-db"
 
 # ¿ya existe la identidad? entonces no hay nada que hacer
@@ -26,7 +26,7 @@ distinguished_name = dn
 x509_extensions = codesign_ext
 prompt = no
 [dn]
-CN = Dictador Dev
+CN = Voooxly Dev
 [codesign_ext]
 keyUsage = critical,digitalSignature
 extendedKeyUsage = critical,codeSigning

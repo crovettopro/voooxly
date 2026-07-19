@@ -1,7 +1,7 @@
 from contextlib import ExitStack, contextmanager
 from unittest.mock import patch
 
-from dictador import setup_checks
+from voooxly import setup_checks
 
 
 @contextmanager
@@ -50,19 +50,19 @@ def test_needs_setup_true_si_falta_el_microfono():
 
 
 def test_has_model_delega_en_stt():
-    with patch("dictador.stt.find_model", return_value="/ruta/modelo.bin"):
+    with patch("voooxly.stt.find_model", return_value="/ruta/modelo.bin"):
         assert setup_checks.has_model() is True
-    with patch("dictador.stt.find_model", return_value=None):
+    with patch("voooxly.stt.find_model", return_value=None):
         assert setup_checks.has_model() is False
 
 
 def test_has_ai_engine_true_si_algun_backend_esta_vivo():
-    with patch("dictador.refine.health", return_value={"ollama": False, "claude": True, "openai": False}):
+    with patch("voooxly.refine.health", return_value={"ollama": False, "claude": True, "openai": False}):
         assert setup_checks.has_ai_engine() is True
-    with patch("dictador.refine.health", return_value={"ollama": False, "claude": False, "openai": False}):
+    with patch("voooxly.refine.health", return_value={"ollama": False, "claude": False, "openai": False}):
         assert setup_checks.has_ai_engine() is False
 
 
 def test_has_ai_engine_no_lanza_si_health_falla():
-    with patch("dictador.refine.health", side_effect=OSError("boom")):
+    with patch("voooxly.refine.health", side_effect=OSError("boom")):
         assert setup_checks.has_ai_engine() is False

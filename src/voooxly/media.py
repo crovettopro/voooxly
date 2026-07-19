@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 import subprocess
 
-log = logging.getLogger("dictador.media")
+log = logging.getLogger("voooxly.media")
 
 # Reproductores con diccionario AppleScript de "player state" + pause/play.
 PLAYERS = ("Spotify", "Music")

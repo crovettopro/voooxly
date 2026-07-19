@@ -23,7 +23,7 @@ import wave
 import numpy as np
 import requests
 
-log = logging.getLogger("dictador.stt")
+log = logging.getLogger("voooxly.stt")
 
 SR = 16000
 _server_proc: subprocess.Popen | None = None
@@ -40,12 +40,12 @@ def _find_model() -> str | None:
     # tras inactividad y el siguiente dictado paga 10-19s; el cuantizado (~550MB)
     # cabe holgado en RAM con calidad casi idéntica.
     candidates = [
-        os.path.expanduser("~/.dictador/models/ggml-large-v3-turbo-q5_0.bin"),
-        os.path.expanduser("~/.dictador/models/ggml-large-v3-turbo.bin"),
-        os.path.expanduser("~/.dictador/models/ggml-large-v3.bin"),
-        os.path.expanduser("~/.dictador/models/ggml-medium.bin"),
+        os.path.expanduser("~/.voooxly/models/ggml-large-v3-turbo-q5_0.bin"),
+        os.path.expanduser("~/.voooxly/models/ggml-large-v3-turbo.bin"),
+        os.path.expanduser("~/.voooxly/models/ggml-large-v3.bin"),
+        os.path.expanduser("~/.voooxly/models/ggml-medium.bin"),
     ]
-    env_model = os.environ.get("DICTADOR_STT_MODEL_FILE")
+    env_model = os.environ.get("VOOOXLY_STT_MODEL_FILE")
     if env_model and os.path.exists(env_model):
         return env_model
     for c in candidates:
@@ -88,7 +88,7 @@ def _download_model(progress_cb=None) -> str | None:
     m = _find_model()
     if m:
         return m
-    dst = pathlib.Path(os.path.expanduser("~/.dictador/models/ggml-large-v3-turbo-q5_0.bin"))
+    dst = pathlib.Path(os.path.expanduser("~/.voooxly/models/ggml-large-v3-turbo-q5_0.bin"))
     dst.parent.mkdir(parents=True, exist_ok=True)
     tmp = dst.with_suffix(".part")
     log.info("Descargando modelo: %s", MODEL_URL)
@@ -135,7 +135,7 @@ def _which_server() -> str | None:
     # (/opt/homebrew/bin no está) — sin las rutas explícitas, el .app no
     # encontraría whisper-server tras un reinicio del Mac.
     explicit = [
-        os.path.expanduser("~/.dictador/bin/whisper-server"),
+        os.path.expanduser("~/.voooxly/bin/whisper-server"),
         "/opt/homebrew/bin/whisper-server",
         "/usr/local/bin/whisper-server",
     ]
@@ -167,7 +167,7 @@ def start_server(model_path: str | None = None, threads: int = 4, port: int = 80
             return False
         model = model_path or _find_model()
         if not model:
-            log.error("No hay modelo ggml en ~/.dictador/models/. Descarga uno (ver README).")
+            log.error("No hay modelo ggml en ~/.voooxly/models/. Descarga uno (ver README).")
             return False
         _server_url = f"http://127.0.0.1:{port}"
         cmd = [

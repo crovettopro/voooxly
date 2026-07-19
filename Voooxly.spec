@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
-# Spec de PyInstaller para Voxly (menu bar app, sin ventana).
-# Build:  ~/.dictador/venv/bin/pyinstaller Voxly.spec
+# Spec de PyInstaller para Voooxly (menu bar app, sin ventana).
+# Build:  ~/.voooxly/venv/bin/pyinstaller Voooxly.spec
 
 block_cipher = None
 
@@ -61,7 +61,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="Voxly",
+    name="Voooxly",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -79,31 +79,31 @@ coll = COLLECT(
     a.binaries,
     a.zipfiles,
     a.datas,
-    name="Voxly",
+    name="Voooxly",
 )
 
 # .app bundle (LSUIElement para menu bar sin icono en Dock)
 app = BUNDLE(
     coll,
-    name="Voxly.app",
-    icon="assets/Voxly.icns",
+    name="Voooxly.app",
+    icon="assets/Voooxly.icns",
     # OJO: el identifier va como argumento propio y el dict se llama `info_plist`
     # (con `plist=` PyInstaller lo ignora en silencio y el app sale sin
     # NSMicrophoneUsageDescription → macOS entrega silencio del micrófono).
     # El identifier debe coincidir con el de la firma (TCC lo exige).
-    # Se mantiene el bundle id original a propósito: los permisos TCC concedidos
-    # (Accesibilidad/Monitorización/Micrófono) están ligados a él + al cert
-    # "Dictador Dev" — cambiarlo obligaría a re-concederlos.
-    bundle_identifier="com.eduardocrovetto.dictador",
+    # OJO: los permisos TCC (Accesibilidad/Monitorización/Micrófono) cuelgan de
+    # este identifier + el certificado. Tocarlo obliga a re-concederlos TODOS,
+    # así que no se cambia salvo por un renombrado de marca como el de 1.0.0.
+    bundle_identifier="com.eduardocrovetto.voooxly",
     info_plist={
-        "CFBundleName": "Voxly",
-        "CFBundleDisplayName": "Voxly",
-        "CFBundleIdentifier": "com.eduardocrovetto.dictador",
-        "CFBundleVersion": "1.0.1",
-        "CFBundleShortVersionString": "1.0.1",
+        "CFBundleName": "Voooxly",
+        "CFBundleDisplayName": "Voooxly",
+        "CFBundleIdentifier": "com.eduardocrovetto.voooxly",
+        "CFBundleVersion": "1.0.0",
+        "CFBundleShortVersionString": "1.0.0",
         "LSMinimumSystemVersion": "13.0",
         "LSUIElement": True,        # app de menu bar: sin Dock, sin menú principal
-        "NSMicrophoneUsageDescription": "Voxly needs the microphone to transcribe your voice.",
-        "NSSpeechRecognitionUsageDescription": "Voxly transcribes your dictation locally.",
+        "NSMicrophoneUsageDescription": "Voooxly needs the microphone to transcribe your voice.",
+        "NSSpeechRecognitionUsageDescription": "Voooxly transcribes your dictation locally.",
     },
 )

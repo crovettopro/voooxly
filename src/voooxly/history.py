@@ -1,4 +1,4 @@
-"""Historial persistente de dictados: ~/.dictador/history.jsonl.
+"""Historial persistente de dictados: ~/.voooxly/history.jsonl.
 
 Cada línea = {"ts", "mode", "text"}. Los dictados son texto sensible: el
 fichero va con permisos 0600 y `app.save_history: false` lo apaga entero.
@@ -14,9 +14,9 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-log = logging.getLogger("dictador.history")
+log = logging.getLogger("voooxly.history")
 
-HISTORY_FILE = Path.home() / ".dictador" / "history.jsonl"
+HISTORY_FILE = Path.home() / ".voooxly" / "history.jsonl"
 MAX_ENTRIES = 500
 
 

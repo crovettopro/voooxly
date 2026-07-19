@@ -3,7 +3,7 @@ promete el label (un prompt de IA estructurado, Markdown real, un spec…), no u
 vaguedad de una línea. Estos tests fijan las instrucciones clave de cada modo
 para que una edición descuidada no las diluya.
 """
-from dictador import modes
+from voooxly import modes
 
 
 def _prompt(mode: str) -> str:

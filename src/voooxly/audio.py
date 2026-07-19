@@ -21,7 +21,7 @@ import numpy as np
 import sounddevice as sd
 import webrtcvad
 
-log = logging.getLogger("dictador.audio")
+log = logging.getLogger("voooxly.audio")
 
 SR = 16000
 FRAME_MS = 30

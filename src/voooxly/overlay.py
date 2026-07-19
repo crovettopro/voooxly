@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 
-log = logging.getLogger("dictador.overlay")
+log = logging.getLogger("voooxly.overlay")
 
 try:
     from AppKit import (

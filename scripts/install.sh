@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Instalación de Dictador en macOS (Apple Silicon).
-# Mantiene el venv y los modelos FUERA de iCloud (~/.dictador) para evitar
+# Instalación de Voooxly en macOS (Apple Silicon).
+# Mantiene el venv y los modelos FUERA de iCloud (~/.voooxly) para evitar
 # los cuelgues por evicción de iCloud en ~/Desktop.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 PROJECT_DIR="$(pwd)"
-DATA_DIR="$HOME/.dictador"
+DATA_DIR="$HOME/.voooxly"
 export UV_PROJECT_ENVIRONMENT="$DATA_DIR/venv"
 
-echo "==> Dictador installer"
+echo "==> Voooxly installer"
 echo "    Proyecto : $PROJECT_DIR"
 echo "    Datos    : $DATA_DIR (venv + modelos, fuera de iCloud)"
 
@@ -41,7 +41,7 @@ if [ ! -f "$MODEL" ]; then
   python3 - <<'PY'
 import urllib.request, os
 url='https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin'
-dst=os.path.expanduser('~/.dictador/models/ggml-large-v3-turbo.bin')
+dst=os.path.expanduser('~/.voooxly/models/ggml-large-v3-turbo.bin')
 urllib.request.urlretrieve(url, dst)
 print('    modelo descargado')
 PY

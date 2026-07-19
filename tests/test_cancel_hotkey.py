@@ -4,7 +4,7 @@ import threading
 
 from pynput import keyboard
 
-from dictador.hotkey import HotkeyManager
+from voooxly.hotkey import HotkeyManager
 
 
 def _mk(on_cancel, on_start=None, on_stop=None):

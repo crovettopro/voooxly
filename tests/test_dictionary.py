@@ -4,7 +4,7 @@ subcadenas ("marta" no toca "Smartphone") — y un fichero roto no estorba nunca
 """
 import pytest
 
-from dictador import dictionary
+from voooxly import dictionary
 
 
 def test_add_palabra_y_stt_terms(tmp_path):
@@ -33,9 +33,9 @@ def test_add_reemplazo_incompleto_lanza(tmp_path):
 
 def test_apply_reemplaza_palabra_completa_sin_distinguir_mayusculas(tmp_path):
     p = tmp_path / "dict.json"
-    dictionary.add("boxli -> Voxly", p)
+    dictionary.add("boxli -> Voooxly", p)
     assert dictionary.apply("Boxli es genial, uso boxli a diario", p) == (
-        "Voxly es genial, uso Voxly a diario"
+        "Voooxly es genial, uso Voooxly a diario"
     )
 
 
@@ -55,5 +55,5 @@ def test_fichero_corrupto_no_estorba(tmp_path):
     assert dictionary.load(p) == {"words": [], "replacements": {}}
     assert dictionary.apply("hola", p) == "hola"
     # y add() lo repara escribiendo uno nuevo válido
-    dictionary.add("Voxly", p)
-    assert dictionary.stt_terms(p) == ["Voxly"]
+    dictionary.add("Voooxly", p)
+    assert dictionary.stt_terms(p) == ["Voooxly"]

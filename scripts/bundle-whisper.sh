@@ -1,6 +1,6 @@
 #!/bin/bash
 # Vendoriza whisper-server (de Homebrew) dentro del repo → vendor/whisper/
-# para que Voxly.app lo lleve EMBEBIDO y el receptor no necesite Homebrew.
+# para que Voooxly.app lo lleve EMBEBIDO y el receptor no necesite Homebrew.
 #
 # - Copia el binario + clausura de dylibs (libwhisper, libggml*)
 # - IMPORTANTE: ggml carga sus backends (libggml-cpu/metal/blas) por dlopen
