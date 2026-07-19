@@ -35,6 +35,8 @@ audio:
   min_duration: 0.4       # descarta pulsaciones de menos de 0.4s
   min_rms: 50             # RMS int16 mínimo: por debajo = micro sin señal (TCC
                           # denegado o mute) y se descarta sin llamar a Whisper
+  pause_media: true       # pausa Spotify/Music al dictar y los reanuda al soltar
+                          # (solo si estaban sonando; pide Automatización 1ª vez)
 
 # --- Hotkeys (pynput key strings) ---
 hotkeys:
