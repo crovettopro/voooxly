@@ -197,7 +197,8 @@
 
   /* ficha técnica en vez de tarjetas genéricas */
   .spec { border-top: 1px solid var(--rule); margin-top: 2.5rem; }
-  .spec-row { display: grid; gap: .3rem 2rem; padding-block: 1.5rem; border-bottom: 1px solid var(--rule); }
+  .spec-row { display: grid; gap: .3rem 2rem; padding-block: 1.5rem; padding-inline: .6rem; margin-inline: -.6rem; border-bottom: 1px solid var(--rule); border-radius: 8px; transition: background .18s ease; }
+  .spec-row:hover { background: var(--bg-raised); }
   @media (min-width: 48rem) { .spec-row { grid-template-columns: 12rem 1fr auto; align-items: baseline; } }
   .spec-key { font-family: var(--mono); font-size: var(--step--1); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
   .spec-val { color: var(--fg-muted); max-width: var(--measure); }
@@ -208,10 +209,10 @@
   @media (min-width: 48rem) { .steps { grid-template-columns: repeat(3, 1fr); gap: 2rem; } }
   .step { display: grid; gap: .5rem; align-content: start; }
   .step::before {
-    counter-increment: step; content: counter(step);
-    font-family: var(--display); font-size: var(--step-1); color: var(--accent);
-    width: 2rem; height: 2rem; display: grid; place-items: center;
-    border: 1px solid var(--rule); border-radius: 50%;
+    counter-increment: step; content: counter(step, decimal-leading-zero);
+    font-family: var(--mono); font-size: var(--step--1); letter-spacing: .05em; color: var(--signal-text);
+    width: 2.4rem; height: 2.4rem; display: grid; place-items: center;
+    border: 1px solid var(--rule); border-radius: 50%; background: var(--bg-raised);
   }
   .step h3 { font-size: var(--step-1); }
   .step p { color: var(--fg-muted); font-size: .95rem; }
@@ -224,7 +225,9 @@
   .mode {
     font-size: .9rem; padding: .45rem .9rem; border-radius: 2rem;
     border: 1px solid var(--rule); background: var(--bg-raised); color: var(--fg-muted);
+    transition: transform .15s ease, border-color .15s ease;
   }
+  .mode:hover { transform: translateY(-1px); border-color: var(--accent); }
   .mode.is-default { border-color: var(--accent); background: var(--accent-soft); color: var(--fg); }
 
   /* ---------- comparativa ---------- */
@@ -255,8 +258,12 @@
   .faq details p { color: var(--fg-muted); max-width: var(--measure); padding-bottom: 1.3rem; }
 
   /* ---------- cierre ---------- */
-  .close { background: var(--bg-raised); border-block: 1px solid var(--rule); text-align: center; }
-  .close h2 { font-size: var(--step-2); }
+  .close {
+    background: radial-gradient(80% 100% at 50% 0%, var(--accent-soft) 0%, transparent 65%), var(--bg-raised);
+    border-block: 1px solid var(--rule); text-align: center;
+  }
+  .close h2 { font-size: var(--step-h2); letter-spacing: -.02em; }
+  .close .btn { padding: 1rem 1.9rem; }
   .close p { color: var(--fg-muted); margin: .8rem auto 0; max-width: var(--measure); }
   .close .cta-row { justify-content: center; }
 
