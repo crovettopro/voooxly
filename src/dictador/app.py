@@ -19,7 +19,7 @@ import time
 
 import rumps
 
-from . import audio, media, modes, output, refine, setup_checks, stt, updates
+from . import audio, history, media, modes, output, refine, setup_checks, stt, updates
 from .config import get_config, resolve_language
 from .hotkey import HotkeyManager
 from .overlay import Overlay
@@ -165,10 +165,13 @@ class DictadorApp(rumps.App):
         settings.add(self.login_item)
         settings.add(self.sounds_item)
 
+        self.search_item = rumps.MenuItem("Search history…", callback=self._search_history)
+
         self.menu = [
             *items,
             rumps.separator,
             self.recent_parent,
+            self.search_item,
             rumps.separator,
             self.status,
             self.ai,
@@ -491,10 +494,21 @@ class DictadorApp(rumps.App):
         self._refresh_title()
 
     # ---------- historial ----------
+    def _save_history_on(self) -> bool:
+        return bool(self.cfg.get("app.save_history", True))
+
     def _push_history(self, text: str):
         self._history.appendleft(text)
+        self.recent_parent.title = "Recent"  # deshace un filtro de búsqueda previo
+        self._refresh_recent()
+        if self._save_history_on():
+            history.append(text, self.mode)
+
+    def _refresh_recent(self):
+        """Vuelca self._history al submenú Recent (solo title/hidden: seguro
+        desde hilos de fondo; añadir/quitar NSMenuItems no lo sería)."""
         try:
-            self._recent_empty._menuitem.setHidden_(True)
+            self._recent_empty._menuitem.setHidden_(len(self._history) > 0)
             for i, mi in enumerate(self._recent_items):
                 if i < len(self._history):
                     t = self._history[i].replace("\n", " ")
@@ -504,6 +518,39 @@ class DictadorApp(rumps.App):
                     mi._menuitem.setHidden_(True)
         except Exception:
             log.debug("No pude refrescar el submenú Recent", exc_info=True)
+
+    def _search_history(self, _sender):
+        if not self._save_history_on():
+            rumps.notification(
+                "Voxly", "History is off",
+                "Set app.save_history: true in config.yaml to keep dictations.",
+            )
+            return
+        resp = rumps.Window(
+            message="Find past dictations containing:",
+            title="Search history",
+            ok="Search",
+            cancel="Cancel",
+            dimensions=(300, 24),
+        ).run()
+        query = (resp.text or "").strip() if resp.clicked else ""
+        if not query:
+            return
+        hits = history.search(query, HISTORY_SIZE)
+        if not hits:
+            rumps.notification("Voxly", "No matches", f'Nothing matches "{query}".')
+            return
+        # Los resultados se sirven en el propio submenú Recent (clic = copiar);
+        # el siguiente dictado lo devuelve a "Recent" normal.
+        self._history.clear()
+        for t in reversed(hits):
+            self._history.appendleft(t)
+        self.recent_parent.title = f"Recent — “{query}”"
+        self._refresh_recent()
+        rumps.notification(
+            "Voxly", f"{len(hits)} match(es)",
+            "They're in the Recent submenu — click one to copy it.",
+        )
 
     def _make_recent_cb(self, i: int):
         def cb(_sender):
@@ -746,6 +793,15 @@ class DictadorApp(rumps.App):
                 self._update_version = info["version"]
                 self.update_item.title = f"Update to {info['version']} →"
                 self.update_item._menuitem.setHidden_(False)
+        except Exception:
+            pass
+        # 4) sembrar Recent con el historial persistente de sesiones anteriores
+        try:
+            if self._save_history_on() and not self._history:
+                for t in reversed(history.load(HISTORY_SIZE)):
+                    self._history.appendleft(t)
+                if self._history:
+                    self._refresh_recent()
         except Exception:
             pass
         # Keepalive: en Macs con poca RAM macOS pagina el modelo (~1.6GB) tras
