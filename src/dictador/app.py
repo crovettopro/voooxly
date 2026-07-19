@@ -19,7 +19,7 @@ import time
 
 import rumps
 
-from . import audio, modes, output, refine, setup_checks, stt, updates
+from . import audio, media, modes, output, refine, setup_checks, stt, updates
 from .config import get_config, resolve_language
 from .hotkey import HotkeyManager
 from .overlay import Overlay
@@ -142,6 +142,7 @@ class DictadorApp(rumps.App):
         self._update_url = ""
         self._update_version = ""
         self._update_downloading = False
+        self._paused_players: list[str] = []
 
         # Recent: los últimos dictados, clic = volver a copiarlos al portapapeles.
         # Los items se PRE-crean ocultos: añadir/quitar items de un NSMenu desde el
@@ -291,7 +292,28 @@ class DictadorApp(rumps.App):
         self._partial_thread.start()
         self._recorder.start(on_stop=self._on_stop)
         self._play_sound("Pop")     # "te escucho"
+        # Pausar la música (Spotify/Music) mientras dictas. En hilo aparte:
+        # osascript tarda 100-300ms y no debe retrasar la captura del micro.
+        if self.cfg.get("audio.pause_media", True):
+            threading.Thread(target=self._pause_media, daemon=True).start()
         log.info("Grabando…")
+
+    def _pause_media(self):
+        try:
+            self._paused_players = media.pause_playing()
+        except Exception:
+            self._paused_players = []
+        # Pulsación ultracorta: si el dictado terminó mientras pausábamos,
+        # _on_stop ya pasó y nadie más va a reanudar. Hazlo aquí.
+        with self._lock:
+            recording = self._state == "RECORDING"
+        if not recording:
+            self._resume_media()
+
+    def _resume_media(self):
+        players, self._paused_players = self._paused_players, []
+        if players:
+            threading.Thread(target=media.resume, args=(players,), daemon=True).start()
 
     def _stop_record(self, force: bool):
         if self._recorder:
@@ -327,6 +349,9 @@ class DictadorApp(rumps.App):
 
     def _on_stop(self, audio_buf, duration: float):
         self._partial_running.clear()
+        # La música vuelve en cuanto el micro se cierra: el refino puede seguir
+        # unos segundos, pero el usuario ya no está hablando.
+        self._resume_media()
         if self._cancel.is_set():
             threading.Thread(target=self._finish_cancel, daemon=True).start()
             return
