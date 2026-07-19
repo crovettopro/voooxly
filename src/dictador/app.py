@@ -19,7 +19,7 @@ import time
 
 import rumps
 
-from . import audio, history, media, modes, output, refine, setup_checks, stt, updates
+from . import audio, dictionary, history, media, modes, output, refine, setup_checks, stt, updates
 from .config import get_config, resolve_language
 from .hotkey import HotkeyManager
 from .overlay import Overlay
@@ -77,10 +77,9 @@ class DictadorApp(rumps.App):
         self._sounds = bool(self._prefs.get("sounds", cfg.get("app.sounds", True)))
         self._snd_cache: dict = {}   # NSSound vivos mientras suenan (si no, dealloc a mitad)
         self._history: collections.deque[str] = collections.deque(maxlen=HISTORY_SIZE)
-        # Diccionario personal → initial prompt de Whisper (sesga hacia esas grafías).
-        # Whisper solo usa los últimos ~224 tokens del prompt: se recorta por si acaso.
-        terms = cfg.get("stt.dictionary", []) or []
-        self.stt_prompt = ", ".join(str(t).strip() for t in terms if str(t).strip())[:600] or None
+        # Diccionario (config + personal) → initial prompt de Whisper (sesga
+        # hacia esas grafías). Whisper solo usa ~224 tokens: se recorta.
+        self.stt_prompt = self._build_stt_prompt()
 
         icon_path = self._menubar_icon_path()
         self._has_icon = icon_path is not None
@@ -162,8 +161,10 @@ class DictadorApp(rumps.App):
         self.login_item.state = 1 if os.path.exists(LAUNCH_AGENT) else 0
         self.sounds_item = rumps.MenuItem("Sounds", callback=self._toggle_sounds)
         self.sounds_item.state = 1 if self._sounds else 0
+        self.dict_item = rumps.MenuItem("Add to dictionary…", callback=self._add_to_dictionary)
         settings.add(self.login_item)
         settings.add(self.sounds_item)
+        settings.add(self.dict_item)
 
         self.search_item = rumps.MenuItem("Search history…", callback=self._search_history)
 
@@ -458,6 +459,12 @@ class DictadorApp(rumps.App):
                     log.exception("Refinado falló; uso transcripción cruda")
                     final = transcript
             final = final or transcript
+            # Reemplazos del diccionario personal: corrección determinista de
+            # las grafías que Whisper sigue fallando aunque estén en el prompt.
+            try:
+                final = dictionary.apply(final)
+            except Exception:
+                log.debug("dictionary.apply falló; sigo sin reemplazos", exc_info=True)
             if self._cancel.is_set():
                 log.info("Cancelado durante el refino; nada pegado.")
                 self._flash("(canceled — nothing pasted)", 0.9)
@@ -560,6 +567,38 @@ class DictadorApp(rumps.App):
         return cb
 
     # ---------- settings ----------
+    def _build_stt_prompt(self) -> str | None:
+        terms = [str(t).strip() for t in (self.cfg.get("stt.dictionary", []) or [])]
+        try:
+            for t in dictionary.stt_terms():
+                if t not in terms:
+                    terms.append(t)
+        except Exception:
+            log.debug("No pude leer el diccionario personal", exc_info=True)
+        return ", ".join(t for t in terms if t)[:600] or None
+
+    def _add_to_dictionary(self, _sender):
+        resp = rumps.Window(
+            message=(
+                "A word Whisper misspells (e.g. Ucademy), or a fix:\n"
+                "wrong spelling -> right spelling"
+            ),
+            title="Add to dictionary",
+            ok="Add",
+            cancel="Cancel",
+            dimensions=(300, 24),
+        ).run()
+        entry = (resp.text or "").strip() if resp.clicked else ""
+        if not entry:
+            return
+        try:
+            desc = dictionary.add(entry)
+        except ValueError as e:
+            rumps.notification("Voxly", "Not added", str(e))
+            return
+        self.stt_prompt = self._build_stt_prompt()  # sesga ya el próximo dictado
+        rumps.notification("Voxly", "Added to dictionary", desc)
+
     def _install_launch_agent(self) -> bool:
         try:
             os.makedirs(os.path.dirname(LAUNCH_AGENT), exist_ok=True)
