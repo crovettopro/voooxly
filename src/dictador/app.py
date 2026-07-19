@@ -157,6 +157,7 @@ class DictadorApp(rumps.App):
         self._update_downloading = False
         self._paused_players: list[str] = []
         self._mode_flash_seq = 0
+        self._mic_warned = False
 
         # Recent: los últimos dictados, clic = volver a copiarlos al portapapeles.
         # Los items se PRE-crean ocultos: añadir/quitar items de un NSMenu desde el
@@ -491,19 +492,30 @@ class DictadorApp(rumps.App):
                 log.info("Grabación descartada (muy corta).")
                 self._flash("(too short)", 1.0)
                 return
-            # 0) guardas: nunca mandar silencio a Whisper (alucina "Gracias"/"Thank you")
+            # 0) guardas: nunca mandar silencio a Whisper (alucina "Gracias"/"Thank you").
+            # Dos silencios distintos: RMS≈0 es silencio DIGITAL (permiso TCC
+            # denegado o micro muteado — hay que avisar, pero solo una vez por
+            # sesión); RMS bajo pero no nulo es una sala tranquila con alguien
+            # que no habló — descarte discreto sin notificación del sistema.
             level = audio.rms_of(audio_buf)
             if level < self._min_rms():
-                log.warning(
-                    "Micrófono sin señal (RMS=%.0f). ¿Permiso de Micrófono concedido?", level
-                )
-                self._flash("🎤 No audio captured — check Microphone permission", 2.5)
-                rumps.notification(
-                    "Voxly",
-                    "Microphone is silent",
-                    "System Settings → Privacy & Security → Microphone → enable Voxly.",
-                )
+                if level < 3.0 and not self._mic_warned:
+                    self._mic_warned = True
+                    log.warning(
+                        "Micrófono sin señal (RMS=%.0f). ¿Permiso de Micrófono concedido?", level
+                    )
+                    self._flash("🎤 No signal from the microphone", 2.5)
+                    rumps.notification(
+                        "Voxly",
+                        "No signal from the microphone",
+                        "Check the mic isn't muted, and System Settings → "
+                        "Privacy & Security → Microphone → Voxly.",
+                    )
+                else:
+                    log.info("Descartado: sin voz (RMS=%.0f).", level)
+                    self._flash("(no speech — nothing pasted)", 1.2)
                 return
+            self._mic_warned = False  # audio sano: si el micro muere luego, re-avisar
             if not had_speech:
                 log.info("Sin voz detectada por VAD (RMS=%.0f).", level)
                 self._flash("(no speech detected)", 1.2)
