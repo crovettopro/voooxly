@@ -116,6 +116,7 @@
   .nav { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-block: 1.5rem; }
   .brand { display: flex; align-items: center; gap: .55rem; font-family: var(--display); font-size: var(--step-1); }
   .brand-mark { width: 1.1em; height: 1.1em; color: var(--accent); }
+  .nav-links { display: flex; gap: 1.4rem; }
   .nav-link { font-size: var(--step--1); color: var(--fg-muted); text-decoration: none; }
   .nav-link:hover { color: var(--fg); }
 
@@ -236,6 +237,23 @@
   .compare td.good::before { content: "✓  "; color: var(--accent); }
   .compare td:last-child { color: var(--fg-muted); }
 
+  /* ---------- faq ---------- */
+  .faq { margin-top: 2.5rem; border-top: 1px solid var(--rule); }
+  .faq details { border-bottom: 1px solid var(--rule); }
+  .faq summary {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 1rem;
+    padding-block: 1.15rem; cursor: pointer; list-style: none;
+    font-family: var(--display); font-size: var(--step-1); font-weight: 600;
+  }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::after {
+    content: "+"; font-family: var(--mono); color: var(--accent);
+    transition: transform .2s ease; flex-shrink: 0;
+  }
+  .faq details[open] summary::after { transform: rotate(45deg); }
+  .faq summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .faq details p { color: var(--fg-muted); max-width: var(--measure); padding-bottom: 1.3rem; }
+
   /* ---------- cierre ---------- */
   .close { background: var(--bg-raised); border-block: 1px solid var(--rule); text-align: center; }
   .close h2 { font-size: var(--step-2); }
@@ -270,7 +288,10 @@
       </svg>
       Voxly
     </span>
-    <a class="nav-link" href="https://github.com/crovettopro/voxly">GitHub</a>
+    <span class="nav-links">
+      <a class="nav-link" href="#faq">FAQ</a>
+      <a class="nav-link" href="https://github.com/crovettopro/voxly">GitHub</a>
+    </span>
   </nav>
 
   <header class="hero">
@@ -414,6 +435,45 @@
           <tr><th scope="row">Source code</th><td class="good">Open on GitHub</td><td>Closed</td></tr>
         </tbody>
       </table>
+    </div>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">FAQ</span>
+      <h2>Questions, answered</h2>
+    </div>
+    <div class="faq">
+      <details>
+        <summary>Is it really free?</summary>
+        <p>Yes. No account, no trial, no subscription. You bring your own AI for text cleanup — a local Ollama or an API key — or use none at all: raw transcription works out of the box.</p>
+      </details>
+      <details>
+        <summary>Which Macs does it run on?</summary>
+        <p>Apple Silicon (M1 or later) on macOS 13+. Intel Macs aren't supported.</p>
+      </details>
+      <details>
+        <summary>Where does my voice go?</summary>
+        <p>Nowhere. Audio is transcribed on your Mac by a local Whisper model. If you connect a cloud AI for cleanup, only the <em>text</em> is sent — never audio.</p>
+      </details>
+      <details>
+        <summary>Do I need Ollama or an API key?</summary>
+        <p>No. Without any AI, Voxly pastes the raw transcription — already well punctuated. With one, it also tidies grammar and formatting according to the mode you're in.</p>
+      </details>
+      <details>
+        <summary>Does it work offline?</summary>
+        <p>Yes — transcription is fully local. Only optional cloud cleanup and update checks need a connection.</p>
+      </details>
+      <details>
+        <summary>What languages does it support?</summary>
+        <p>Whisper large-v3-turbo understands ~99 languages, strongest in English and Spanish. Voxly follows your system language automatically.</p>
+      </details>
+      <details>
+        <summary>How do updates work?</summary>
+        <p>The app checks a version file at launch and shows "Update available" in the menu bar. Download the new DMG, replace the app, done.</p>
+      </details>
     </div>
   </div>
 </section>
