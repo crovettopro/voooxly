@@ -70,6 +70,12 @@ class Refiner:
         sys_prompt = modes.system_prompt(mode, language)
         if not sys_prompt:  # modo literal
             return transcript
+        # Reglas personales del usuario (llm.custom_rules): se añaden AL FINAL
+        # para que puedan matizar cualquier modo ("nunca uses punto y coma",
+        # "mi nombre se escribe Eduardo"...). Vacío por defecto.
+        custom = str(self.cfg.get("llm.custom_rules", "") or "").strip()
+        if custom:
+            sys_prompt += "\n\nPersonal rules from the user — always follow them:\n" + custom
 
         backend = self.backend
         if backend == "auto":

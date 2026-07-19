@@ -54,6 +54,10 @@ hotkeys:
   # Cancelar el dictado en curso (grabando o procesando): descarta todo,
   # no se pega nada. UNA tecla.
   cancel: ["esc"]
+  # Latch (solo modo hold): si el dictado va para largo, pulsa esta tecla SIN
+  # soltar la de dictado y la grabación queda fijada — puedes soltar. Un tap
+  # de la tecla de dictado termina. Esc también lo deshace. UNA tecla.
+  latch: ["shift"]
 
 # --- Output ---
 output:
@@ -71,6 +75,9 @@ llm:
   # pegan tal cual sin pasar por el LLM — Whisper ya puntúa bien frases cortas
   # y se ahorran 2-6s. 0 = desactivado.
   fast_lane_words: 9
+  # Reglas personales que se añaden al prompt de TODOS los modos (menos
+  # Verbatim). Ej: "Never use semicolons. My company is spelled Ucademy."
+  custom_rules: ""
   # Ollama
   ollama:
     host: "http://localhost:11434"
