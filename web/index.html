@@ -180,6 +180,14 @@
   .wrote.pending { color: var(--fg-faint); }
   .wrote ul { margin: 0; padding-left: 1.1rem; }
 
+  /* ---------- banner free ---------- */
+  .freeband { background: var(--ink); color: var(--paper); border-block: 1px solid var(--rule); padding-block: 1rem; }
+  .freeband-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: .35rem 1.4rem; }
+  .freeband strong { font-family: var(--display); font-size: var(--step-1); font-weight: 600; }
+  .freeband span { color: #B8C4BF; font-size: var(--step--1); }
+  .freeband a { color: #DCEBE6; text-underline-offset: 3px; }
+  .freeband a:hover { color: #fff; }
+
   /* ---------- secciones ---------- */
   section { padding-block: calc(var(--section-gap) / 2); }
   .section-head { max-width: var(--measure); }
@@ -289,6 +297,13 @@
       </div>
     </div>
   </header>
+</div>
+
+<div class="freeband">
+  <div class="wrap freeband-row">
+    <strong>Free. No account. No subscription.</strong>
+    <span>Open source — <a href="https://github.com/crovettopro/voxly">read every line on GitHub</a></span>
+  </div>
 </div>
 
 <section>
