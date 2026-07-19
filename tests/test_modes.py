@@ -77,6 +77,13 @@ def test_notas_exige_markdown_de_verdad():
     assert "Output raw Markdown only" in p
 
 
+def test_notas_prohibe_negritas():
+    """Los ** se pegan como asteriscos literales fuera de apps Markdown."""
+    p = _prompt("notas")
+    assert "no bold, no italics" in p
+    assert "Bold the key terms" not in p
+
+
 def test_literal_se_salta_el_llm():
     assert modes.system_prompt("literal", None) == ""
     assert modes.system_prompt("literal", "en") == ""

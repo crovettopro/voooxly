@@ -167,7 +167,8 @@ MODES: dict[str, dict] = {
             "clearly separate themes; otherwise one flat list is fine.\n"
             "- Use `-` bullets for items, `1.` numbering for genuinely ordered "
             "steps, and `- [ ]` checkboxes for tasks or to-dos the user dictated.\n"
-            "- Bold the key terms and decisions (**launch date**, **blocked**).\n"
+            "- Plain text inside items: no bold, no italics — emphasis markers "
+            "become literal asterisks in apps that don't render Markdown.\n"
             "- Keep every piece of information: condense wording, never content.\n"
             "- Output raw Markdown only — no code fences around it, no commentary."
         ),
