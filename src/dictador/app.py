@@ -223,6 +223,10 @@ class DictadorApp(rumps.App):
         prioridad sobre el flash.
         """
         if not self._show_overlay or not getattr(self._overlay, "_built", False):
+            log.debug(
+                "flash: descartado (show_overlay=%s, built=%s)",
+                self._show_overlay, getattr(self._overlay, "_built", None),
+            )
             return
         with self._lock:
             if self._state != "IDLE":
@@ -241,7 +245,7 @@ class DictadorApp(rumps.App):
                         return  # empezó un dictado: su flujo gestiona el HUD
                 self._overlay.hide()
             except Exception:
-                log.debug("Flash de modo falló", exc_info=True)
+                log.warning("Flash de modo falló", exc_info=True)
 
         threading.Thread(target=_do, daemon=True).start()
 
