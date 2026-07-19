@@ -66,30 +66,34 @@ class Overlay:
             x = (frame.size.width - w) / 2
             y = (frame.size.height - h) / 2
 
-        win = NSPanel.alloc().initWithContentRect_styleMask_backing_defer_(
+        # GOTCHA macOS 26: un NSPanel (borderless O con título) NUNCA llega al
+        # window server — isVisible devuelve True pero CGWindowList no lo lista
+        # y no se pinta ni un píxel (verificado empíricamente con capturas).
+        # Un NSWindow borderless sí se compone. Mismo motivo por el que el blur
+        # NSVisualEffectView "behind window" del HUD original no se veía: la
+        # ventana entera era un fantasma. Receta actual: NSWindow + capa CALayer
+        # oscura redondeada (sin blur, fiable en macOS 26).
+        win = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
             NSRect((x, y), (w, h)),
             NSBorderlessWindowMask,
             NSBackingStoreBuffered,
             False,
         )
+        win.setReleasedWhenClosed_(False)
         win.setLevel_(19)  # NSFloatingWindowLevel, por encima de apps normales
         win.setOpaque_(False)
         win.setBackgroundColor_(NSColor.clearColor())
         win.setHasShadow_(True)
         win.setCollectionBehavior_(1 << 4)  # NSWindowCollectionBehaviorCanJoinAllSpaces
 
-        # vista de efecto (blur) de fondo
-        try:
-            blur = NSVisualEffectView.alloc().initWithFrame_(NSRect((0, 0), (w, h)))
-            blur.setMaterial_(NSVisualEffectMaterialPopover)
-            blur.setBlendingMode_(NSVisualEffectBlendingModeBehindWindow)
-            blur.setState_(1)  # active
-            blur.setWantsLayer_(True)
-            blur.setCornerRadius_(16)
-            win.setContentView_(blur)
-            container = blur
-        except Exception:
-            container = win.contentView()
+        container = NSView.alloc().initWithFrame_(NSRect((0, 0), (w, h)))
+        container.setWantsLayer_(True)
+        layer = container.layer()
+        layer.setBackgroundColor_(
+            NSColor.colorWithCalibratedWhite_alpha_(0.08, 0.88).CGColor()
+        )
+        layer.setCornerRadius_(16.0)
+        win.setContentView_(container)
 
         label = NSTextField.alloc().initWithFrame_(NSRect((16, 12), (w - 32, h - 24)))
         label.setBezeled_(False)
