@@ -162,9 +162,12 @@ Hard-won build gotchas:
 
 ### Roadmap
 
-- Real auto-update (download + guided install from the in-app notice).
-- Persistent, searchable dictation history.
-- Personal dictionary with text replacements.
+Shipping in 1.0.1: in-app update download, music auto-pause while dictating,
+persistent searchable history, personal dictionary with replacements, usage
+stats, hands-free latch (hold + Shift), custom cleanup rules.
+
+Next up (1.1):
+
 - Edit Mode: select any text, speak an instruction, get it transformed.
 - Per-app modes and optional on-screen context for smarter cleanup.
 
