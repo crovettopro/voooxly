@@ -15,6 +15,10 @@ dentro del mismo listener.
 
 cancel (Esc) descarta el dictado en curso: la app decide si aplica (solo cuando
 está grabando o procesando), así que dispararlo en cada Esc del sistema es barato.
+
+latch (Shift, solo en modo hold): si el dictado va para largo, pulsa latch SIN
+soltar la tecla de dictado y la grabación queda fijada — puedes soltar. Un tap
+de la tecla de dictado la termina. Esc también deshace el latch.
 """
 from __future__ import annotations
 
@@ -56,6 +60,8 @@ class HotkeyManager:
         on_paste,
         cancel_keys: list[str] | None = None,
         on_cancel=None,
+        latch_keys: list[str] | None = None,
+        on_latch=None,
     ):
         self.toggle_mode = toggle_mode
         self.on_toggle = on_toggle
@@ -64,12 +70,16 @@ class HotkeyManager:
         self.on_cycle = on_cycle
         self.on_paste = on_paste
         self.on_cancel = on_cancel
+        self.on_latch = on_latch
 
         # tecla de dictado (modo hold: una sola tecla)
         self._toggle_key = toggle_keys[0].lower() if toggle_keys else None
         # tecla de cancelar (una sola, Esc por defecto)
         self._cancel_key = cancel_keys[0].lower() if cancel_keys else None
+        # tecla de latch (una sola; "shift" también casa shift_r)
+        self._latch_key = latch_keys[0].lower() if latch_keys else None
         self._held = False
+        self._latched = False
         # combos (cycle/paste) y también el toggle si modo "toggle" con combo
         self._cycle_combo = _combo_names(cycle_keys) if cycle_keys else None
         self._paste_combo = _combo_names(paste_keys) if paste_keys else None
@@ -91,9 +101,29 @@ class HotkeyManager:
 
         # --- dictado ---
         if self.toggle_mode == "hold" and name == self._toggle_key:
-            if not self._held:
+            if self._latched:
+                # tap con la grabación fijada = terminar. `already` filtra el
+                # autorepeat de una tecla mantenida tras el tap.
+                if not already:
+                    self._latched = False
+                    threading.Thread(target=self.on_stop, daemon=True).start()
+                return
+            if not self._held and not already:
                 self._held = True
                 threading.Thread(target=self.on_start, daemon=True).start()
+            return
+
+        # --- latch: fijar la grabación mientras se mantiene la tecla de dictado ---
+        if (
+            self.toggle_mode == "hold"
+            and self._latch_key
+            and self._held
+            and not self._latched
+            and (name == self._latch_key or name.startswith(self._latch_key + "_"))
+        ):
+            self._latched = True
+            if self.on_latch:
+                threading.Thread(target=self.on_latch, daemon=True).start()
             return
 
         if already:
@@ -101,6 +131,7 @@ class HotkeyManager:
 
         # --- cancelar dictado (Esc) ---
         if self.on_cancel and name == self._cancel_key:
+            self._latched = False  # un dictado cancelado deja de estar fijado
             threading.Thread(target=self.on_cancel, daemon=True).start()
             return
 
@@ -124,6 +155,8 @@ class HotkeyManager:
 
         if self.toggle_mode == "hold" and name == self._toggle_key and self._held:
             self._held = False
+            if self._latched:
+                return  # fijado: se sigue grabando hasta el próximo tap
             threading.Thread(target=self.on_stop, daemon=True).start()
 
     def start(self) -> None:

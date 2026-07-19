@@ -105,7 +105,16 @@ class DictadorApp(rumps.App):
             on_paste=self.paste_last,
             cancel_keys=cfg.get("hotkeys.cancel", ["esc"]),
             on_cancel=self.cancel_record,
+            latch_keys=cfg.get("hotkeys.latch", ["shift"]),
+            on_latch=self._on_latch,
         )
+
+    def _on_latch(self):
+        log.info("Latch: grabación fijada, tap en la tecla de dictado para terminar.")
+        try:
+            self._overlay.update("🔒 Hands-free — tap the dictation key to finish")
+        except Exception:
+            pass
 
     @staticmethod
     def _menubar_icon_path() -> str | None:
