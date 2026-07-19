@@ -97,6 +97,7 @@ MODES: dict[str, dict] = {
     "resumir": {
         "label": "Summarize",
         "hint": "Condenses what you said into crisp bullets.",
+        "rich_paste": True,  # bullets renderizados en apps de texto rico
         "system": (
             "Condense the transcript into crisp bullets that capture every "
             "distinct point.\n"
@@ -159,6 +160,7 @@ MODES: dict[str, dict] = {
     "notas": {
         "label": "Markdown notes",
         "hint": "Structures your speech as a markdown note.",
+        "rich_paste": True,  # títulos/listas renderizados en Mail, Notion, Gmail…
         "system": (
             "Structure the transcript as a well-formed Markdown note, ready for "
             "Obsidian, Notion or a README.\n"

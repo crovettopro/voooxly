@@ -4,7 +4,7 @@ import dictador.output as output
 
 
 def _patch(monkeypatch, paste_ok: bool):
-    monkeypatch.setattr(output, "copy_to_clipboard", lambda text: None)
+    monkeypatch.setattr(output, "copy_to_clipboard", lambda text, html=None: None)
     monkeypatch.setattr(output, "paste_frontmost", lambda: paste_ok)
     # sin esperas reales en tests
     monkeypatch.setattr(output.time, "sleep", lambda s: None)

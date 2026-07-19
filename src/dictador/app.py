@@ -19,7 +19,7 @@ import time
 
 import rumps
 
-from . import audio, dictionary, history, media, modes, output, refine, setup_checks, stats, stt, updates
+from . import audio, dictionary, history, media, modes, output, refine, richtext, setup_checks, stats, stt, updates
 from .config import get_config, resolve_language
 from .hotkey import HotkeyManager
 from .overlay import Overlay
@@ -585,7 +585,16 @@ class DictadorApp(rumps.App):
             # 3) entregar
             auto_paste = bool(self.cfg.get("output.auto_paste", True))
             copy = bool(self.cfg.get("output.copy_to_clipboard", True))
-            status = output.deliver(final, auto_paste=auto_paste, copy=copy)
+            # Modos con estructura Markdown: segundo sabor HTML en el
+            # portapapeles para que Mail/Gmail/Notion peguen títulos y
+            # listas renderizados (las apps de texto plano ni lo ven).
+            html = None
+            if modes.MODES.get(self.mode, {}).get("rich_paste"):
+                try:
+                    html = richtext.markdown_to_html(final)
+                except Exception:
+                    log.debug("markdown_to_html falló; pego solo texto plano", exc_info=True)
+            status = output.deliver(final, auto_paste=auto_paste, copy=copy, html=html)
             if auto_paste and status == "copied":
                 # El pegado falló pero el texto SÍ está en el portapapeles:
                 # sin este aviso el usuario ve que "no pasa nada" y lo pierde.
