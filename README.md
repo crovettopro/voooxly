@@ -1,163 +1,176 @@
-# Voxly — private, on-device voice dictation (antes "Dictador")
+# Voxly — private, on-device voice dictation for macOS
 
-Sistema de dictado por voz **100% local** en macOS (Apple Silicon). No solo transcribe:
-un LLM **ordena y mejora** lo que dices según el **modo** activo. Se lanza con un hotkey,
-dictas, te callas, y el resultado se pega solo en la app activa.
+**Hold a key, speak, let go — polished text appears in whatever app you're using.**
+100% local speech-to-text on Apple Silicon: your voice never leaves your Mac.
 
-- **STT on-device** con `whisper.cpp` (binario nativo, Metal/CoreML en Apple Silicon, **sin torch**).
-- **VAD + endpointing** por silencio (te callas → se cierra solo, como Wispr).
-- **Refino LLM** por modo: Ollama (local/cloud) por defecto, o Claude API, o OpenAI-compatible.
-- **Hotkey global** + **menu bar** + **overlay HUD** con transcripción en vivo.
+Voxly doesn't just transcribe. An LLM **rewrites what you said according to the
+active mode** — organize your thoughts, draft a reply, shape an AI prompt, take
+Markdown notes — and the result is pasted right where your cursor is.
 
-> **Nota sobre iCloud:** el código va en `~/Desktop/code-edu/dictado-local`, pero el
-> **venv y los modelos se guardan en `~/.dictador/`** (fuera de iCloud) para evitar los
-> cuelgues por evicción de iCloud que sufren los binarios grandes en `~/Desktop`.
+🌐 **Website & download:** [usevoxly.vercel.app](https://usevoxly.vercel.app) ·
+📦 **Latest DMG:** [Releases](https://github.com/crovettopro/voxly/releases)
 
-Ver `RESEARCH.md` para el análisis de cómo funciona Wispr Flow y por qué este stack.
+## Features
 
-## Instalación
+- **On-device STT** with `whisper.cpp` (native binary, Metal on Apple Silicon, no torch).
+  Whisper large-v3-turbo: ~99 languages, strongest in English and Spanish.
+- **Silence endpointing** (VAD): stop talking and it finishes on its own.
+- **Modes**: the same speech comes out as clean prose, a ready-to-send reply,
+  a structured AI prompt, Markdown notes, a code spec, a summary or a translation.
+- **Bring your own AI (or none)**: cleanup runs through Ollama (local), Claude API
+  or any OpenAI-compatible endpoint — auto-detected. Without any, Voxly pastes the
+  raw transcription, which Whisper already punctuates well.
+- **Global hotkey + menu bar + live HUD** with real-time transcription.
+- **Free.** No account, no subscription, no telemetry.
+
+## Using Voxly
+
+Download the DMG from [usevoxly.vercel.app](https://usevoxly.vercel.app), drag
+Voxly to Applications, and a first-run assistant walks you through microphone
+and Accessibility permissions, the model download and (optionally) an AI engine.
+
+- **Right ⌘ (hold)** — push-to-talk: speak while holding, release to finish.
+- **Esc** — cancel the dictation in progress; nothing is pasted.
+- **Ctrl+Shift+M** — cycle modes.
+- **Ctrl+Shift+V** — paste the last result again.
+
+Key and behavior are configurable (`config.yaml > hotkeys`).
+
+## Modes
+
+| Mode | What you get |
+|---|---|
+| **Organize & reply** (default) | Cleans fillers and false starts; replies come out message-ready |
+| **AI prompt** | A structured, reusable prompt (task, context, requirements, output) — never the answer |
+| **Summarize** | Crisp bullets that keep every number, name and decision |
+| **Translate EN→ES / ES→EN** | Natural translation that keeps your register and tone |
+| **Code / spec** | An engineering spec: behavior, edge cases, backticked identifiers |
+| **Markdown notes** | A real Markdown note: `##` title, sections, checkboxes for to-dos |
+| **Verbatim** | Exactly what you said — no LLM, no rewriting |
+
+Switch from the menu bar or with Ctrl+Shift+M. Define your own in
+`src/dictador/modes.py`.
+
+## Privacy model
+
+Audio is recorded, transcribed and discarded **on your Mac** — the Whisper model
+runs locally via `whisper-server`. If you connect a cloud AI for text cleanup
+(Claude/OpenAI/cloud-routed Ollama), only the transcribed **text** is sent, never
+audio. With a local Ollama model or no AI at all, nothing leaves your machine.
+
+---
+
+## Building from source
+
+Requires an Apple Silicon Mac, [Homebrew](https://brew.sh) and [uv](https://docs.astral.sh/uv/).
 
 ```bash
-cd ~/Desktop/code-edu/dictado-local
+git clone https://github.com/crovettopro/voxly && cd voxly
 ./scripts/install.sh
 ```
 
-Esto instala `portaudio` + `whisper-cpp` (Homebrew), crea el venv con `uv` en `~/.dictador/venv`
-(fuera de iCloud), copia `.env` y descarga el modelo `ggml-large-v3-turbo` (~1.6GB) a `~/.dictador/models/`.
+This installs `portaudio` + `whisper-cpp` (Homebrew), creates the venv with `uv`
+in `~/.dictador/venv`, copies `.env` and downloads the Whisper model to
+`~/.dictador/models/`.
 
-### Permisos de macOS (te los pedirá al arrancar)
-- **Accesibilidad** → para el hotkey global y simular Cmd+V. Sistema > Privacidad y seguridad > Accesibilidad.
-- **Micrófono** → para grabar. Sistemas > Privacidad y seguridad > Micrófono.
-- **Automatización** → para que osascript pegue. Sale un diálogo la primera vez.
+> **Why `~/.dictador`?** venv and models live outside any iCloud-synced folder.
+> iCloud evicts large binaries and hangs builds — keep them out of Desktop/Documents.
 
-Si el paste no funciona, suele ser Accesibilidad/Automatización sin conceder.
+### macOS permissions (prompted on first run)
+- **Accessibility** — global hotkey + simulated Cmd+V paste.
+- **Microphone** — recording.
+- **Automation** — osascript pasting (first-time dialog).
 
-## Uso
+If pasting doesn't work, it's almost always Accessibility/Automation not granted.
+
+### Running
 
 ```bash
-./scripts/launch.sh             # arranca la app de menú en background
-./scripts/launch.sh --check     # verifica backends + STT
-./scripts/launch.sh --devices   # lista mics (para elegir audio.device)
-./scripts/launch.sh --fg        # arranca en primer plano (ver logs en vivo)
+./scripts/launch.sh             # start the menu bar app in the background
+./scripts/launch.sh --check     # verify backends + STT
+./scripts/launch.sh --devices   # list microphones (for audio.device)
+./scripts/launch.sh --fg        # run in the foreground (live logs)
 ```
 
-> `launch.sh` ya pone `UV_PROJECT_ENVIRONMENT=~/.dictador/venv`. Si lanzas a mano con
-> `uv run dictador`, exporta esa variable antes.
+> `launch.sh` sets `UV_PROJECT_ENVIRONMENT=~/.dictador/venv`. If you run
+> `uv run dictador` manually, export that variable first.
 
-Aparece 🎙 en la barra de menús.
+### Configuration
 
-- **⌘ derecha (mantener)** → push-to-talk: habla mientras la mantienes, suelta
-  para terminar (tecla y modo en `config.yaml > hotkeys`).
-- Habla. El overlay muestra la transcripción en vivo.
-- Sueltas la tecla → transcribe, refina y pega solo.
-- **Esc** → cancela el dictado en curso (grabando o procesando): no se pega nada.
-- **Ctrl+Shift+M** → cambia de modo.
-- **Ctrl+Shift+V** → vuelve a pegar el último resultado.
+Everything lives in `config.yaml`, with `.env` overrides (see `.env.example`):
 
-## Modos
+- `DICTADOR_LLM_BACKEND` = `ollama` | `claude` | `openai` | `none`
+- `ANTHROPIC_API_KEY` — cleanup with Claude (best rewriting quality)
+- `DICTADOR_APP_LANGUAGE` — force an output language (default: keep the language you spoke)
 
-| Modo | Qué hace |
-|---|---|
-| **Ordenar ideas** (default) | Limpia muletillas, estructura, sin inventar |
-| **Responder a personas** | Lo convierte en email/mensaje bien redactado |
-| **Prompt para IA** | Lo convierte en un prompt claro para un LLM |
-| **Resumir** | Bullets concisos |
-| **Traducir EN→ES / ES→EN** | Traducción manteniendo tono |
-| **Código / spec** | Spec/comentario de código |
-| **Notas Markdown** | Nota con headings y listas |
-| **Literal** | Solo transcribe, sin reescritura |
+Cleanup with a fully local model:
 
-Cambia de modo desde el menú o con Ctrl+Shift+M. Define los tuyos en `src/dictador/modes.py`.
-
-## Configuración
-
-Todo en `config.yaml`. Overrides por entorno en `.env` (ver `.env.example`):
-
-- `DICTADOR_LLM_BACKEND` = `ollama` | `claude` | `openai`
-- `ANTHROPIC_API_KEY` para refino con Claude (mejor reescritura)
-- `DICTADOR_STT_MODEL` para cambiar de modelo (p.ej. `mlx-community/whisper-medium` si 8GB va justa)
-- `DICTADOR_APP_LANGUAGE` idioma de salida (`es`, `en`, …)
-
-### Refino con Ollama
-Por defecto usa `glm-5.2:cloud` enrutado por tu Ollama local. Sirve cualquier modelo:
 ```bash
-ollama pull qwen3:8b         # modelo local puro, sin red
-# y en config.yaml: llm.ollama.model: "qwen3:8b"
+ollama pull qwen3:8b
+# config.yaml → llm.ollama.model: "qwen3:8b"
 ```
 
-## Arquitectura
+### Architecture
 
 ```
-hotkey (pynput) ──▶ app (rumps menubar) ──▶ recorder (sounddevice + webrtcvad)
-                                                  │ partials cada 1.5s ─▶ overlay (AppKit HUD)
-                                                  ▼ silencio
+hotkey (pynput) ──▶ app (rumps menu bar) ──▶ recorder (sounddevice + webrtcvad)
+                                                  │ partials every ~2s ─▶ overlay (AppKit HUD)
+                                                  ▼ silence
    whisper-server (subprocess, Metal) ◀── HTTP /inference (wav) ── stt.py
                                                   │
-                                                  ▼ texto crudo
-                                       refine (ollama/claude/openai) según modo
+                                                  ▼ raw transcript
+                                       refine (ollama/claude/openai) per mode
                                                   │
                                                   ▼
-                                    output (pbcopy + Cmd+V en la app activa)
+                                    output (pbcopy + Cmd+V into the active app)
 ```
 
-`whisper-server` se lanza al arrancar y **mantiene el modelo en memoria**, así cada
-transcripción (partial o final) es una petición HTTP rápida sin recargar modelo y sin torch.
+`whisper-server` starts with the app and **keeps the model in memory**, so every
+transcription (partial or final) is a fast HTTP request — no model reload, no torch.
 
-Cada bloque es un módulo swappable: `stt.py`, `refine.py`, `output.py`, `modes.py`.
+Each block is a swappable module: `stt.py`, `refine.py`, `output.py`, `modes.py`.
 
-## Build, deploy y compartir
+### Tests
 
 ```bash
-# Certificado de firma estable (UNA vez; pide tu contraseña en un diálogo).
-# Sin él, cada rebuild invalida los permisos TCC y hay que re-concederlos.
-bash scripts/make-cert.sh
-
-# Build + instalar en /Applications (firma con "Dictador Dev" si existe)
-bash scripts/deploy.sh
-
-# Paquete para compartir con otros Macs (Apple Silicon):
-# genera dist/Voxly-vX.Y.Z-share.zip con el app + install.sh + README
-bash scripts/package.sh
+UV_PROJECT_ENVIRONMENT=~/.dictador/venv uv run pytest tests/ -q
 ```
 
-El receptor solo necesita descomprimir y ejecutar `bash install.sh`: instala
-whisper-cpp con brew, descarga el modelo, copia el app, lo firma ad-hoc en su
-Mac (evita el "app dañada" de Gatekeeper) y le guía con los permisos.
-
-### Release público (DMG notarizado)
-
-Para que cualquiera pueda instalarlo con doble clic, sin instalador ni terminal:
+### Building the app + public release
 
 ```bash
-./scripts/release.sh --dry-run   # ensayo: valida firma y DMG sin cuenta Apple
-./scripts/release.sh             # release real: firma Developer ID + notariza
+bash scripts/make-cert.sh        # stable self-signed cert (once) — keeps TCC grants across rebuilds
+bash scripts/deploy.sh           # build + install into /Applications
+bash scripts/package.sh          # shareable zip for other Apple Silicon Macs
+./scripts/release.sh --dry-run   # signed-DMG rehearsal without an Apple account
+./scripts/release.sh             # real release: Developer ID + notarization
 ```
 
-Requiere un certificado **Developer ID Application** y un perfil de notarización
-guardado — los cuatro pasos de preparación (una sola vez) están en
-[docs/RELEASING.md](docs/RELEASING.md), junto con el porqué de cada decisión.
+The public-release prerequisites (Developer ID certificate, notarization
+credentials) and the reasoning behind each decision are in
+[docs/RELEASING.md](docs/RELEASING.md).
 
-Al primer arranque, un asistente (`src/dictador/onboarding.py`) guía al usuario
-por micrófono, Accesibilidad, descarga del modelo y motor de IA; se puede probar
-aislado con `python -m dictador --onboarding`. La app avisa de versiones nuevas
-consultando el `appcast.json` publicado en la landing (`web/`).
+Hard-won build gotchas:
 
-Gotchas de build aprendidos a base de golpes:
-- El dict del spec es `info_plist=` (no `plist=` — se ignora en silencio) y el
-  bundle id va en `bundle_identifier=`; sin `NSMicrophoneUsageDescription`
-  macOS entrega **silencio** del micro y Whisper alucina "Thank you.".
-- Firmar siempre en `/Applications`, nunca en `dist/` (iCloud re-inyecta
-  xattrs y la firma falla con "detritus not allowed").
-- El identifier de la firma debe coincidir con el CFBundleIdentifier del plist
-  o TCC no asocia los permisos aunque el toggle esté en ON.
+- The PyInstaller spec takes `info_plist=` (not `plist=`, silently ignored) and
+  the bundle id goes in `bundle_identifier=`; without `NSMicrophoneUsageDescription`
+  macOS delivers **silence** from the mic and Whisper hallucinates "Thank you.".
+- Always sign in `/Applications`, never inside an iCloud-synced folder (iCloud
+  re-injects xattrs and signing fails with "detritus not allowed").
+- The signing identifier must match the plist's CFBundleIdentifier or TCC won't
+  associate permissions even with the toggle ON.
 
-## Limitaciones / siguientes pasos
-- Aprender de correcciones (log de edits + few-shot en el prompt) — lo que hace Wispr.
-- ASR condicionado por contexto (leer ventana activa).
-- Dictionary / snippets personales.
+### Roadmap
 
-## Estructura
+- Real auto-update (download + guided install from the in-app notice).
+- Persistent, searchable dictation history.
+- Personal dictionary with text replacements.
+- Edit Mode: select any text, speak an instruction, get it transformed.
+- Per-app modes and optional on-screen context for smarter cleanup.
+
+### Project layout
+
 ```
 src/dictador/  __main__ · app · audio · stt · refine · output · hotkey · overlay · modes · config
-config.yaml · .env.example · scripts/install.sh · RESEARCH.md
+config.yaml · scripts/ · web/ (landing + appcast) · docs/RELEASING.md
 ```
