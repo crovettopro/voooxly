@@ -681,6 +681,11 @@ class VoooxlyApp(rumps.App):
             # Whisper ya puntúa bien frases breves y ahorramos 2-6s de LLM.
             fast_words = int(self.cfg.get("llm.fast_lane_words", 9))
             n_words = len(transcript.split())
+            # refiner sólo se instancia en la rama que de verdad llama a refine():
+            # el aviso de más abajo lo consulta con getattr(refiner, ...), así
+            # que en fast-lane (refiner=None) simplemente no dispara — nunca un
+            # flag rancio de un dictado anterior.
+            refiner = None
             if (
                 fast_words > 0
                 and modes.MODES.get(self.mode, {}).get("fast_lane")
@@ -689,8 +694,9 @@ class VoooxlyApp(rumps.App):
                 log.info("Fast-lane (%d palabras): sin refino LLM.", n_words)
                 final = transcript
             else:
+                refiner = refine.Refiner(self.cfg)
                 try:
-                    final = refine.Refiner(self.cfg).refine(transcript, self.mode, self.language)
+                    final = refiner.refine(transcript, self.mode, self.language)
                 except Exception:
                     log.exception("Refinado falló; uso transcripción cruda")
                     final = transcript
@@ -722,6 +728,15 @@ class VoooxlyApp(rumps.App):
                 except Exception:
                     log.debug("markdown_to_html falló; pego solo texto plano", exc_info=True)
             status = output.deliver(final, auto_paste=auto_paste, copy=copy, html=html)
+            # El texto ya se pegó (con o sin refino): este aviso solo informa
+            # que la IA no actuó y se pegó la transcripción cruda por un fallo
+            # (red caída, proveedor roto...). Los caminos deliberados (modo
+            # literal, fast-lane, backend "none") no dejan last_fallback puesto.
+            if getattr(refiner, "last_fallback", None):
+                self._flash(
+                    "Your words were pasted as-is.", 2.2,
+                    title="⚠ AI didn't answer",
+                )
             if auto_paste and status == "copied":
                 # El pegado falló pero el texto SÍ está en el portapapeles:
                 # sin este aviso el usuario ve que "no pasa nada" y lo pierde.

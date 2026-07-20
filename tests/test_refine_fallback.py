@@ -1,0 +1,79 @@
+"""Señal de degradación: el usuario debe saber cuándo la IA no actuó.
+
+Directiva del dueño (2026-07-20): si no hay clave o el proveedor no funciona,
+avisar — y pegar igualmente lo que se pueda. El texto crudo por FALLO activa
+last_fallback; el texto crudo DELIBERADO (modo literal, sin backend) no.
+"""
+
+import requests
+
+from voooxly import refine
+
+
+class CfgFake:
+    def __init__(self, valores):
+        self._v = valores
+
+    def get(self, path, default=None):
+        return self._v.get(path, default)
+
+
+def _cfg_ollama():
+    return CfgFake({
+        "llm.backend": "ollama",
+        "llm.ollama.host": "http://localhost:11434",
+        "llm.ollama.model": "llama3.2",
+        "llm.ollama.timeout": 5,
+    })
+
+
+def test_fallo_de_red_marca_last_fallback_y_devuelve_crudo(monkeypatch):
+    monkeypatch.setattr(requests, "post", lambda *a, **k: (_ for _ in ()).throw(
+        requests.ConnectionError("sin red")))
+    r = refine.Refiner(_cfg_ollama())
+    out = r.refine("hola que tal", "ordenar", "es")
+    assert out == "hola que tal"
+    assert r.last_fallback
+
+
+def test_exito_deja_last_fallback_a_none(monkeypatch):
+    class R:
+        status_code = 200
+        text = "{}"
+        def raise_for_status(self): pass
+        def json(self): return {"message": {"content": "Hola, ¿qué tal?"}}
+    monkeypatch.setattr(requests, "post", lambda *a, **k: R())
+    r = refine.Refiner(_cfg_ollama())
+    assert r.refine("hola que tal", "ordenar", "es") == "Hola, ¿qué tal?"
+    assert r.last_fallback is None
+
+
+def test_modo_literal_no_marca_fallback():
+    r = refine.Refiner(_cfg_ollama())
+    assert r.refine("tal cual", "literal", "es") == "tal cual"
+    assert r.last_fallback is None
+
+
+def test_backend_none_no_marca_fallback():
+    """Sin IA configurada el texto crudo es lo prometido, no un fallo."""
+    r = refine.Refiner(CfgFake({"llm.backend": "none"}))
+    assert r.refine("hola", "ordenar", "es") == "hola"
+    assert r.last_fallback is None
+
+
+def test_un_exito_despues_de_un_fallo_limpia_el_flag(monkeypatch):
+    """El flag es del ÚLTIMO refine(), no una alarma pegajosa."""
+    monkeypatch.setattr(requests, "post", lambda *a, **k: (_ for _ in ()).throw(
+        requests.ConnectionError("sin red")))
+    r = refine.Refiner(_cfg_ollama())
+    r.refine("uno", "ordenar", "es")
+    assert r.last_fallback
+
+    class R:
+        status_code = 200
+        text = "{}"
+        def raise_for_status(self): pass
+        def json(self): return {"message": {"content": "Dos."}}
+    monkeypatch.setattr(requests, "post", lambda *a, **k: R())
+    r.refine("dos", "ordenar", "es")
+    assert r.last_fallback is None
