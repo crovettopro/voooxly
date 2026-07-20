@@ -5,6 +5,9 @@ avisar — y pegar igualmente lo que se pueda. El texto crudo por FALLO activa
 last_fallback; el texto crudo DELIBERADO (modo literal, sin backend) no.
 """
 
+import sys
+
+import pytest
 import requests
 
 from voooxly import refine
@@ -21,6 +24,19 @@ class CfgFake:
 def _cfg_ollama():
     return CfgFake({
         "llm.backend": "ollama",
+        "llm.ollama.host": "http://localhost:11434",
+        "llm.ollama.model": "llama3.2",
+        "llm.ollama.timeout": 5,
+    })
+
+
+def _cfg_claude():
+    return CfgFake({
+        "llm.backend": "claude",
+        "llm.claude.model": "claude-sonnet-5",
+        "llm.claude.max_tokens": 1200,
+        "llm.claude.timeout": 30,
+        # _claude cae a Ollama si falla: necesita también su propia config.
         "llm.ollama.host": "http://localhost:11434",
         "llm.ollama.model": "llama3.2",
         "llm.ollama.timeout": 5,
@@ -77,3 +93,35 @@ def test_un_exito_despues_de_un_fallo_limpia_el_flag(monkeypatch):
     monkeypatch.setattr(requests, "post", lambda *a, **k: R())
     r.refine("dos", "ordenar", "es")
     assert r.last_fallback is None
+
+
+def test_preludio_de_claude_roto_cae_a_ollama_y_marca_last_fallback(monkeypatch):
+    """El import de `anthropic` y la construcción del cliente viven DENTRO
+    del try de _claude. Un install roto (o cualquier fallo antes de llamar
+    a la API) tiene que seguir el mismo camino que un fallo de la API:
+    fallback a Ollama y last_fallback puesto — nunca una excepción que se
+    escape de refine() sin avisar al usuario."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    # sys.modules["anthropic"] = None hace que "import anthropic" lance
+    # ImportError, sin necesidad de que el paquete esté instalado o no.
+    monkeypatch.setitem(sys.modules, "anthropic", None)
+    monkeypatch.setattr(requests, "post", lambda *a, **k: (_ for _ in ()).throw(
+        requests.ConnectionError("sin red")))
+    r = refine.Refiner(_cfg_claude())
+    out = r.refine("hola que tal", "ordenar", "es")
+    assert out == "hola que tal"
+    assert r.last_fallback
+
+
+def test_preludio_de_claude_roto_en_modo_estricto_relanza(monkeypatch):
+    """En modo estricto (usado por _probe/validate) el mismo fallo debe
+    propagarse: tapar el hueco con Ollama escondería que ESTE candidato
+    (Claude) nunca respondió."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setitem(sys.modules, "anthropic", None)
+    monkeypatch.setattr(requests, "post", lambda *a, **k: (_ for _ in ()).throw(
+        requests.ConnectionError("sin red")))
+    r = refine.Refiner(_cfg_claude())
+    r.strict = True
+    with pytest.raises(ImportError):
+        r.refine("hola que tal", "ordenar", "es")

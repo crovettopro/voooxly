@@ -186,13 +186,19 @@ class Refiner:
 
     # --- Claude ---
     def _claude(self, system: str, user: str) -> str:
-        import anthropic
-
-        client = anthropic.Anthropic()
-        model = self.cfg.get("llm.claude.model", "claude-sonnet-5")
-        max_tokens = self.cfg.get("llm.claude.max_tokens", 1200)
-        timeout = self.cfg.get("llm.claude.timeout", 30)
         try:
+            # El import, la construcción del cliente y las lecturas de config
+            # viven DENTRO del try a propósito: un install roto, una env mal
+            # puesta o un valor de config con tipo inválido son tan "Claude
+            # falló" como un error de la API, y deben seguir el mismo camino
+            # (strict relanza; si no, fallback a Ollama). Fuera del try se
+            # escapaban de refine() sin dejar last_fallback puesto.
+            import anthropic
+
+            client = anthropic.Anthropic()
+            model = self.cfg.get("llm.claude.model", "claude-sonnet-5")
+            max_tokens = self.cfg.get("llm.claude.max_tokens", 1200)
+            timeout = self.cfg.get("llm.claude.timeout", 30)
             resp = client.messages.create(
                 model=model,
                 max_tokens=max_tokens,
