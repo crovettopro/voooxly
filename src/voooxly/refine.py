@@ -147,6 +147,14 @@ class Refiner:
             # (el bug de glm-5.2:cloud que originó esta tarea).
             raise
         except Exception as e:
+            if self.strict:
+                # Mismo motivo que en _claude/_openai: en modo probe, devolver
+                # la transcripción tal cual como si fuera la respuesta del
+                # modelo es indistinguible de un éxito real para validate()
+                # (sólo mira si la salida no está vacía). Sin esto, un Ollama
+                # completamente inalcanzable reportaba "Connected" — el mismo
+                # bug de falso-positivo que el flag strict existe para evitar.
+                raise
             log.error("Ollama falló (%s). Devuelvo transcripción sin refinar.", e)
             return user
 
