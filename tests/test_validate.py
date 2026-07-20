@@ -283,3 +283,69 @@ def test_dictado_en_vivo_sigue_cayendo_a_ollama_si_openai_falla(monkeypatch):
     salida = r._openai("system", "user")
     assert salida == "texto refinado por ollama"
     assert len(llamadas) == 2
+
+
+# --- Hallazgo 5: _ollama también tenía que respetar el modo estricto ---
+#
+# _claude y _openai ya relanzaban en modo estricto en vez de tapar el fallo,
+# pero _ollama se quedó fuera: su except genérico siempre devolvía `user` (la
+# transcripción/prompt de entrada) como si fuera la respuesta del modelo. Para
+# el dictado real eso es lo correcto (sin red no hay que perder el texto),
+# pero _probe(kind="ollama") llama a _ollama() directamente, y validate() sólo
+# comprueba que la salida no esté vacía — un Ollama totalmente inalcanzable
+# devolvía el prompt "ping" tal cual y validate() lo leía como éxito.
+
+
+def test_ollama_inalcanzable_en_modo_probe_no_reporta_exito(monkeypatch):
+    """Reproducción exacta del revisor: con requests.post lanzando
+    ConnectionError, validate() debe devolver (False, ...), no (True,
+    "Connected to Ollama...")."""
+    import requests
+
+    def sin_red(*a, **k):
+        raise requests.ConnectionError("nope")
+
+    monkeypatch.setattr(refine.requests, "post", sin_red)
+
+    sel = ai_settings.Selection(
+        provider=providers.get("ollama"),
+        base_url="http://broken-host:11434",
+        model="llama3.2",
+    )
+    ok, msg = refine.validate(sel, None)
+    assert ok is False
+
+
+def test_ollama_con_timeout_en_modo_probe_no_reporta_exito(monkeypatch):
+    """Mismo hallazgo, con un timeout en vez de una conexión rechazada."""
+    import requests
+
+    def se_cuelga(*a, **k):
+        raise requests.Timeout("timed out")
+
+    monkeypatch.setattr(refine.requests, "post", se_cuelga)
+
+    sel = ai_settings.Selection(
+        provider=providers.get("ollama"),
+        base_url="http://broken-host:11434",
+        model="llama3.2",
+    )
+    ok, msg = refine.validate(sel, None)
+    assert ok is False
+
+
+def test_dictado_en_vivo_sigue_devolviendo_transcripcion_si_ollama_falla(monkeypatch):
+    """El Refiner normal (el que usa app.py para dictar) NO es estricto: si
+    Ollama falla en mitad de un dictado, el usuario debe seguir recibiendo su
+    transcripción cruda, exactamente como antes de este fix."""
+    import requests
+
+    def sin_red(*a, **k):
+        raise requests.ConnectionError("nope")
+
+    monkeypatch.setattr(refine.requests, "post", sin_red)
+
+    r = refine.Refiner(_FakeCfg())
+    assert r.strict is False
+    salida = r._ollama("system", "transcripción cruda del usuario")
+    assert salida == "transcripción cruda del usuario"
