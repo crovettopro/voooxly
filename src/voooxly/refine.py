@@ -91,9 +91,14 @@ class Refiner:
         # su lugar (si no, validate() podía devolver éxito para un proveedor
         # que nunca contestó — el propio Ollama ya configurado tapaba el fallo).
         self.strict = False
+        # None si refine() terminó bien (o no necesitaba LLM); texto con la
+        # causa si el resultado final fue la transcripción cruda POR UN FALLO.
+        # Los caminos deliberados (literal, backend "none") no lo tocan.
+        self.last_fallback: str | None = None
 
     def refine(self, transcript: str, mode: str, language: str | None) -> str:
         transcript = (transcript or "").strip()
+        self.last_fallback = None
         if not transcript:
             return ""
         sys_prompt = modes.system_prompt(mode, language)
@@ -176,6 +181,7 @@ class Refiner:
                 # bug de falso-positivo que el flag strict existe para evitar.
                 raise
             log.error("Ollama falló (%s). Devuelvo transcripción sin refinar.", e)
+            self.last_fallback = f"Ollama: {e}"
             return user
 
     # --- Claude ---
