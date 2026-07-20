@@ -70,6 +70,27 @@ def ai_menu_labels(selection) -> list[tuple[str, bool]]:
     return filas
 
 
+# Nombres cortos para los backends que devuelve refine.detect_backend(): las
+# filas del submenú "AI engine" ya no pueden mostrarlos (solo llevan check),
+# así que este título compensa vía el padre del submenú, que sí admite texto.
+_BACKEND_LABELS = {"ollama": "Ollama", "claude": "Claude", "openai": "OpenAI"}
+
+
+def ai_engine_title(selection, detected: str) -> str:
+    """Título del ítem padre del submenú AI engine: la única pista visible de
+    qué motor está activo (las filas hijas solo llevan un check).
+
+    A nivel de módulo y no como método, por el mismo motivo que
+    ai_menu_labels: instanciar VoooxlyApp construye menús de AppKit.
+    """
+    if selection is not None:
+        return f"AI engine — {selection.provider.label}"
+    if detected == "none":
+        return "AI engine — none (raw text)"
+    label = _BACKEND_LABELS.get(detected, detected)
+    return f"AI engine — {label} (auto)"
+
+
 class VoooxlyApp(rumps.App):
     def __init__(self):
         cfg = get_config()
@@ -884,7 +905,10 @@ class VoooxlyApp(rumps.App):
         for prov_key, mi in self._ai_items.items():
             mi.state = 1 if (sel and sel.provider.key == prov_key) else 0
         if sel is None:
-            return refine.detect_backend(self.cfg, force=force)
+            detected = refine.detect_backend(self.cfg, force=force)
+            self.ai.title = ai_engine_title(sel, detected)
+            return detected
+        self.ai.title = ai_engine_title(sel, "")
         return sel.provider.key
 
     def _redetect_ai(self, _sender):
