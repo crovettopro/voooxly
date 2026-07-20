@@ -686,6 +686,10 @@ class VoooxlyApp(rumps.App):
             # que en fast-lane (refiner=None) simplemente no dispara — nunca un
             # flag rancio de un dictado anterior.
             refiner = None
+            # Igual que refiner=None: sólo se pone a True dentro de la rama
+            # que de verdad llama a refine(), así que en fast-lane queda
+            # inerte (nunca un aviso de un dictado anterior).
+            refine_crashed = False
             if (
                 fast_words > 0
                 and modes.MODES.get(self.mode, {}).get("fast_lane")
@@ -700,6 +704,10 @@ class VoooxlyApp(rumps.App):
                 except Exception:
                     log.exception("Refinado falló; uso transcripción cruda")
                     final = transcript
+                    # Red de seguridad: un bug de refino no pierde el dictado
+                    # (se pega crudo), pero eso NO puede pasar en silencio —
+                    # el usuario tiene que enterarse igual que con last_fallback.
+                    refine_crashed = True
             final = final or transcript
             # Reemplazos del diccionario personal: corrección determinista de
             # las grafías que Whisper sigue fallando aunque estén en el prompt.
@@ -730,9 +738,11 @@ class VoooxlyApp(rumps.App):
             status = output.deliver(final, auto_paste=auto_paste, copy=copy, html=html)
             # El texto ya se pegó (con o sin refino): este aviso solo informa
             # que la IA no actuó y se pegó la transcripción cruda por un fallo
-            # (red caída, proveedor roto...). Los caminos deliberados (modo
-            # literal, fast-lane, backend "none") no dejan last_fallback puesto.
-            if getattr(refiner, "last_fallback", None):
+            # (red caída, proveedor roto..., o el catch-all de arriba si
+            # refine() lanzó algo que ni siquiera Refiner supo manejar). Los
+            # caminos deliberados (modo literal, fast-lane, backend "none")
+            # no dejan ni last_fallback ni refine_crashed puestos.
+            if refine_crashed or getattr(refiner, "last_fallback", None):
                 self._flash(
                     "Your words were pasted as-is.", 2.2,
                     title="⚠ AI didn't answer",
