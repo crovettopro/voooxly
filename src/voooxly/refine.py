@@ -58,6 +58,26 @@ def detect_backend(cfg=None, force: bool = False) -> str:
     return _detected
 
 
+def list_ollama_models(host: str, timeout: float = 3.0) -> list[str]:
+    """Modelos que el Ollama del usuario dice tener. Nunca lanza.
+
+    Se usa para ofrecerle SUS modelos en vez de presuponer cuál tiene. Cualquier
+    fallo devuelve lista vacía: quien llama está construyendo un diálogo y una
+    excepción aquí rompería el menú.
+    """
+    try:
+        r = requests.get(f"{host.rstrip('/')}/api/tags", timeout=timeout)
+        if not r.ok:
+            return []
+        modelos = (r.json() or {}).get("models") or []
+        if not isinstance(modelos, list):
+            return []
+        return [n for m in modelos if isinstance(m, dict) and (n := m.get("name"))]
+    except Exception:
+        log.debug("No pude listar modelos de Ollama en %s", host, exc_info=True)
+        return []
+
+
 class Refiner:
     def __init__(self, cfg):
         self.cfg = cfg

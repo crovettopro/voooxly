@@ -4,7 +4,10 @@ from voooxly import providers
 
 
 def test_los_presets_esperados_existen():
-    for key in ("ollama", "claude", "openai", "groq", "openrouter", "custom"):
+    for key in (
+        "ollama", "claude", "openai", "groq", "openrouter",
+        "deepseek", "mistral", "together", "xai", "custom",
+    ):
         assert providers.get(key) is not None, key
 
 
@@ -13,12 +16,18 @@ def test_ollama_local_no_pide_key():
 
 
 def test_los_de_pago_piden_key():
-    for key in ("claude", "openai", "groq", "openrouter", "custom"):
+    for key in (
+        "claude", "openai", "groq", "openrouter",
+        "deepseek", "mistral", "together", "xai", "custom",
+    ):
         assert providers.get(key).needs_key is True, key
 
 
 def test_todo_lo_que_no_es_ollama_ni_claude_usa_el_camino_openai():
-    for key in ("openai", "groq", "openrouter", "custom"):
+    for key in (
+        "openai", "groq", "openrouter",
+        "deepseek", "mistral", "together", "xai", "custom",
+    ):
         assert providers.get(key).kind == "openai", key
     assert providers.get("ollama").kind == "ollama"
     assert providers.get("claude").kind == "claude"
@@ -31,6 +40,10 @@ def test_los_presets_con_url_fija_la_traen_rellena():
         "openai": "https://api.openai.com/v1",
         "groq": "https://api.groq.com/openai/v1",
         "openrouter": "https://openrouter.ai/api/v1",
+        "deepseek": "https://api.deepseek.com/v1",
+        "mistral": "https://api.mistral.ai/v1",
+        "together": "https://api.together.xyz/v1",
+        "xai": "https://api.x.ai/v1",
     }
     for key, expected_url in providers_with_urls.items():
         assert providers.get(key).base_url == expected_url, f"{key} should have base_url={expected_url}"

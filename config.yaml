@@ -81,7 +81,12 @@ llm:
   # Ollama
   ollama:
     host: "http://localhost:11434"
-    model: "glm-5.2:cloud"
+    # Sin modelo de fábrica: fijar uno a fuego presupone cuál tiene instalado
+    # el usuario (y si es ":cloud" exige una suscripción de Ollama que no todo
+    # el mundo tiene — así fue como el default roto pasó desapercibido).
+    # Se elige desde el menú AI engine → Ollama, que le pregunta a tu propio
+    # servidor qué modelos tienes y te deja escoger el tuyo.
+    model: ""
     temperature: 0.3
     timeout: 20             # si el LLM no responde a tiempo se pega la transcripción cruda
   # Claude API (si ANTHROPIC_API_KEY está en env)

@@ -118,7 +118,23 @@ Everything lives in `config.yaml`, with `.env` overrides (see `.env.example`):
 - `ANTHROPIC_API_KEY` — cleanup with Claude (best rewriting quality)
 - `VOOOXLY_APP_LANGUAGE` — force an output language (default: keep the language you spoke)
 
-Cleanup with a fully local model:
+**Voooxly ships with no AI connected.** It dictates and pastes the raw
+transcription out of the box — that already works with nothing installed.
+There is no default model baked in (`llm.ollama.model` starts empty in
+`config.yaml`): shipping a fixed default would presume which model *you*
+happen to have, and a cloud-only default (like Ollama's `:cloud` models)
+would quietly fail for anyone without that subscription while reporting
+"connected".
+
+Connect your own from the menu bar — **AI engine → Connect…**:
+
+- **Ollama (local)** — if you have the Ollama app installed, Voooxly asks
+  your own server which models it has and lets you pick one; no key needed.
+- **Any other provider** (Claude, OpenAI, Groq, OpenRouter, DeepSeek,
+  Mistral, Together AI, xAI, or a custom OpenAI-compatible endpoint) — paste
+  your API key and it's stored in the macOS Keychain.
+
+Prefer to do it by hand, or run fully local:
 
 ```bash
 ollama pull qwen3:8b
