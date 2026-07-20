@@ -1229,13 +1229,31 @@ class VoooxlyApp(rumps.App):
             if setup_checks.needs_setup():
                 from .onboarding import show_onboarding
 
-                show_onboarding()
+                show_onboarding(on_finish=self._on_onboarding_done)
         except Exception as e:
             log.warning("No pude mostrar el onboarding: %s", e)
         # arranca whisper-server en background para que el primer dictado no pague el coste
         threading.Thread(target=self._warmup, daemon=True).start()
         self._hotkey.start()
         super().run()
+
+    def _on_onboarding_done(self):
+        """Rearranca el hotkey al cerrar el onboarding.
+
+        En run() el listener de pynput arranca ANTES de que se conceda
+        Accesibilidad: sin ese permiso no recibe eventos globales, y concederlo
+        a mitad no reactiva el listener ya vivo (el event tap ya se creó sin
+        permiso). Ese es el bug "la primera vez no dicta, tras reiniciar sí".
+        Rearrancar aquí — con el permiso ya concedido — re-crea el event tap y
+        arregla el dictado sin tener que reiniciar la app. Lo llama finish_ del
+        onboarding tanto al pulsar "Start dictating" como al cerrar la ventana.
+        """
+        try:
+            self._hotkey.stop()
+            self._hotkey.start()
+            log.info("Hotkey rearrancado tras el onboarding.")
+        except Exception:
+            log.warning("No pude rearrancar el hotkey tras el onboarding", exc_info=True)
 
     def _warmup(self):
         # 0) modelo de voz: si no está, se descarga solo con progreso en el icono

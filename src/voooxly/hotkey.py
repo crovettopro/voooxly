@@ -185,5 +185,17 @@ class HotkeyManager:
 
     def stop(self) -> None:
         if self._listener:
-            self._listener.stop()
+            try:
+                self._listener.stop()
+            except Exception:
+                log.debug("listener.stop() falló", exc_info=True)
+            # JOIN: sin él, el hilo del listener viejo puede seguir vivo cuando
+            # start() cree el siguiente → dos listeners a la vez, cada uno llama
+            # a TIS/TSM desde su propio hilo y HIToolbox aborta con SIGABRT (el
+            # crash que documenta el header de este módulo). Rearrancar el hotkey
+            # (p.ej. tras el onboarding) exige que el viejo esté MUERTO antes.
+            try:
+                self._listener.join(timeout=2.0)
+            except Exception:
+                log.debug("listener.join() falló", exc_info=True)
             self._listener = None

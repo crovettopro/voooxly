@@ -96,6 +96,45 @@ def test_finish_invoca_el_callback():
     assert llamado == [1]
 
 
+def test_continue_pasa_a_pagina_2(controller):
+    """El botón Continuar (página 1) cambia a la página 2 sin invocar finish."""
+    llamado = []
+    c = onboarding.OnboardingController.alloc().initWithFinish_(
+        lambda: llamado.append(1))
+    assert c._page == 1
+    c.continue_(None)
+    assert c._page == 2
+    assert llamado == []  # Continuar NO termina el onboarding
+
+
+def test_accessibility_esconde_la_ventana(controller):
+    """Al pulsar 'Open Settings' la ventana se esconde para no tapar Ajustes."""
+    assert controller._hidden_for_settings is False
+    controller.accessibility_(None)
+    assert controller._hidden_for_settings is True
+    assert controller._win.isVisible() is False
+
+
+def test_refresh_re_muestra_ventana_al_conceder_permiso():
+    import time as _time
+
+    c = onboarding.OnboardingController.alloc().initWithFinish_(None)
+    c._hidden_for_settings = True
+    c._hide_t = _time.monotonic() - 3.0  # ya pasó el grace de 1.5s
+    with _state(acc=True):
+        c._refresh()
+    assert c._hidden_for_settings is False
+
+
+def test_windowShouldClose_invoca_finish():
+    """Cerrar con el botón rojo debe rearrancar el hotkey (on_finish)."""
+    llamado = []
+    c = onboarding.OnboardingController.alloc().initWithFinish_(
+        lambda: llamado.append(1))
+    c.windowShouldClose_(None)
+    assert llamado == [1]
+
+
 def test_finish_no_revienta_si_el_callback_falla():
     def _explota():
         raise RuntimeError("boom")
