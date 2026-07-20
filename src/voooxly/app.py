@@ -287,8 +287,13 @@ class VoooxlyApp(rumps.App):
         if key not in modes.MODES:
             return
         self.mode = key
-        for k, mi in self.mode_items.items():
-            mi.state = 1 if k == key else 0
+        # mi.state es AppKit sobre NSMenuItem; set_mode se llama también desde el
+        # hotkey Ctrl+Shift+M (hilo de fondo), no solo desde el menú → va por el
+        # main o crashea con el menú abierto (mismo SIGTRAP que _refresh_title).
+        def apply():
+            for k, mi in self.mode_items.items():
+                mi.state = 1 if k == key else 0
+        self._on_main(apply)
         self._refresh_title()
         log.info("Modo: %s", modes.MODES[key]["label"])
         self._flash_mode()
@@ -337,6 +342,27 @@ class VoooxlyApp(rumps.App):
             i = -1
         self.set_mode(keys[(i + 1) % len(keys)])
 
+    def _on_main(self, fn):
+        """Ejecuta fn en el hilo principal. AppKit NO es thread-safe: escribir
+        el título de la barra o de un NSMenuItem desde un hilo de grabación/
+        proceso mientras un menú está ABIERTO reflowa la ventana del popup desde
+        el hilo equivocado y aborta con SIGTRAP (EXC_BREAKPOINT). Todo write de
+        .title pasa por aquí. Si un menú está abierto el runloop está en
+        tracking y el update se aplica al cerrarlo: se ve con un instante de
+        retraso, pero nunca crashea."""
+        if threading.current_thread() is threading.main_thread():
+            try:
+                fn()
+            except Exception:
+                log.debug("update de título falló", exc_info=True)
+            return
+        try:
+            from PyObjCTools import AppHelper
+
+            AppHelper.callAfter(fn)
+        except Exception:
+            log.debug("no pude encolar update de título en el main thread", exc_info=True)
+
     def _refresh_title(self):
         label = modes.MODES.get(self.mode, {}).get("label", "Voooxly")
         state = self._state
@@ -344,13 +370,25 @@ class VoooxlyApp(rumps.App):
         # cronómetro (lo lleva _rec_timer); procesando = glyph + "…".
         if state == "RECORDING" and self._rec_icon:
             self._swap_icon(rec=True)
+            set_bar = False   # el cronómetro (_start_rec_timer) es dueño del título
         else:
             self._swap_icon(rec=False)
-            self.title = {"RECORDING": "🔴", "PROCESSING": "…"}.get(
-                state, None if self._has_icon else "🎙"
-            )
+            set_bar = True
+        bar = {"RECORDING": "🔴", "PROCESSING": "…"}.get(
+            state, None if self._has_icon else "🎙"
+        )
         state_en = {"IDLE": "ready", "RECORDING": "recording", "PROCESSING": "processing"}
-        self.status.title = f"Mode: {label} · {state_en.get(state, state)}"
+        status = f"Mode: {label} · {state_en.get(state, state)}"
+
+        # AppKit desde el hilo de grabación mata la app con el menú abierto: se
+        # marshala. El icono ya lo hacía (_swap_icon); los títulos NO — ese era
+        # el bug del SIGTRAP a los 60s con el menú desplegado.
+        def apply():
+            if set_bar:
+                self.title = bar
+            self.status.title = status
+
+        self._on_main(apply)
 
     def _swap_icon(self, rec: bool):
         """Cambia el icono de la barra en el main thread (AppKit no es
@@ -385,7 +423,10 @@ class VoooxlyApp(rumps.App):
                     if self._state != "RECORDING":
                         break
                 s = int(time.monotonic() - t0)
-                self.title = f" {s // 60}:{s % 60:02d}"
+                txt = f" {s // 60}:{s % 60:02d}"
+                # Este hilo escribía self.title directo: AppKit desde hilo de
+                # fondo. Marshalado al main como el resto (ver _on_main).
+                self._on_main(lambda txt=txt: setattr(self, "title", txt))
                 time.sleep(1.0)
 
         threading.Thread(target=run, daemon=True).start()
@@ -772,25 +813,31 @@ class VoooxlyApp(rumps.App):
 
     def _push_history(self, text: str):
         self._history.appendleft(text)
-        self.recent_parent.title = "Recent"  # deshace un filtro de búsqueda previo
+        # deshace un filtro de búsqueda previo. Se llama desde el hilo de
+        # _process (fondo): el write del título del NSMenuItem va por el main.
+        self._on_main(lambda: setattr(self.recent_parent, "title", "Recent"))
         self._refresh_recent()
         if self._save_history_on():
             history.append(text, self.mode)
 
     def _refresh_recent(self):
-        """Vuelca self._history al submenú Recent (solo title/hidden: seguro
-        desde hilos de fondo; añadir/quitar NSMenuItems no lo sería)."""
-        try:
-            self._recent_empty._menuitem.setHidden_(len(self._history) > 0)
-            for i, mi in enumerate(self._recent_items):
-                if i < len(self._history):
-                    t = self._history[i].replace("\n", " ")
-                    mi.title = (t[:57] + "…") if len(t) > 58 else t
-                    mi._menuitem.setHidden_(False)
-                else:
-                    mi._menuitem.setHidden_(True)
-        except Exception:
-            log.debug("No pude refrescar el submenú Recent", exc_info=True)
+        """Vuelca self._history al submenú Recent. Se llama desde el hilo de
+        _process y de _warmup (fondo): mutar title/setHidden_ de un NSMenuItem
+        con el menú abierto crashea (SIGTRAP), así que TODO va por _on_main.
+        (Solo actualiza NSMenuItems ya creados; añadir/quitar no se hace aquí.)"""
+        def apply():
+            try:
+                self._recent_empty._menuitem.setHidden_(len(self._history) > 0)
+                for i, mi in enumerate(self._recent_items):
+                    if i < len(self._history):
+                        t = self._history[i].replace("\n", " ")
+                        mi.title = (t[:57] + "…") if len(t) > 58 else t
+                        mi._menuitem.setHidden_(False)
+                    else:
+                        mi._menuitem.setHidden_(True)
+            except Exception:
+                log.debug("No pude refrescar el submenú Recent", exc_info=True)
+        self._on_main(apply)
 
     def _search_history(self, _sender):
         if not self._save_history_on():
@@ -946,18 +993,29 @@ class VoooxlyApp(rumps.App):
             output.paste_frontmost()
 
     def _update_ai_item(self, force: bool = True) -> str:
-        """Marca el proveedor activo en el submenú. Devuelve su clave."""
+        """Marca el proveedor activo en el submenú. Devuelve su clave.
+
+        Los writes de AppKit (mi.state, self.ai.title) van por _on_main: esto se
+        llama desde el hilo _warmup (detección inicial + keepalive cada N min),
+        no solo desde callbacks de menú. detect_backend (red) se queda en el hilo
+        llamante para devolver el valor de forma síncrona."""
         from . import ai_settings
 
         sel = ai_settings.load(self._prefs)
-        for prov_key, mi in self._ai_items.items():
-            mi.state = 1 if (sel and sel.provider.key == prov_key) else 0
         if sel is None:
             detected = refine.detect_backend(self.cfg, force=force)
-            self.ai.title = ai_engine_title(sel, detected)
-            return detected
-        self.ai.title = ai_engine_title(sel, "")
-        return sel.provider.key
+            title = ai_engine_title(sel, detected)
+            ret = detected
+        else:
+            title = ai_engine_title(sel, "")
+            ret = sel.provider.key
+
+        def apply():
+            for prov_key, mi in self._ai_items.items():
+                mi.state = 1 if (sel and sel.provider.key == prov_key) else 0
+            self.ai.title = title
+        self._on_main(apply)
+        return ret
 
     def _apply_ai_selection(self, sel) -> None:
         """Delegado fino: la lógica vive en apply_ai_selection (nivel de
@@ -1206,7 +1264,8 @@ class VoooxlyApp(rumps.App):
                 )
 
                 def _dl_progress(pct: int):
-                    self.title = f"⏬ {pct}%"
+                    # corre en el hilo de _warmup: el título va por el main.
+                    self._on_main(lambda p=pct: setattr(self, "title", f"⏬ {p}%"))
 
                 ok_model = stt.ensure_model(progress_cb=_dl_progress)
                 self._refresh_title()
@@ -1243,8 +1302,15 @@ class VoooxlyApp(rumps.App):
             if info:
                 self._update_url = info["url"]
                 self._update_version = info["version"]
-                self.update_item.title = f"Update to {info['version']} →"
-                self.update_item._menuitem.setHidden_(False)
+                # corre en el hilo de _warmup: title + setHidden_ del NSMenuItem
+                # van por el main (mismo crash SIGTRAP si el menú está abierto).
+                ver = info["version"]
+
+                def _show_update():
+                    self.update_item.title = f"Update to {ver} →"
+                    self.update_item._menuitem.setHidden_(False)
+
+                self._on_main(_show_update)
         except Exception:
             pass
         # 4) sembrar Recent con el historial persistente de sesiones anteriores
