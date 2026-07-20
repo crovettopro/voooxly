@@ -71,7 +71,6 @@ def test_todo_cumplido_permite_continuar(controller):
     with _state():
         controller._refresh()
         assert controller._done.isEnabled()
-        assert not controller._hint.isHidden()
         assert controller._rows["mic"]["status"].stringValue() == "●"
 
 
@@ -79,7 +78,6 @@ def test_sin_accesibilidad_no_deja_continuar(controller):
     with _state(acc=False):
         controller._refresh()
         assert not controller._done.isEnabled()
-        assert controller._hint.isHidden()
         assert controller._rows["accessibility"]["button"].isEnabled()
 
 

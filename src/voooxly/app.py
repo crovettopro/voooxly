@@ -62,9 +62,10 @@ def ai_menu_labels(selection) -> list[tuple[str, bool]]:
     """
     filas = []
     for prov in providers.PROVIDERS.values():
-        # Todas abren un diálogo (key, URL/modelo de custom, o el selector de
-        # modelos de Ollama): "…" en todas, por convención de macOS.
-        etiqueta = f"{prov.label}…"
+        # Etiqueta limpia, sin "…": la lista corta ya se entiende y el "…" en
+        # cada fila se veía ruidoso. Al pulsar se pide la key (o el modelo de
+        # Ollama), pero eso no justifica ensuciar las cinco filas.
+        etiqueta = prov.label
         activo = selection is not None and selection.provider.key == prov.key
         filas.append((etiqueta, activo))
     return filas
@@ -1060,24 +1061,6 @@ class VoooxlyApp(rumps.App):
                 message=f"Models on your Ollama:\n{listado}\n\nType the one to use:",
                 title="Choose your Ollama model",
                 default_text=modelos[0],
-                ok="Next", cancel="Cancel", dimensions=(320, 24),
-            ).run()
-            if not resp.clicked or not resp.text.strip():
-                return
-            model = resp.text.strip()
-
-        if prov.key == "custom":
-            resp = rumps.Window(
-                message="Base URL of the OpenAI-compatible endpoint:",
-                title="Custom provider",
-                default_text="https://",
-                ok="Next", cancel="Cancel", dimensions=(320, 24),
-            ).run()
-            if not resp.clicked or not resp.text.strip():
-                return
-            base_url = resp.text.strip()
-            resp = rumps.Window(
-                message="Model name:", title="Custom provider",
                 ok="Next", cancel="Cancel", dimensions=(320, 24),
             ).run()
             if not resp.clicked or not resp.text.strip():

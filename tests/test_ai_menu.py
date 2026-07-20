@@ -21,12 +21,11 @@ def test_estan_todos_los_proveedores():
     assert len(filas) == len(providers.PROVIDERS)
 
 
-def test_todas_las_entradas_llevan_puntos_suspensivos():
-    """Convención de macOS: '…' = el clic abre un diálogo. TODAS lo hacen:
-    los de pago piden la key, custom pide URL/modelo, y Ollama abre el
-    selector de modelos instalados."""
+def test_ninguna_entrada_lleva_puntos_suspensivos():
+    """La lista corta se entiende sin '…'; ponerlo en las cinco filas se veía
+    ruidoso. Guard para que no vuelva a colarse el sufijo."""
     for etq, _ in app.ai_menu_labels(None):
-        assert etq.endswith("…"), etq
+        assert not etq.endswith("…"), etq
 
 
 def test_titulo_con_eleccion_explicita_muestra_el_proveedor():
