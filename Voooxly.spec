@@ -19,6 +19,7 @@ hiddenimports = [
     "yaml",
     "requests",
     "anthropic",
+    "Security",
 ]
 
 datas = [
