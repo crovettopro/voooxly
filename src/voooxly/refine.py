@@ -113,9 +113,17 @@ class Refiner:
                 },
                 timeout=timeout,
             )
+            if r.status_code == 404 or "not found" in (r.text or "").lower():
+                raise ModelNotAvailable(f"model '{model}' not found on the Ollama host")
             r.raise_for_status()
             data = r.json()
             return (data.get("message", {}).get("content", "") or "").strip()
+        except ModelNotAvailable:
+            # Este caso tiene que llegar hasta validate(): es justo lo que distingue
+            # "servidor arriba, modelo ausente" de cualquier otro fallo. Si cayera en
+            # el except de abajo, quedaría indistinguible y validate() nunca lo vería
+            # (el bug de glm-5.2:cloud que originó esta tarea).
+            raise
         except Exception as e:
             log.error("Ollama falló (%s). Devuelvo transcripción sin refinar.", e)
             return user
@@ -196,3 +204,63 @@ def health_summary() -> str:
     if not h:
         return "No AI backend configured."
     return " · ".join(f"{k}: {'✓' if v else '✗'}" for k, v in h.items())
+
+
+class ModelNotAvailable(Exception):
+    """El servidor responde, pero el modelo pedido no está."""
+
+
+def export_key(selection, api_key: str | None) -> None:
+    """Pone la key donde los backends la buscan: os.environ.
+
+    _openai() y _claude() leen la key del entorno (os.environ.get(env_key)), que
+    es como funcionaba cuando venía de ~/.voooxly/.env. Con la key en el llavero
+    hay que puentearla aquí, o el backend nunca la ve y el flujo entero queda
+    bonito sin funcionar.
+    """
+    if not api_key:
+        return
+    if selection.provider.kind == "claude":
+        os.environ["ANTHROPIC_API_KEY"] = api_key
+    else:
+        from .config import get_config
+
+        env_key = get_config().get("llm.openai.api_key_env", "OPENAI_API_KEY")
+        os.environ[env_key] = api_key
+
+
+def _probe(selection, api_key: str | None, timeout: float) -> str:
+    """Una generación mínima por la MISMA ruta que usa un dictado."""
+    export_key(selection, api_key)
+    r = Refiner.__new__(Refiner)
+    from .config import get_config
+
+    r.cfg = get_config()
+    r.cfg._set_path("llm.openai.base_url", selection.base_url)
+    r.cfg._set_path(f"llm.{selection.provider.kind}.model", selection.model)
+    # El usuario está mirando un diálogo modal mientras esto corre: el timeout
+    # pedido tiene que llegar de verdad al backend, no quedarse sin usar. Los
+    # tres backends leen su timeout de config (no como parámetro), así que se
+    # planta aquí antes de invocarlos.
+    r.cfg._set_path(f"llm.{selection.provider.kind}.timeout", timeout)
+    r.backend = selection.provider.kind
+    if selection.provider.kind == "ollama":
+        return r._ollama("Reply with the single word OK.", "ping")
+    if selection.provider.kind == "claude":
+        return r._claude("Reply with the single word OK.", "ping")
+    return r._openai("Reply with the single word OK.", "ping")
+
+
+def validate(selection, api_key: str | None, timeout: float = 12.0) -> tuple[bool, str]:
+    """Comprueba de verdad que el proveedor refina. Devuelve (ok, mensaje)."""
+    if selection.provider.needs_key and not api_key:
+        return False, f"{selection.provider.label} needs an API key."
+    try:
+        salida = _probe(selection, api_key, timeout)
+    except ModelNotAvailable as e:
+        return False, f"Model “{selection.model}” isn't available: {e}"
+    except Exception as e:
+        return False, f"Couldn't reach {selection.provider.label}: {e}"
+    if not (salida or "").strip():
+        return False, f"{selection.provider.label} answered, but with nothing usable."
+    return True, f"Connected to {selection.provider.label} using {selection.model}."
