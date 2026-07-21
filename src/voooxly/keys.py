@@ -98,8 +98,13 @@ def validate_custom(name: str) -> tuple[bool, str]:
 
     El mensaje de error dice qué está mal Y cómo arreglarlo: quien llega aquí
     es justo el usuario que no sabe qué es un "nombre de tecla de pynput".
+    Acepta cualquier tipo, no solo str: esta función queda cableada a la
+    entrada del menú, y un valor no-string ahí no es un caso de laboratorio
+    sino lo primero que puede llegar de una entrada de texto sin validar.
     """
-    name = (name or "").strip().lower()
+    if not isinstance(name, str):
+        return False, "A key name must be text, not a number or other value."
+    name = name.strip().lower()
     if not name:
         return False, "Type a key name, for example f13 or alt_r."
     if name in DICTATION_KEYS:
@@ -129,12 +134,22 @@ def resolve(prefs: dict, cfg) -> tuple[str, str, bool]:
     """(tecla, modo, guarda) efectivos: prefs del usuario por encima del YAML.
 
     Mismo patrón que `sounds` en app.py — config.yaml es el valor de fábrica y
-    lo que eligió el usuario manda. Unos prefs corruptos (una lista, un número,
-    una tecla retirada en una versión posterior) no pueden dejar la app sin
-    hotkey: se ignoran y se cae al YAML.
+    lo que eligió el usuario manda. Ni unos prefs corruptos (una lista, un
+    número, una tecla retirada en una versión posterior) ni un YAML corrupto
+    (un string suelto donde debía ir una lista, un tipo que ni se puede
+    indexar) pueden dejar la app sin hotkey: ~/.voooxly/config.yaml es
+    manuscrito por quien lo tenga y "toggle: cmd_r" en vez de
+    "toggle: [cmd_r]" es un error de tecleo, no un caso exótico. Las dos
+    fuentes pasan por la misma puerta — validate_custom — y las dos caen al
+    DEFAULT_KEY si no la pasan.
     """
+    tecla = DEFAULT_KEY
     del_yaml = cfg.get("hotkeys.toggle", [DEFAULT_KEY]) or [DEFAULT_KEY]
-    tecla = del_yaml[0]
+    if isinstance(del_yaml, list) and del_yaml:
+        candidata_yaml = del_yaml[0]
+        if isinstance(candidata_yaml, str) and validate_custom(candidata_yaml)[0]:
+            tecla = candidata_yaml
+
     guardada = prefs.get("dictation_key")
     if isinstance(guardada, str) and validate_custom(guardada)[0]:
         tecla = guardada
