@@ -19,6 +19,13 @@ está grabando o procesando), así que dispararlo en cada Esc del sistema es bar
 latch (Shift, solo en modo hold): si el dictado va para largo, pulsa latch SIN
 soltar la tecla de dictado y la grabación queda fijada — puedes soltar. Un tap
 de la tecla de dictado la termina. Esc también deshace el latch.
+
+guarda (toggle_guard, solo modo hold): los modificadores IZQUIERDOS se usan en
+combos constantemente (⌘C, ⌘V, ⌘Tab), así que arrancar la grabación al caer la
+tecla los haría inservibles como tecla de dictado. Con guarda, on_start() no se
+llama en el press: se arma un timer de guard_delay y solo dispara si la tecla
+sigue sola al vencer. Cualquier otra tecla dentro de la ventana la cancela. Las
+teclas sin guarda conservan el arranque instantáneo de siempre.
 """
 from __future__ import annotations
 
@@ -61,8 +68,33 @@ def _norm(key) -> str:
     return name
 
 
+# GOTCHA pynput: en macOS, Key.cmd_l NO es un miembro propio del enum sino un
+# ALIAS de Key.cmd — el backend darwin les da el mismo virtual keycode (0x37) y
+# enum.Enum colapsa los valores iguales en un solo miembro. Así que
+# `Key.cmd_l is Key.cmd` y su .name es "cmd": _norm() jamás devuelve "cmd_l".
+# Las derechas sí son miembros propios (vk distinto) y salen como "cmd_r".
+# Resultado: el nombre genérico que reporta pynput ES el de la tecla izquierda,
+# y hay que traducir el nombre del catálogo ("cmd_l") al que llega del teclado
+# ("cmd") o la tecla de dictado no casaría nunca y no arrancaría ninguna
+# grabación. Se traduce SOLO la configuración; _norm() ya devuelve canónico.
+_ALIAS_IZQUIERDA = {
+    "cmd_l": "cmd",
+    "alt_l": "alt",
+    "ctrl_l": "ctrl",
+    "shift_l": "shift",
+}
+
+
+def _canon(name: str | None) -> str | None:
+    """Nombre de tecla configurado → nombre que pynput reporta de verdad."""
+    if not name:
+        return name
+    low = name.lower()
+    return _ALIAS_IZQUIERDA.get(low, low)
+
+
 def _combo_names(keys: list[str]) -> frozenset[str]:
-    return frozenset(k.lower() for k in keys)
+    return frozenset(_canon(k) for k in keys)
 
 
 class HotkeyManager:
@@ -81,6 +113,8 @@ class HotkeyManager:
         on_cancel=None,
         latch_keys: list[str] | None = None,
         on_latch=None,
+        toggle_guard: bool = False,
+        guard_delay: float = 0.3,
     ):
         self.toggle_mode = toggle_mode
         self.on_toggle = on_toggle
@@ -92,11 +126,11 @@ class HotkeyManager:
         self.on_latch = on_latch
 
         # tecla de dictado (modo hold: una sola tecla)
-        self._toggle_key = toggle_keys[0].lower() if toggle_keys else None
+        self._toggle_key = _canon(toggle_keys[0]) if toggle_keys else None
         # tecla de cancelar (una sola, Esc por defecto)
-        self._cancel_key = cancel_keys[0].lower() if cancel_keys else None
+        self._cancel_key = _canon(cancel_keys[0]) if cancel_keys else None
         # tecla de latch (una sola; "shift" también casa shift_r)
-        self._latch_key = latch_keys[0].lower() if latch_keys else None
+        self._latch_key = _canon(latch_keys[0]) if latch_keys else None
         self._held = False
         self._latched = False
         # combos (cycle/paste) y también el toggle si modo "toggle" con combo
@@ -108,6 +142,66 @@ class HotkeyManager:
         self._pressed_lock = threading.Lock()
         self._listener: keyboard.Listener | None = None
 
+        # Ventana de decisión (solo modificadores izquierdos). Ver el header.
+        self._guard = bool(toggle_guard)
+        self._guard_delay = float(guard_delay)
+        self._guard_timer: threading.Timer | None = None
+        # Contador de generación: invalida el timer de una pulsación ya
+        # soltada. Sin él, un tecleo rápido dispara tarde el timer de una
+        # pulsación vieja y arranca una grabación fantasma.
+        self._guard_seq = 0
+        self._guard_lock = threading.Lock()
+        # _held = la tecla está físicamente pulsada.
+        # _started = on_start() ya se llamó de verdad.
+        # Con guarda los dos se separan: la tecla puede estar pulsada sin que
+        # la grabación haya empezado. Sin esa distinción, soltar dentro de la
+        # ventana dispararía un on_stop() de una grabación que nunca arrancó.
+        self._started = False
+
+    # --- ventana de decisión ---
+    def _arm_guard(self) -> None:
+        with self._guard_lock:
+            self._guard_seq += 1
+            seq = self._guard_seq
+            t = threading.Timer(self._guard_delay, self._guard_fire, args=(seq,))
+            t.daemon = True
+            self._guard_timer = t
+            t.start()
+
+    def _cancel_guard(self) -> None:
+        with self._guard_lock:
+            self._guard_seq += 1  # invalida cualquier disparo ya en vuelo
+            t, self._guard_timer = self._guard_timer, None
+        if t is not None:
+            t.cancel()
+
+    def _guard_fire(self, seq: int) -> None:
+        with self._guard_lock:
+            if seq != self._guard_seq or not self._held:
+                return
+            self._started = True
+        threading.Thread(target=self.on_start, daemon=True).start()
+
+    def reconfigure(self, toggle_key: str, toggle_mode: str, guard: bool) -> None:
+        """Cambia la tecla de dictado sin recrear el manager.
+
+        Vive aquí y no en app.py porque rehacer _toggle_combo al pasar a modo
+        "toggle" es un detalle interno de esta clase: quien llama solo sabe qué
+        tecla quiere. El listener NO se rearranca aquí — de eso se encarga
+        quien llama, que es el único que sabe si está en el hilo principal (y
+        arrancar dos listeners a la vez aborta el proceso).
+        """
+        self._toggle_key = _canon(toggle_key)
+        self.toggle_mode = toggle_mode
+        self._guard = bool(guard)
+        self._toggle_combo = (
+            None if toggle_mode == "hold" else _combo_names([self._toggle_key])
+        )
+        self._cancel_guard()
+        self._held = False
+        self._started = False
+        self._latched = False
+
     # --- listener callbacks ---
     def _on_press(self, key):
         name = _norm(key)
@@ -118,6 +212,13 @@ class HotkeyManager:
             self._pressed.add(name)
             snapshot = frozenset(self._pressed)
 
+        # Cualquier tecla que no sea la de dictado cierra la ventana: el
+        # usuario está haciendo un combo (⌘C), no dictando. Fuera de la
+        # ventana no cancela nada — a mitad de un dictado ya empezado, una
+        # tecla suelta no puede tirar el audio grabado.
+        if name != self._toggle_key:
+            self._cancel_guard()
+
         # --- dictado ---
         if self.toggle_mode == "hold" and name == self._toggle_key:
             if self._latched:
@@ -125,18 +226,23 @@ class HotkeyManager:
                 # autorepeat de una tecla mantenida tras el tap.
                 if not already:
                     self._latched = False
+                    self._started = False
                     threading.Thread(target=self.on_stop, daemon=True).start()
                 return
             if not self._held and not already:
                 self._held = True
-                threading.Thread(target=self.on_start, daemon=True).start()
+                if self._guard:
+                    self._arm_guard()   # empieza sólo si aguanta sola la ventana
+                else:
+                    self._started = True
+                    threading.Thread(target=self.on_start, daemon=True).start()
             return
 
         # --- latch: fijar la grabación mientras se mantiene la tecla de dictado ---
         if (
             self.toggle_mode == "hold"
             and self._latch_key
-            and self._held
+            and self._started          # no se puede fijar lo que no ha empezado
             and not self._latched
             and (name == self._latch_key or name.startswith(self._latch_key + "_"))
         ):
@@ -151,6 +257,7 @@ class HotkeyManager:
         # --- cancelar dictado (Esc) ---
         if self.on_cancel and name == self._cancel_key:
             self._latched = False  # un dictado cancelado deja de estar fijado
+            self._started = False
             threading.Thread(target=self.on_cancel, daemon=True).start()
             return
 
@@ -172,10 +279,14 @@ class HotkeyManager:
         with self._pressed_lock:
             self._pressed.discard(name)
 
-        if self.toggle_mode == "hold" and name == self._toggle_key and self._held:
+        if self.toggle_mode == "hold" and name == self._toggle_key:
             self._held = False
+            self._cancel_guard()   # soltar dentro de la ventana = nunca arrancó
+            if not self._started:
+                return             # nada que parar
             if self._latched:
-                return  # fijado: se sigue grabando hasta el próximo tap
+                return             # fijado: se sigue grabando hasta el próximo tap
+            self._started = False
             threading.Thread(target=self.on_stop, daemon=True).start()
 
     def start(self) -> None:
