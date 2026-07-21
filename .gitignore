@@ -1,8 +1,6 @@
 # Python-generated files
 __pycache__/
 *.py[oc]
-build/
-dist/
 wheels/
 *.egg-info
 
@@ -12,7 +10,7 @@ wheels/
 # Secrets
 .env
 
-# STT models cache (mlx-whisper descarga en ~/Library/Caches/huggingface)
+# Downloaded STT models
 .cache/
 models/
 
@@ -23,16 +21,17 @@ models/
 build/
 dist/
 
-# Binarios de whisper.cpp vendorizados desde Homebrew.
-# No viajan en git: scripts/bundle-whisper.sh los regenera antes de cada build.
+# whisper.cpp binaries vendored from Homebrew. Not in git:
+# scripts/bundle-whisper.sh regenerates them before every build.
 vendor/
 
-# Notas y planificación interna (se conservan en local, fuera del repo público)
+# Internal notes and planning (kept locally, out of the public repo)
 docs/superpowers/
 RESEARCH.md
 
-# La landing vive en su propio repo (voooxly-web)
+# The landing page lives in its own repo (voooxly-web)
 web/
 
-# checkpoints internos del tooling
+# Internal tooling checkpoints
 .planning/
+.superpowers/
