@@ -31,7 +31,9 @@ audio:
   device: null            # null = dispositivo por defecto. Índice int o nombre.
   vad_aggressiveness: 2   # 0-3 (webrtcvad). 2 = buen balance.
   silence_to_stop: 1.2    # segundos de silencio para auto-cerrar la grabación
-  max_duration: 60        # seguridad: cierra a los 60s aunque no haya silencio
+  max_duration: 300       # seguridad: cierra a los 5 min aunque no haya silencio.
+                          # No bajar a 60: anula el latch, que existe para los
+                          # dictados largos, y se pierde todo lo posterior.
   min_duration: 0.4       # descarta pulsaciones de menos de 0.4s
   min_rms: 50             # RMS int16 mínimo: por debajo = micro sin señal (TCC
                           # denegado o mute) y se descarta sin llamar a Whisper
@@ -88,11 +90,14 @@ llm:
     # servidor qué modelos tienes y te deja escoger el tuyo.
     model: ""
     temperature: 0.3
-    timeout: 20             # si el LLM no responde a tiempo se pega la transcripción cruda
+    timeout: 60             # si el LLM no responde a tiempo se pega la transcripción
+                            # cruda. 60s, no 20: un dictado de 5 min es 5× más texto
+                            # que refinar, y al vencer el usuario lo vive como "la IA
+                            # dejó de funcionar en los dictados largos".
   # Claude API (si ANTHROPIC_API_KEY está en env)
   claude:
     model: "claude-sonnet-5"
-    max_tokens: 1200
+    max_tokens: 4000
     timeout: 60
   # OpenAI-compatible (base_url + key)
   openai:

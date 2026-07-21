@@ -497,7 +497,7 @@ class VoooxlyApp(rumps.App):
             device=self.cfg.get("audio.device"),
             vad_aggressiveness=self.cfg.get("audio.vad_aggressiveness", 2),
             silence_to_stop=silence,
-            max_duration=self.cfg.get("audio.max_duration", 60.0),
+            max_duration=self.cfg.get("audio.max_duration", 300.0),
             min_duration=self.cfg.get("audio.min_duration", 0.4),
         )
         self._recorder = audio.Recorder(acfg)
