@@ -24,7 +24,7 @@ dependencies = [
 voooxly = "voooxly.__main__:main"
 
 [dependency-groups]
-dev = ["pytest>=8.0", "pyinstaller>=6.0"]
+dev = ["pytest>=8.0", "pyinstaller>=6.0", "dmgbuild>=1.6"]
 
 [build-system]
 requires = ["hatchling"]
