@@ -21,9 +21,9 @@ from voooxly.hotkey import HotkeyManager
 DELAY = 0.05
 
 
-def _mk(on_start, on_stop, guard=True, on_latch=None, on_cancel=None):
+def _mk(on_start, on_stop, guard=True, on_latch=None, on_cancel=None, toggle_mode="hold"):
     return HotkeyManager(
-        toggle_mode="hold",
+        toggle_mode=toggle_mode,
         toggle_keys=["cmd_l"],
         cycle_keys=["ctrl", "shift", "m"],
         paste_keys=["ctrl", "shift", "v"],
@@ -157,3 +157,82 @@ def test_reconfigure_a_modo_toggle_rehace_el_combo():
     hk.reconfigure(toggle_key="f13", toggle_mode="toggle", guard=False)
     hk._on_press(keyboard.Key.f13)
     assert toggled.wait(1.0), "el modo toggle no disparó con la tecla nueva"
+
+
+# --- Fix 1 (Critical): la guarda también protege el toggle -----------------
+#
+# Antes de este fix, _on_press solo consultaba self._guard dentro de la rama
+# `toggle_mode == "hold"`. En modo toggle la tecla de dictado pasaba por
+# _toggle_combo y disparaba on_toggle() al instante, sin pasar nunca por la
+# ventana de decisión — pese a que keys.needs_guard() seguía devolviendo True
+# y el menú seguía anunciando "300 ms delay". Con Dictation key = Left ⌘ y
+# Dictation style = "Press to start / stop", cualquier ⌘C/⌘V/⌘S arrancaba una
+# grabación que solo paraba volviendo a tocar ⌘ solo — dos ajustes de menú,
+# cada uno válido por separado, catastróficos juntos. Estos tests prueban que
+# la guarda, una vez armada, dispara on_toggle() en vez de on_start() cuando
+# toggle_mode != "hold", con las mismas reglas de cancelación que en hold.
+
+
+def test_toggle_con_guarda_no_dispara_al_instante():
+    toggled = threading.Event()
+    hk = _mk(lambda: None, lambda: None, toggle_mode="toggle")
+    hk.on_toggle = toggled.set
+    hk._on_press(keyboard.Key.cmd_l)
+    assert not toggled.is_set(), "el toggle disparó al instante: la guarda no se aplicó"
+
+
+def test_toggle_con_guarda_dispara_tras_mantener_la_ventana():
+    toggled = threading.Event()
+    hk = _mk(lambda: None, lambda: None, toggle_mode="toggle")
+    hk.on_toggle = toggled.set
+    hk._on_press(keyboard.Key.cmd_l)
+    assert toggled.wait(2.0), "la guarda nunca dejó pasar el toggle"
+
+
+def test_toggle_con_guarda_un_combo_no_dispara_el_toggle():
+    # El escenario probado en vivo del informe: Dictation key = Left ⌘ +
+    # estilo "Press to start / stop". Sin la guarda aplicada al toggle, un
+    # ⌘C disparaba on_toggle y arrancaba una grabación que no paraba sola.
+    toggled = threading.Event()
+    hk = _mk(lambda: None, lambda: None, toggle_mode="toggle")
+    hk.on_toggle = toggled.set
+    hk._on_press(keyboard.Key.cmd_l)
+    hk._on_press(keyboard.KeyCode.from_char("c"))
+    time.sleep(DELAY * 4)
+    assert not toggled.is_set(), "un ⌘C disparó el toggle"
+
+
+def test_toggle_con_guarda_soltar_dentro_de_la_ventana_no_dispara():
+    # Igual que en hold: soltar antes de que venza la ventana cancela el
+    # intento. Sin este cancel específico de toggle, el timer ya armado
+    # seguiría vivo y dispararía tarde un toggle fantasma tras soltar.
+    toggled = threading.Event()
+    hk = _mk(lambda: None, lambda: None, toggle_mode="toggle")
+    hk.on_toggle = toggled.set
+    hk._on_press(keyboard.Key.cmd_l)
+    hk._on_release(keyboard.Key.cmd_l)
+    time.sleep(DELAY * 4)
+    assert not toggled.is_set(), "soltar dentro de la ventana disparó el toggle"
+
+
+def test_toggle_sin_guarda_sigue_disparando_al_instante():
+    # Cero regresión para las teclas del catálogo sin guarda (cmd_r, alt_r,
+    # ctrl_r, F6/F13-15): esa ruta ya está en producción y no debe cambiar.
+    toggled = threading.Event()
+    hk = _mk(lambda: None, lambda: None, guard=False, toggle_mode="toggle")
+    hk.on_toggle = toggled.set
+    hk._on_press(keyboard.Key.cmd_l)
+    assert toggled.wait(1.0), "una tecla sin guarda ya no dispara el toggle al instante"
+
+
+def test_reconfigure_a_modo_toggle_con_guarda_aplica_la_ventana():
+    # El camino real de Settings: cambiar de tecla/estilo en caliente sin
+    # reiniciar la app. Antes del fix, reconfigure() guardaba guard=True en
+    # self._guard pero nada lo consultaba en modo toggle.
+    toggled = threading.Event()
+    hk = _mk(lambda: None, lambda: None, guard=False)  # arranca en hold sin guarda
+    hk.on_toggle = toggled.set
+    hk.reconfigure(toggle_key="cmd_l", toggle_mode="toggle", guard=True)
+    hk._on_press(keyboard.Key.cmd_l)
+    assert not toggled.is_set(), "reconfigure a toggle+guard no aplicó la ventana"
+    assert toggled.wait(2.0), "tras aguantar la ventana completa, el toggle debía disparar"

@@ -12,6 +12,7 @@ import threading
 
 from pynput import keyboard
 
+from voooxly import hotkey, keys
 from voooxly.hotkey import HotkeyManager
 
 
@@ -49,3 +50,13 @@ def test_alt_gr_para_al_soltar():
     assert started.wait(2.0)
     hk._on_release(keyboard.Key.alt_r)
     assert stopped.wait(2.0)
+
+
+def test_hotkey_importa_el_alias_de_keys_en_vez_de_duplicarlo():
+    # Fix 3: hotkey._ALIAS_MISMA_TECLA y keys._ALIAS_MISMA_TECLA eran dos
+    # literales {"alt_gr": "alt_r"} separados que nada mantenía sincronizados
+    # — la misma clase de bug que ya dejó una vez la tecla de dictado muda
+    # (ver el docstring de este archivo). `is` y no `==`: dos dicts iguales
+    # pero distintos seguirían pudiendo divergir en el futuro; el import
+    # comparte el mismo objeto.
+    assert hotkey._ALIAS_MISMA_TECLA is keys._ALIAS_MISMA_TECLA

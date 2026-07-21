@@ -139,11 +139,13 @@ in `~/.voooxly/venv`, copies `.env` and downloads the Whisper model to
 > iCloud evicts large binaries and hangs builds — keep them out of Desktop/Documents.
 
 #### macOS permissions (prompted on first run)
-- **Accessibility** — global hotkey + simulated Cmd+V paste.
+- **Accessibility** — global hotkey + simulated Cmd+V paste (no osascript involved).
 - **Microphone** — recording.
-- **Automation** — osascript pasting (first-time dialog).
+- **Automation** — pausing Spotify/Music while you dictate, resuming it after (one-time prompt per player you use).
 
-If pasting doesn't work, it's almost always Accessibility/Automation not granted.
+If pasting doesn't work, it's almost always Accessibility not granted. Automation only
+affects the music auto-pause — without it, dictation still works, your player just
+keeps playing over you.
 
 ### Running
 

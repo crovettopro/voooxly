@@ -11,12 +11,16 @@ que editar prefs.json a mano — cosa que el usuario que necesita este menú no
 sabe hacer.
 
 GUARDA (guard=True): los modificadores IZQUIERDOS se usan constantemente en
-combos (⌘C, ⌘V, ⌘S, ⌘Tab). En modo hold, hotkey.py dispara on_start() al caer
-la tecla, así que sin guarda cada ⌘C arrancaría una grabación. Con guarda, la
-grabación solo empieza si mantienes la tecla SOLA ~300ms. Las derechas no la
-llevan: casi nadie hace combos con ellas, la ruta actual ya está en producción
-y dársela costaría 300ms de latencia a todo el mundo para arreglar un problema
-que solo tienen las izquierdas.
+combos (⌘C, ⌘V, ⌘S, ⌘Tab). hotkey.py dispara on_start() (modo hold) u
+on_toggle() (modo toggle) al caer la tecla, así que sin guarda cada ⌘C
+arrancaría o alternaría una grabación EN CUALQUIERA de los dos modos —
+needs_guard() no distingue por dictation_mode porque la tecla la necesita
+pase lo que pase en Settings → Dictation style. Con guarda, el disparo solo
+ocurre si mantienes la tecla SOLA ~300ms (en modo toggle eso cambia el gesto
+de un tap a un mantener breve). Las derechas no la llevan: casi nadie hace
+combos con ellas, la ruta actual ya está en producción y dársela costaría
+300ms de latencia a todo el mundo para arreglar un problema que solo tienen
+las izquierdas.
 """
 from __future__ import annotations
 
