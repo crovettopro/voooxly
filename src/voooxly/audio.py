@@ -48,7 +48,10 @@ class AudioConfig:
     device: int | str | None = None
     vad_aggressiveness: int = 2
     silence_to_stop: float = 1.2
-    max_duration: float = 60.0
+    # 5 min, no 60s: el tope de un minuto anulaba el latch, que existe justo
+    # para dictados largos. No se quita del todo — sigue siendo la red de
+    # seguridad contra una tecla encallada, que grabaría hasta llenar el disco.
+    max_duration: float = 300.0
     min_duration: float = 0.4
 
 
