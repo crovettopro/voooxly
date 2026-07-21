@@ -157,7 +157,7 @@ def _record_token_usage(refiner, prefs) -> None:
         from . import ai_settings
 
         sel = ai_settings.load(prefs)
-        stats.bump_tokens(usados, sel.provider.label if sel else "")
+        stats.bump_tokens(usados, sel.provider.name if sel else "")
     except Exception:
         log.debug("No pude contar tokens tras el pegado", exc_info=True)
 
@@ -1328,7 +1328,7 @@ class VoooxlyApp(rumps.App):
         if prov.needs_key:
             api_key = keychain.get_key(prov.key)
             resp = rumps.Window(
-                message=f"API key for {prov.label}:",
+                message=f"API key for {prov.name}:",
                 title="Connect AI engine",
                 ok="Connect", cancel="Cancel",
                 dimensions=(320, 24), secure=True,
@@ -1338,13 +1338,13 @@ class VoooxlyApp(rumps.App):
             if resp.text.strip():
                 api_key = resp.text.strip()
             if not api_key:
-                self._alert("No API key", f"{prov.label} needs a key to work.")
+                self._alert("No API key", f"{prov.name} needs a key to work.")
                 return
 
         sel = ai_settings.Selection(prov, base_url, model)
         ok, msg = refine.validate(sel, api_key)
         if not ok:
-            self._alert(f"Couldn't connect to {prov.label}", msg)
+            self._alert(f"Couldn't connect to {prov.name}", msg)
             return
 
         key_guardada = True

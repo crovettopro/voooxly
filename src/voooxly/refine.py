@@ -428,9 +428,9 @@ def _env_key_for(selection) -> str | None:
 def validate(selection, api_key: str | None, timeout: float = 12.0) -> tuple[bool, str]:
     """Comprueba de verdad que el proveedor refina. Devuelve (ok, mensaje)."""
     if selection.provider.needs_key and not api_key:
-        return False, f"{selection.provider.label} needs an API key."
+        return False, f"{selection.provider.name} needs an API key."
     if not selection.model:
-        return False, f"Pick a model for {selection.provider.label}."
+        return False, f"Pick a model for {selection.provider.name}."
     # _probe() exporta la key candidata a os.environ ANTES de generar (los
     # backends la leen de ahí). Si la validación falla, esa key rechazada se
     # queda en el entorno y sesga la próxima detect_backend() (su cascada solo
@@ -456,8 +456,8 @@ def validate(selection, api_key: str | None, timeout: float = 12.0) -> tuple[boo
         return False, f"Model “{selection.model}” isn't available: {e}"
     except Exception as e:
         _restore_env()
-        return False, f"Couldn't reach {selection.provider.label}: {e}"
+        return False, f"Couldn't reach {selection.provider.name}: {e}"
     if not (salida or "").strip():
         _restore_env()
-        return False, f"{selection.provider.label} answered, but with nothing usable."
-    return True, f"Connected to {selection.provider.label} using {selection.model}."
+        return False, f"{selection.provider.name} answered, but with nothing usable."
+    return True, f"Connected to {selection.provider.name} using {selection.model}."
