@@ -55,6 +55,27 @@ def test_un_digito_suelto_se_rechaza():
     assert keys.validate_custom("7")[0] is False
 
 
+def test_validate_custom_no_revienta_con_un_entero_verdadero():
+    # 7 es truthy: `(7 or "").strip()` explota con AttributeError si no se
+    # comprueba el tipo antes de tocarlo. validate_custom es pública y una
+    # tarea posterior la cablea directo a la entrada del menú, así que un
+    # valor no-string no puede reventarla — tiene que rechazarse como
+    # cualquier otra tecla inválida.
+    ok, msg = keys.validate_custom(7)
+    assert ok is False
+    assert isinstance(msg, str) and msg
+
+
+def test_validate_custom_rechaza_cualquier_tipo_no_string_sin_reventar():
+    # Los no-string falsy (0, [], None) ya degradaban sin reventar porque
+    # `(name or "")` los convertía en cadena vacía. Este test fija que
+    # también los truthy (7.5, True, listas no vacías) se rechazan en vez de
+    # levantar una excepción.
+    for malo in (0, [], {}, None, 7.5, True, ["a"]):
+        ok, msg = keys.validate_custom(malo)
+        assert ok is False, f"{malo!r} debería rechazarse, no reventar"
+
+
 def test_esc_y_shift_se_rechazan_porque_ya_tienen_dueno():
     assert keys.validate_custom("esc")[0] is False
     assert keys.validate_custom("shift")[0] is False
@@ -109,6 +130,35 @@ def test_resolve_ignora_unos_prefs_corruptos():
 def test_resolve_ignora_un_modo_invalido():
     cfg = {"hotkeys.toggle": ["cmd_r"], "hotkeys.toggle_mode": "hold"}
     assert keys.resolve({"dictation_mode": "bailando"}, _FakeCfg(cfg))[1] == "hold"
+
+
+def test_resolve_cae_al_default_si_el_yaml_trae_un_string_suelto():
+    # "toggle: cmd_r" en vez de "toggle: [cmd_r]" es un error de YAML fácil de
+    # cometer. Sin comprobar la forma antes de indexar, "alt_r"[0] cuela "a"
+    # como tecla de dictado y rompe el teclado en silencio.
+    cfg = {"hotkeys.toggle": "alt_r", "hotkeys.toggle_mode": "hold"}
+    assert keys.resolve({}, _FakeCfg(cfg))[0] == keys.DEFAULT_KEY
+
+
+def test_resolve_cae_al_default_si_el_yaml_no_es_subscriptable():
+    # Un entero (o cualquier tipo sin __getitem__) en hotkeys.toggle no puede
+    # tirar la app entera con un TypeError: se ignora y se cae al default.
+    cfg = {"hotkeys.toggle": 42, "hotkeys.toggle_mode": "hold"}
+    assert keys.resolve({}, _FakeCfg(cfg))[0] == keys.DEFAULT_KEY
+
+
+def test_resolve_cae_al_default_si_la_lista_del_yaml_esta_vacia():
+    cfg = {"hotkeys.toggle": [], "hotkeys.toggle_mode": "hold"}
+    assert keys.resolve({}, _FakeCfg(cfg))[0] == keys.DEFAULT_KEY
+
+
+def test_resolve_cae_al_default_si_la_tecla_del_yaml_no_pasa_validate_custom():
+    # La tecla de prefs pasa por validate_custom antes de aceptarse; la del
+    # YAML tenía un atajo que se la saltaba. Con una lista bien formada pero
+    # con una tecla inválida dentro (una letra suelta), tiene que rechazarse
+    # igual que se rechazaría viniendo de prefs.
+    cfg = {"hotkeys.toggle": ["a"], "hotkeys.toggle_mode": "hold"}
+    assert keys.resolve({}, _FakeCfg(cfg))[0] == keys.DEFAULT_KEY
 
 
 class _FakeCfg:
