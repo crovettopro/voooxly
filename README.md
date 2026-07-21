@@ -370,7 +370,7 @@ build that needs it.
 
 ### Roadmap
 
-Next up (1.1):
+Next up (1.2):
 
 - Edit Mode: select any text, speak an instruction, get it transformed.
 - Per-app modes and optional on-screen context for smarter cleanup.
