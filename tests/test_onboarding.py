@@ -141,3 +141,56 @@ def test_finish_no_revienta_si_el_callback_falla():
 
     c = onboarding.OnboardingController.alloc().initWithFinish_(_explota)
     c.finish_(None)  # no debe propagar
+
+
+def test_ventana_tiene_boton_minimizar(controller):
+    """La ventana debe ofrecer el botón amarillo de minimizar."""
+    from AppKit import NSWindowMiniaturizeButton, NSWindowStyleMaskMiniaturizable
+
+    assert controller._win.styleMask() & NSWindowStyleMaskMiniaturizable
+    assert controller._win.standardWindowButton_(NSWindowMiniaturizeButton) is not None
+
+
+def test_show_activa_politica_regular(controller):
+    """Al mostrar el asistente la app pasa a Regular: así la ventana se vuelve
+    key/activa y los clics llegan a los botones (y minimizar tiene sentido)."""
+    from AppKit import NSApplicationActivationPolicyRegular
+
+    with patch.object(onboarding, "NSApplication") as NSApp:
+        controller.show()
+        controller._stop_timer()
+    NSApp.sharedApplication.return_value.setActivationPolicy_.assert_any_call(
+        NSApplicationActivationPolicyRegular)
+
+
+def test_finish_restaura_politica_accessory(controller):
+    """Al terminar volvemos a app de barra (Accessory): sin icono en el Dock."""
+    from AppKit import NSApplicationActivationPolicyAccessory
+
+    with patch.object(onboarding, "NSApplication") as NSApp:
+        controller.finish_(None)
+    NSApp.sharedApplication.return_value.setActivationPolicy_.assert_called_with(
+        NSApplicationActivationPolicyAccessory)
+
+
+# ---- micrófono: requestAccess solo pregunta si el permiso está "sin decidir";
+#      si ya se denegó una vez, hay que mandar a Ajustes o el botón parece muerto ----
+def test_mic_pide_permiso_si_no_decidido(controller):
+    with patch.object(setup_checks, "microphone_status", return_value=0), \
+         patch.object(setup_checks, "request_microphone") as req, \
+         patch.object(setup_checks, "open_microphone_settings") as open_s:
+        controller.mic_(None)
+    req.assert_called_once()
+    open_s.assert_not_called()
+
+
+def test_mic_abre_ajustes_si_ya_denegado(controller):
+    """denied(2): macOS no vuelve a preguntar; abrimos Ajustes y escondemos la
+    ventana para no taparlo (igual que Accesibilidad)."""
+    with patch.object(setup_checks, "microphone_status", return_value=2), \
+         patch.object(setup_checks, "request_microphone") as req, \
+         patch.object(setup_checks, "open_microphone_settings") as open_s:
+        controller.mic_(None)
+    open_s.assert_called_once()
+    req.assert_not_called()
+    assert controller._hidden_for_settings is True

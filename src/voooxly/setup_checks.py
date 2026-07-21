@@ -17,7 +17,11 @@ log = logging.getLogger("voooxly.setup")
 ACCESSIBILITY_PANE = (
     "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
 )
-# AVAuthorizationStatusAuthorized; los otros son notDetermined(0), restricted(1), denied(2)
+MICROPHONE_PANE = (
+    "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
+)
+# AVAuthorizationStatus: notDetermined(0), restricted(1), denied(2), authorized(3)
+_AV_NOT_DETERMINED = 0
 _AV_AUTHORIZED = 3
 
 
@@ -29,15 +33,32 @@ class Check:
     blocking: bool
 
 
-def has_microphone() -> bool:
+def microphone_status() -> int:
+    """Estado crudo de AVAuthorizationStatus. 0=sin decidir, 2=denegado, 3=ok.
+
+    Se distingue de has_microphone() porque el onboarding necesita el matiz:
+    'sin decidir' abre el prompt del sistema; 'denegado' ya no vuelve a
+    preguntar y hay que mandar al usuario a Ajustes.
+    """
     try:
         from AVFoundation import AVCaptureDevice, AVMediaTypeAudio
 
-        status = AVCaptureDevice.authorizationStatusForMediaType_(AVMediaTypeAudio)
-        return int(status) == _AV_AUTHORIZED
+        return int(AVCaptureDevice.authorizationStatusForMediaType_(AVMediaTypeAudio))
     except Exception as e:
         log.debug("No pude leer el estado del micrófono: %s", e)
-        return False
+        return _AV_NOT_DETERMINED
+
+
+def has_microphone() -> bool:
+    return microphone_status() == _AV_AUTHORIZED
+
+
+def open_microphone_settings() -> None:
+    """Abre Ajustes › Privacidad › Micrófono (cuando el permiso ya se denegó)."""
+    try:
+        subprocess.run(["open", MICROPHONE_PANE], check=False, timeout=5)
+    except Exception as e:
+        log.warning("No pude abrir Ajustes de micrófono: %s", e)
 
 
 def request_microphone(callback=None) -> None:

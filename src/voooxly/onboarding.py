@@ -21,6 +21,17 @@ RESTRICCIONES de macOS aprendidas a base de crashes:
 - NSWindow solo puede instanciarse en el hilo principal (igual que overlay.py).
 - La ventana va a NIVEL FLOTANTE: app de barra sin Dock, así no se pierde atrás
   mientras descarga el modelo. Al abrir Ajustes se esconde (ver arriba).
+
+Botones "muertos" en macOS 26 (Tahoe) — el bug que más costó:
+  La app es accesoria (LSUIElement) y show() se llama ANTES de que arranque el
+  run loop de rumps. En macOS 26 eso deja la ventana visible pero NO activa/key,
+  y el window server se traga el primer clic como "activar app" en vez de
+  entregárselo al botón: mic y accesibilidad parecían no responder. La cura es
+  promover la app a Regular mientras dura el onboarding (ventana de primer plano
+  de verdad, con foco y tile en el Dock — que además hace útil el minimizar) y
+  re-activar UNA vez el run loop ya corre. Al terminar se restaura Accessory.
+  El botón de micrófono, además, manda a Ajustes si el permiso ya se denegó:
+  requestAccess solo abre el prompt cuando está "sin decidir".
 """
 from __future__ import annotations
 
@@ -31,6 +42,8 @@ import time
 import objc
 from AppKit import (
     NSApplication,
+    NSApplicationActivationPolicyAccessory,
+    NSApplicationActivationPolicyRegular,
     NSBackingStoreBuffered,
     NSButton,
     NSColor,
@@ -44,6 +57,7 @@ from AppKit import (
     NSView,
     NSWindow,
     NSWindowStyleMaskClosable,
+    NSWindowStyleMaskMiniaturizable,
     NSWindowStyleMaskTitled,
 )
 from Foundation import NSAttributedString, NSMakeRect, NSMakeSize, NSObject, NSTimer
@@ -105,7 +119,8 @@ class OnboardingController(NSObject):
     def _build(self):
         self._win = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
             NSMakeRect(0, 0, W, H),
-            NSWindowStyleMaskTitled | NSWindowStyleMaskClosable,
+            NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
+            | NSWindowStyleMaskMiniaturizable,
             NSBackingStoreBuffered,
             False,
         )
@@ -285,18 +300,31 @@ class OnboardingController(NSObject):
         return row
 
     # ---------- acciones de los botones (selectores mic:, accessibility:, ...) ----------
-    def mic_(self, _sender):
-        setup_checks.request_microphone()
-
-    def accessibility_(self, _sender):
-        setup_checks.open_accessibility_settings()
-        # Escondemos el onboarding para que Ajustes del Sistema sea visible y
-        # manejable: antes la ventana flotante se quedaba encima y bloqueaba.
-        # El NSTimer (_refresh) lo vuelve a mostrar cuando se concede el permiso
-        # o cuando el usuario vuelve a Voooxly.
+    def _hide_for_settings(self):
+        """Esconde el onboarding para que Ajustes del Sistema sea visible y
+        manejable: si no, la ventana flotante se queda encima y lo bloquea. El
+        NSTimer (_refresh) lo vuelve a mostrar cuando se concede el permiso o
+        cuando el usuario vuelve a Voooxly."""
         self._win.orderOut_(None)
         self._hidden_for_settings = True
         self._hide_t = time.monotonic()
+
+    def mic_(self, _sender):
+        # requestAccess SOLO abre el prompt del sistema cuando el permiso está
+        # "sin decidir". Si el usuario ya lo denegó una vez, macOS no vuelve a
+        # preguntar y el botón parecería muerto: hay que llevarlo a Ajustes.
+        status = setup_checks.microphone_status()
+        log.info("Onboarding: clic en Microphone (status=%s)", status)
+        if status == 0:  # notDetermined
+            setup_checks.request_microphone()
+        else:
+            setup_checks.open_microphone_settings()
+            self._hide_for_settings()
+
+    def accessibility_(self, _sender):
+        log.info("Onboarding: clic en Accessibility")
+        setup_checks.open_accessibility_settings()
+        self._hide_for_settings()
 
     def model_(self, _sender):
         if self._downloading:
@@ -321,6 +349,14 @@ class OnboardingController(NSObject):
     def finish_(self, _sender):
         self._stop_timer()
         self._win.orderOut_(None)
+        # Volvemos a app de barra: sin icono en el Dock ni menú principal. En el
+        # arranque normal on_finish relanza un proceso nuevo (que ya nace
+        # Accessory), pero en el fallback de dev seguimos vivos: hay que restaurar.
+        try:
+            NSApplication.sharedApplication().setActivationPolicy_(
+                NSApplicationActivationPolicyAccessory)
+        except Exception:
+            log.debug("No pude restaurar la policy Accessory", exc_info=True)
         if self._on_finish:
             try:
                 self._on_finish()
@@ -424,10 +460,43 @@ class OnboardingController(NSObject):
             self._start.setKeyEquivalent_("\r")
 
     def show(self):
-        NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
+        app = NSApplication.sharedApplication()
+        # Promover a app de primer plano mientras dura el onboarding: así la
+        # ventana se vuelve key/activa de verdad y los clics llegan a los botones
+        # (en macOS 26, siendo accesoria, se los tragaba el window server). De
+        # paso aparece tile en el Dock, que hace que minimizar tenga sentido.
+        try:
+            app.setActivationPolicy_(NSApplicationActivationPolicyRegular)
+        except Exception:
+            log.debug("No pude promover a Regular", exc_info=True)
+        app.activateIgnoringOtherApps_(True)
         self._win.center()
         self._win.makeKeyAndOrderFront_(None)
         self._start_timer()
+        # show() corre ANTES de que arranque el run loop de rumps, y activar antes
+        # de tiempo no "pega". Re-activamos una vez el loop ya está vivo, y ~medio
+        # segundo después registramos el estado YA asentado (comprobarlo en el
+        # mismo tick del activate da un falso 'key=False' antes de que cuaje).
+        NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
+            0.2, self, "reactivate:", None, False)
+        NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
+            0.7, self, "logState:", None, False)
+
+    def reactivate_(self, _timer):
+        try:
+            app = NSApplication.sharedApplication()
+            app.activateIgnoringOtherApps_(True)
+            self._win.makeKeyAndOrderFront_(None)
+        except Exception:
+            log.debug("re-activación falló", exc_info=True)
+
+    def logState_(self, _timer):
+        try:
+            app = NSApplication.sharedApplication()
+            log.info("Onboarding activo: key=%s active=%s policy=%s",
+                     self._win.isKeyWindow(), app.isActive(), app.activationPolicy())
+        except Exception:
+            pass
 
 
 def _label(rect, text, size, bold=False, secondary=False, color=None, align=0):
