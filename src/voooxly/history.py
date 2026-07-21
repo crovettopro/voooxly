@@ -5,12 +5,15 @@ fichero va con permisos 0600 y `app.save_history: false` lo apaga entero.
 Escritura best-effort — un historial roto jamás debe estorbar al dictado —
 y rotación sola: al pasar de MAX_ENTRIES*2 líneas se conservan las últimas
 MAX_ENTRIES.
+Las búsquedas ignoran mayúsculas y diacríticos (ver _fold): el texto guardado
+nunca se altera, el plegado es solo para comparar.
 """
 from __future__ import annotations
 
 import json
 import logging
 import os
+import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -43,12 +46,28 @@ def load(limit: int = 10, path: Path | None = None) -> list[str]:
     return [e["text"] for e in entries[-limit:]][::-1]
 
 
+def _fold(s: str) -> str:
+    """Minúsculas sin diacríticos: 'Póker' → 'poker', 'Año' → 'ano'.
+
+    Dictas con tildes y luego buscas escribiendo rápido, sin ellas. Comparar
+    en crudo hacía que "poker" no encontrara "póker". NFD separa la letra de
+    su diacrítico y se descarta el diacrítico. La ñ también se pliega: es lo
+    estándar en un buscador en español, y el objetivo es que buscar sea más
+    fácil, no más exacto.
+    """
+    nfd = unicodedata.normalize("NFD", s)
+    return "".join(c for c in nfd if not unicodedata.combining(c)).lower()
+
+
 def search(query: str, limit: int = 10, path: Path | None = None) -> list[str]:
-    """Dictados que contienen `query` (sin distinguir mayúsculas), recientes primero."""
-    q = (query or "").strip().lower()
+    """Dictados que contienen `query`, ignorando mayúsculas y tildes; recientes primero."""
+    q = _fold((query or "").strip())
     if not q:
         return []
-    hits = [e["text"] for e in _read(path or HISTORY_FILE) if q in e["text"].lower()]
+    # Se pliegan LOS DOS lados para que la búsqueda sea simétrica: "poker"
+    # encuentra "póker" y "póker" encuentra "poker". Plegar solo la consulta
+    # arreglaría únicamente la mitad de los casos.
+    hits = [e["text"] for e in _read(path or HISTORY_FILE) if q in _fold(e["text"])]
     return hits[-limit:][::-1]
 
 

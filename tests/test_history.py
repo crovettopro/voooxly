@@ -64,3 +64,41 @@ def test_las_entradas_guardan_modo_y_timestamp(tmp_path):
     assert e["mode"] == "notas"
     assert e["text"] == "hola"
     assert e["ts"]  # iso8601 UTC
+
+
+def test_search_encuentra_con_y_sin_tildes_en_los_dos_sentidos():
+    # Dictas "póker" y luego buscas escribiendo rápido, sin tilde. Y al revés.
+    # La búsqueda tiene que ser simétrica o solo funciona la mitad de las veces.
+    from voooxly import history as h
+    assert h._fold("Póker") == h._fold("poker")
+    assert h._fold("ARTÍCULO") == h._fold("articulo")
+
+
+def test_search_sin_tildes_encuentra_el_texto_con_tildes(tmp_path):
+    p = tmp_path / "h.jsonl"
+    for t in ("partida de póker el jueves", "comprar pan"):
+        history.append(t, "ordenar", p)
+    assert history.search("poker", 10, p) == ["partida de póker el jueves"]
+
+
+def test_search_con_tildes_encuentra_el_texto_sin_tildes(tmp_path):
+    p = tmp_path / "h.jsonl"
+    history.append("partida de poker el jueves", "ordenar", p)
+    assert history.search("póker", 10, p) == ["partida de poker el jueves"]
+
+
+def test_search_tambien_pliega_la_ene(tmp_path):
+    # Decisión explícita: 'año' y 'ano' son la misma búsqueda. Es lo estándar
+    # en un buscador en español y el objetivo declarado era que buscar fuera
+    # más fácil, no más exacto.
+    p = tmp_path / "h.jsonl"
+    history.append("resumen del año", "ordenar", p)
+    assert history.search("ano", 10, p) == ["resumen del año"]
+
+
+def test_el_plegado_no_toca_el_texto_guardado(tmp_path):
+    # Se pliega para COMPARAR, nunca para guardar ni para devolver: lo que se
+    # copia al portapapeles tiene que salir con sus tildes intactas.
+    p = tmp_path / "h.jsonl"
+    history.append("Reunión con Íñigo", "ordenar", p)
+    assert history.search("inigo", 10, p) == ["Reunión con Íñigo"]
