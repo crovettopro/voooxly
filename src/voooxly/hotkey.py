@@ -20,12 +20,22 @@ latch (Shift, solo en modo hold): si el dictado va para largo, pulsa latch SIN
 soltar la tecla de dictado y la grabación queda fijada — puedes soltar. Un tap
 de la tecla de dictado la termina. Esc también deshace el latch.
 
-guarda (toggle_guard, solo modo hold): los modificadores IZQUIERDOS se usan en
-combos constantemente (⌘C, ⌘V, ⌘Tab), así que arrancar la grabación al caer la
-tecla los haría inservibles como tecla de dictado. Con guarda, on_start() no se
-llama en el press: se arma un timer de guard_delay y solo dispara si la tecla
-sigue sola al vencer. Cualquier otra tecla dentro de la ventana la cancela. Las
-teclas sin guarda conservan el arranque instantáneo de siempre.
+guarda (toggle_guard): los modificadores IZQUIERDOS se usan en combos
+constantemente (⌘C, ⌘V, ⌘Tab), así que disparar el dictado al caer la tecla
+los haría inservibles como tecla de dictado — sea cual sea toggle_mode. Con
+guarda, ni on_start() (modo hold) ni on_toggle() (modo toggle) se llaman en
+el press: se arma un timer de guard_delay y solo dispara si la tecla sigue
+sola al vencer; qué callback dispara depende de toggle_mode en ese instante,
+no de qué modo estaba activo cuando se armó el timer. Cualquier otra tecla
+dentro de la ventana la cancela. Las teclas sin guarda conservan el disparo
+instantáneo de siempre, en cualquier modo.
+
+FIX: antes, self._guard solo se consultaba dentro de `toggle_mode == "hold"`
+— en modo toggle la tecla de dictado pasaba por _toggle_combo y disparaba
+on_toggle() al instante, sin pasar nunca por la ventana. Con Dictation key =
+Left ⌘ y Dictation style = "Press to start / stop" (dos ajustes de menú cada
+uno válido por separado), cualquier ⌘C/⌘V/⌘S arrancaba una grabación que solo
+paraba volviendo a tocar ⌘ solo. Ver tests/test_guard_hotkey.py.
 """
 from __future__ import annotations
 
@@ -33,6 +43,8 @@ import logging
 import threading
 
 from pynput import keyboard
+
+from .keys import _ALIAS_MISMA_TECLA
 
 log = logging.getLogger("voooxly.hotkey")
 
@@ -92,9 +104,12 @@ _ALIAS_IZQUIERDA = {
 # "alt_gr" nunca vería _norm() devolver ese nombre — siempre reporta
 # "alt_r" — y la tecla de dictado no arrancaría jamás: sin error, sin log,
 # el fallo mudo que este módulo existe para evitar.
-_ALIAS_MISMA_TECLA = {
-    "alt_gr": "alt_r",
-}
+#
+# Importado de keys.py, no redefinido: dos literales {"alt_gr": "alt_r"} en
+# dos módulos es la misma clase de bug que el propio alias arregla — nada
+# los mantendría sincronizados si alguna vez cambia uno solo. keys.py es un
+# módulo de datos puro (sin pynput ni AppKit) así que importar de ahí hacia
+# aquí no cierra ningún ciclo.
 
 
 def _canon(name: str | None) -> str | None:
@@ -193,8 +208,14 @@ class HotkeyManager:
         with self._guard_lock:
             if seq != self._guard_seq or not self._held:
                 return
-            self._started = True
-        threading.Thread(target=self.on_start, daemon=True).start()
+            # _started solo describe "on_start() ya se llamó de verdad" (ver
+            # el comentario del atributo en __init__): en modo toggle lo que
+            # dispara es on_toggle(), no on_start(), así que dejarlo en False
+            # ahí es lo correcto, no un olvido.
+            hold = self.toggle_mode == "hold"
+            if hold:
+                self._started = True
+        threading.Thread(target=self.on_start if hold else self.on_toggle, daemon=True).start()
 
     def reconfigure(self, toggle_key: str, toggle_mode: str, guard: bool) -> bool:
         """Cambia la tecla de dictado sin recrear el manager.
@@ -259,9 +280,14 @@ class HotkeyManager:
         if name != self._toggle_key:
             self._cancel_guard()
 
-        # --- dictado ---
-        if self.toggle_mode == "hold" and name == self._toggle_key:
-            if self._latched:
+        # --- dictado: hold siempre pasa por aquí; toggle solo cuando la
+        # tecla necesita guarda (Fix 1) — sin guarda, el toggle sigue siendo
+        # un tap instantáneo vía _toggle_combo, más abajo. Antes de este fix
+        # esta rama exigía `toggle_mode == "hold"` a secas, así que una
+        # tecla guardada en modo toggle jamás pasaba por _arm_guard(): el
+        # menú y el README anunciaban un retardo de 300ms que no existía.
+        if name == self._toggle_key and (self.toggle_mode == "hold" or self._guard):
+            if self.toggle_mode == "hold" and self._latched:
                 # tap con la grabación fijada = terminar. `already` filtra el
                 # autorepeat de una tecla mantenida tras el tap.
                 if not already:
@@ -272,7 +298,7 @@ class HotkeyManager:
             if not self._held and not already:
                 self._held = True
                 if self._guard:
-                    self._arm_guard()   # empieza sólo si aguanta sola la ventana
+                    self._arm_guard()   # dispara sólo si aguanta sola la ventana
                 else:
                     self._started = True
                     threading.Thread(target=self.on_start, daemon=True).start()
@@ -328,6 +354,16 @@ class HotkeyManager:
                 return             # fijado: se sigue grabando hasta el próximo tap
             self._started = False
             threading.Thread(target=self.on_stop, daemon=True).start()
+            return
+
+        # --- toggle con guarda (Fix 1): soltar antes de que venza la
+        # ventana cancela el intento — el toggle solo cuenta si la tecla
+        # aguantó sola el tiempo completo, igual que el arranque en modo
+        # hold. Sin este cancel, un tap suelto dejaría el timer vivo y
+        # dispararía un toggle fantasma tras soltar. ---
+        if self.toggle_mode != "hold" and self._guard and name == self._toggle_key:
+            self._held = False
+            self._cancel_guard()
 
     def start(self) -> None:
         self._listener = keyboard.Listener(on_press=self._on_press, on_release=self._on_release)

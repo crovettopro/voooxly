@@ -1128,7 +1128,25 @@ class VoooxlyApp(rumps.App):
         interna intacta — self._dictation_key/self._toggle_mode y las marcas
         del menú tienen que reflejar ESE resultado, nunca lo que se pidió, o
         el checkmark mentiría sobre qué tecla está activa de verdad.
+
+        INVARIANTE (antes implícito, ahora explícito): esta función lee
+        resultado["ok"] justo después de llamar a self._on_main(apply), y eso
+        solo es correcto si _on_main ejecuta apply() de forma SÍNCRONA — lo
+        que _on_main.__doc__ solo garantiza en el hilo principal. Fuera de
+        él, AppHelper.callAfter es asíncrono: se leería resultado["ok"] en su
+        valor inicial (False) aunque la tecla sí hubiera cambiado, dejando
+        prefs.json sin guardar y el checkmark del menú desincronizado de lo
+        que el hotkey tiene activo de verdad. Hoy solo llegan aquí callbacks
+        de menú de rumps, que ya corren en el hilo principal — el assert no
+        cambia ese comportamiento, solo lo deja explícito para que un futuro
+        llamador desde un hilo de fondo falle ruidosamente en vez de guardar
+        mal en silencio.
         """
+        assert threading.current_thread() is threading.main_thread(), (
+            "_restart_hotkey debe llamarse desde el hilo principal: fuera de "
+            "él, _on_main() es async y el resultado se leería antes de que "
+            "apply() corra de verdad"
+        )
         resultado = {"ok": False}
 
         def apply():

@@ -71,6 +71,7 @@ def _transcribe_timeout(audio: np.ndarray) -> float:
     cfg = get_config()
     floor = cfg.get("stt.transcribe_timeout_floor", _TRANSCRIBE_TIMEOUT_FLOOR)
     ceiling = cfg.get("stt.transcribe_timeout_ceiling", _TRANSCRIBE_TIMEOUT_CEILING)
+    ceiling = max(ceiling, floor)  # floor invertido en config.yaml no puede prometer menos de sí mismo
     scaled = duration_s * _TRANSCRIBE_TIMEOUT_PER_SECOND
     return min(ceiling, max(floor, scaled))
 

@@ -130,3 +130,27 @@ def test_el_yaml_expone_piso_y_techo_del_timeout_de_transcripcion():
     cfg = load_config()
     assert cfg.get("stt.transcribe_timeout_floor", 0) >= 30
     assert cfg.get("stt.transcribe_timeout_ceiling", 0) >= 150
+
+
+class _CfgFloorPorEncimaDelTecho:
+    """Config con floor > ceiling: un error de tecleo en config.yaml, no un
+    caso exótico — nada impide hoy que alguien invierta los dos valores."""
+
+    def get(self, path, default=None):
+        if path == "stt.transcribe_timeout_floor":
+            return 200.0
+        if path == "stt.transcribe_timeout_ceiling":
+            return 30.0
+        return default
+
+
+def test_un_floor_por_encima_del_techo_no_baja_del_piso_prometido(monkeypatch):
+    # Fix 4: min(ceiling, max(floor, scaled)) con floor > ceiling devuelve
+    # ceiling (30s) pese a que el piso prometía al menos 200s — exactamente
+    # por debajo de lo que el propio floor garantiza. Sin el clamp, una
+    # config con los dos valores invertidos deja timeouts más cortos que el
+    # piso configurado, silenciosamente.
+    import voooxly.config as config_mod
+
+    monkeypatch.setattr(config_mod, "get_config", lambda: _CfgFloorPorEncimaDelTecho())
+    assert stt._transcribe_timeout(_audio_de(2.0)) >= 200.0
