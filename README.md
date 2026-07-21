@@ -1,10 +1,17 @@
 # Voooxly
 
-Private, on-device voice dictation for macOS. Hold a key, speak, and clean
-text appears wherever you were typing — no account, no subscription, no
-telemetry.
+**Hold a key, speak, and finished text appears wherever you were typing.**
+
+Voooxly is voice dictation for macOS that transcribes on your Mac — your voice
+never goes anywhere. Connect a free AI key and it goes further: it cleans up
+the "um"s, the false starts and the half-corrected sentences, and gives you
+what you *meant* to write.
+
+No account. No subscription. No telemetry. MIT-licensed.
 
 **[⬇ Download Voooxly for macOS (Apple Silicon)](https://github.com/crovettopro/voooxly/releases/latest)**
+
+<sub>Apple Silicon only · macOS 13+ · ~2 min to set up</sub>
 
 ## Get started in 2 minutes
 
@@ -17,65 +24,115 @@ telemetry.
 That's it. Whisper runs on your Mac, so this works with no internet, no API
 key and no account.
 
-Want a different key? **Settings → Dictation key** — right ⌘/⌥/⌃, left
-⌘/⌥/⌃ (a short delay keeps their combos like ⌘C working), F6/F13–F15, or
-**Custom…** for anything else. Prefer pressing once to start and again to
-stop instead of holding? **Settings → Dictation style**.
+**Not your key?** ⌘ is just the default. **Settings → Dictation key** offers
+all six bottom-row modifiers — right ⌘/⌥/⌃, and left ⌘/⌥/⌃ (these need a
+short hold, which is what keeps ⌘C and friends working normally). **Custom…**
+takes any other key pynput knows, like `f13`. Prefer pressing once to start
+and again to stop instead of holding? **Settings → Dictation style**.
 
 Two more shortcuts worth knowing: **Ctrl+Shift+M** cycles modes without
 opening the menu, and **Ctrl+Shift+V** pastes your last result again. Both
 are remappable in `config.yaml > hotkeys`.
 
-## Optional: free AI with Groq (30 seconds)
+Talk as long as you need — a single dictation can run up to five minutes.
 
-Out of the box Voooxly pastes the raw transcription, which Whisper already
-punctuates well. Connect an AI and it also cleans up filler words, fixes
-grammar and reshapes your words to the mode you picked.
+## Then connect an AI. This is the part that matters.
 
-**Groq is free and takes half a minute:**
+Everything above already works with no account and no key. But **transcription
+is not writing.** You backtrack, you say "um", you start the sentence twice,
+you correct yourself halfway through. A transcript gives you all of that,
+faithfully. It's you, typed out — mess included.
+
+Connect an AI and Voooxly hands you the text you *meant*:
+
+**What you say into the mic**
+
+> "um so basically I need to tell the team the deploy is uh is delayed,
+> delayed until Thursday because the migration, the database migration failed
+> twice, so yeah can we push the demo"
+
+**What lands at your cursor**
+
+> Heads up — the deploy is delayed until Thursday: the database migration
+> failed twice. Can we push the demo?
+
+Same meaning, same voice, none of the mess — it doesn't formalize you or put
+words in your mouth. That's the default **Organize & reply** mode; the same
+sentence comes out as bullet points, a Markdown note, an engineering spec or a
+translation depending on which mode you're in ([see the table below](#modes)).
+
+**This is the difference between dictating and being done.**
+
+### It's free. Thirty seconds.
+
+Groq gives you an API key for nothing:
 
 1. Go to [console.groq.com/keys](https://console.groq.com/keys) and sign in.
 2. Create an API key and copy it.
-3. In Voooxly's menu bar icon: **AI engine → Groq — free**, then paste the
-   key when it asks.
+3. Menu bar icon → **AI engine → Groq — free**, then paste the key.
 
-The key is stored in your macOS Keychain, never in a file.
+That's it — the menu now reads **AI engine — Groq** and every dictation from
+here on gets cleaned up. Your key goes into the macOS Keychain, never into a
+file in this repo or anywhere else.
 
 ### What it costs you
 
-Nothing — but "free tier" has limits, so Voooxly counts what you actually
-spend. **Usage stats…** in the menu shows your running total.
+Nothing, but "free tier" means limits exist, so Voooxly counts what you
+actually spend. **Usage stats…** in the menu shows your running total.
 
 | | |
 |---|---|
 | A typical dictation | ~500–850 tokens (estimate) |
 | Groq's free limits | [see your current limits](https://console.groq.com/settings/limits) |
 
-That range is an estimate, not a measured average — and most of it isn't
-your words. About 400 of those tokens are the fixed system prompt Voooxly
-sends with every request so the AI knows which mode you're in; that cost is
-the same whether you dictated one sentence or three. The transcript and the
-cleaned-up text each add roughly as many tokens as you spoke — tens of tokens
-for a short dictation, more for a long one. Groq's free-tier limits differ
-per model and change over time, so the link above is the honest answer
-rather than a number that would go stale. For normal day-to-day dictation you
-will not get close.
+That range is an estimate, not a measured average — and most of it isn't your
+words. About 400 of those tokens are the fixed instruction Voooxly sends with
+every request so the AI knows which mode you're in; that cost is identical
+whether you dictated one sentence or three. Your transcript and the cleaned-up
+text each add roughly as many tokens as you spoke — tens for a quick sentence,
+more for a long one. Groq's limits differ per model and change over time, so
+the link above is the honest answer rather than a number that goes stale here.
+Day-to-day dictation will not get close to them.
 
-Prefer something else? The **AI engine** menu also has Claude, OpenAI and
-Google Gemini — or **Ollama (local)** to run fully local with no key at all.
-Other OpenAI-compatible providers (OpenRouter, DeepSeek, Mistral, Together
-AI, xAI, …) can be wired up by hand — see **For developers → Configuration**.
+### Or bring a different one
+
+The **AI engine** menu has five options, and switching is one click:
+
+| Provider | Needs | Why you'd pick it |
+|---|---|---|
+| **Groq** | a free API key | fastest way to start |
+| **Claude** | your API key | best rewriting quality |
+| **OpenAI** | your API key | if you already have a key |
+| **Google Gemini** | your API key | if you already have a key |
+| **Ollama (local)** | nothing — runs on your Mac | **zero** text ever leaves the machine |
+
+**Ollama is the one to pick if privacy is the point.** With a local model,
+Voooxly is end-to-end offline: audio never left your Mac to begin with, and
+now the text doesn't either. Install [Ollama](https://ollama.com), pull a
+model, and Voooxly asks your own server which models you have and lets you
+choose.
+
+Other OpenAI-compatible providers (OpenRouter, DeepSeek, Mistral, Together AI,
+xAI, …) can be wired up by hand — see
+[For developers → Configuration](#configuration).
+
+**Connect nothing and Voooxly still works.** It pastes the raw transcription,
+which Whisper already punctuates well. You just do the cleanup yourself.
 
 ## What it does
 
 - **On-device STT** with `whisper.cpp` (native binary, Metal on Apple Silicon, no torch).
   Whisper large-v3-turbo: ~99 languages, strongest in English and Spanish.
 - **Silence endpointing** (VAD): stop talking and it finishes on its own.
+- **Long dictations**: up to five minutes in one go, with the transcription
+  timeout scaled to the length of what you actually recorded.
 - **Modes**: the same speech comes out as clean prose, a ready-to-send reply,
   a structured AI prompt, Markdown notes, a code spec, a summary or a translation.
-- **Bring your own AI (or none)**: cleanup runs through Ollama (local), Claude API
-  or any OpenAI-compatible endpoint — auto-detected. Without any, Voooxly pastes the
-  raw transcription, which Whisper already punctuates well.
+- **Bring your own AI (or none)**: Groq, Claude, OpenAI, Gemini or a local
+  Ollama model — one click in the menu, key stored in the Keychain. See
+  [Then connect an AI](#then-connect-an-ai-this-is-the-part-that-matters).
+- **Your dictation key, not ours**: any of the six bottom-row modifiers, or
+  anything else via Custom… — plus hold-to-talk or press-to-toggle.
 - **Global hotkey + menu bar + live HUD**: a status HUD shows `● Listening`
   with your words appearing in real time, `✦ Processing` while it polishes and
   `✓ Pasted` when done; the menu bar turns into a red dot with a timer while
@@ -109,10 +166,20 @@ define whole new modes in `src/voooxly/modes.py`.
 
 ## Privacy
 
-Audio is recorded, transcribed and discarded **on your Mac** — the Whisper model
-runs locally via `whisper-server`. If you connect a cloud AI for text cleanup
-(Claude/OpenAI/cloud-routed Ollama), only the transcribed **text** is sent, never
-audio. With a local Ollama model or no AI at all, nothing leaves your machine.
+**Your voice never leaves your Mac.** Audio is recorded, transcribed by
+`whisper-server` running locally, and discarded. There is no upload step, and
+that is true no matter which AI you connect.
+
+What varies is the *text*:
+
+| Setup | What leaves your Mac |
+|---|---|
+| No AI connected | Nothing |
+| **Ollama** (local model) | Nothing |
+| Groq / Claude / OpenAI / Gemini | The transcribed text only — never audio |
+
+No account, no telemetry, no analytics. Your history and stats are plain files
+in `~/.voooxly/`, and your API key lives in the macOS Keychain.
 
 ---
 
@@ -163,27 +230,42 @@ keeps playing over you.
 
 Everything lives in `config.yaml`, with `.env` overrides (see `.env.example`):
 
-- `VOOOXLY_LLM_BACKEND` = `ollama` | `claude` | `openai` | `none`
-- `ANTHROPIC_API_KEY` — cleanup with Claude (best rewriting quality)
+- `VOOOXLY_LLM_BACKEND` = `ollama` | `claude` | `openai` | `none` — the
+  *transport*, not the vendor. Groq and Gemini both ride the `openai` kind,
+  since they expose OpenAI-compatible endpoints.
+- `ANTHROPIC_API_KEY` — cleanup with Claude
 - `VOOOXLY_APP_LANGUAGE` — force an output language (default: keep the language you spoke)
 
-**Voooxly ships with no AI connected.** It dictates and pastes the raw
-transcription out of the box — that already works with nothing installed.
-There is no default model baked in (`llm.ollama.model` starts empty in
-`config.yaml`): shipping a fixed default would presume which model *you*
-happen to have, and a cloud-only default (like Ollama's `:cloud` models)
-would quietly fail for anyone without that subscription while reporting
-"connected".
+Useful knobs in `config.yaml`:
 
-Connect your own from the menu bar — open **AI engine** and pick a provider:
+| Key | Default | What it does |
+|---|---|---|
+| `audio.max_duration` | `300` | Hard stop for one dictation, in seconds |
+| `stt.transcribe_timeout_floor` | `30` | Lower bound for the `/inference` timeout |
+| `stt.transcribe_timeout_ceiling` | `180` | Upper bound; the real timeout scales with audio length |
+| `hotkeys.toggle` | `[cmd_r]` | Dictation key; the menu writes `prefs.json`, which wins over this |
+| `llm.custom_rules` | — | Free-text style rules appended to every mode |
 
-- **Ollama (local)** — if you have the Ollama app installed, Voooxly asks
-  your own server which models it has and lets you pick one; no key needed.
-- **Any other provider** (Claude, OpenAI, Groq, OpenRouter, DeepSeek,
-  Mistral, Together AI, xAI, or a custom OpenAI-compatible endpoint) — paste
-  your API key and it's stored in the macOS Keychain.
+**No AI is baked in, on purpose.** `llm.ollama.model` ships empty: a fixed
+default would presume which model *you* happen to have, and a cloud-only
+default (like Ollama's `:cloud` models) would quietly fail for anyone without
+that subscription while still reporting "connected".
 
-Prefer to do it by hand, or run fully local:
+To wire a provider by hand instead of using the menu — this is also how you
+reach OpenRouter, DeepSeek, Mistral, Together AI or xAI, none of which have a
+menu entry:
+
+```yaml
+# config.yaml
+llm:
+  backend: openai
+  openai:
+    base_url: "https://openrouter.ai/api/v1"
+    model: "meta-llama/llama-3.3-70b-instruct"
+    api_key_env: "OPENROUTER_API_KEY"
+```
+
+Or fully local, no key at all:
 
 ```bash
 ollama pull qwen3:8b
@@ -242,10 +324,30 @@ Hard-won build gotchas:
 
 ### Project layout
 
-```
-src/voooxly/  __main__ · app · audio · stt · refine · output · hotkey · overlay · modes · config
-config.yaml · scripts/ · docs/RELEASING.md
-```
+Every module in `src/voooxly/`, and what owns what:
+
+| Module | Owns |
+|---|---|
+| `app.py` | The rumps menu bar app — wiring, menu, threading. The biggest file. |
+| `hotkey.py` | Global key listener, hold/toggle modes, the 300 ms guard window |
+| `keys.py` | Dictation-key catalogue and validation (pure data, no AppKit) |
+| `audio.py` | Recording, VAD silence detection, the duration cap |
+| `stt.py` | `whisper-server` lifecycle and `/inference` calls |
+| `refine.py` | LLM cleanup: dispatch per backend, fallbacks, token usage |
+| `providers.py` | The five AI providers and their endpoints |
+| `ai_settings.py` | Which provider/model the user picked (pure data) |
+| `keychain.py` | API keys in and out of the macOS Keychain |
+| `modes.py` | The eight dictation modes and their system prompts |
+| `output.py` · `richtext.py` | Clipboard, ⌘V injection, Markdown → HTML |
+| `overlay.py` | The floating HUD |
+| `onboarding.py` | First-run window (AppKit, hand-laid out) |
+| `history.py` · `stats.py` · `dictionary.py` | Persistence in `~/.voooxly/` |
+| `setup_checks.py` · `updates.py` · `media.py` | Permissions, update check, music auto-pause |
+| `config.py` | `config.yaml` + `.env` loading, dotted-path lookup |
+
+Tests live in `tests/`, one file per concern. Most are pure logic; the
+exception is `test_onboarding.py`, which builds real AppKit views and so needs
+a macOS graphical session (it skips itself over SSH without one).
 
 `vendor/whisper/` is **not** in git: it holds whisper.cpp binaries vendored from
 Homebrew, and `scripts/bundle-whisper.sh` rebuilds it automatically before any

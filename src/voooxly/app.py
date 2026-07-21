@@ -85,7 +85,9 @@ def ai_engine_title(selection, detected: str) -> str:
     ai_menu_labels: instanciar VoooxlyApp construye menús de AppKit.
     """
     if selection is not None:
-        return f"AI engine — {selection.provider.label}"
+        # .name, no .label: label lleva la nota ("Groq — free") y saldría
+        # "AI engine — Groq — free", con dos guiones largos seguidos.
+        return f"AI engine — {selection.provider.name}"
     if detected == "none":
         return "AI engine — none (raw text)"
     label = _BACKEND_LABELS.get(detected, detected)
