@@ -58,7 +58,22 @@ Verifica:
 xcrun notarytool history --keychain-profile voooxly
 ```
 
-### 4. Crear el repositorio de GitHub para las descargas
+### 4. Instalar dmgbuild en el venv de release
+
+`release.sh` lo usa para el layout de la ventana del DMG y el icono del
+volumen. El venv está hecho con uv y no trae `pip`, así que se instala así:
+
+```bash
+uv pip install --python ~/.voooxly/venv/bin/python 'dmgbuild>=1.6'
+```
+
+Verifica:
+
+```bash
+~/.voooxly/venv/bin/dmgbuild --help
+```
+
+### 5. Crear el repositorio de GitHub para las descargas
 
 Los DMG se sirven desde GitHub Releases (gratis y sin límite de tráfico):
 
