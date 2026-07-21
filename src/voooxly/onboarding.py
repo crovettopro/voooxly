@@ -299,6 +299,19 @@ class OnboardingController(NSObject):
             content.addSubview_(card); add(card)
             t += 53
 
+        # Cierra la lista y avisa de que nada de esto es definitivo. Va aquí y
+        # no en un tooltip porque es la única pantalla que el usuario ve seguro:
+        # sin este renglón, quien no puede usar la ⌘ derecha (teclado externo
+        # sin ella, o la mano ocupada) se queda pensando que la app no es para
+        # él, en vez de abrir Settings y cambiarla en dos clics.
+        hair = _rule(NSMakeRect(PAD, _y(t, 1), W - 2 * PAD, 1), HAIRLINE)
+        content.addSubview_(hair); add(hair)
+        nota = _label(NSMakeRect(PAD, _y(t + 16, 34), W - 2 * PAD, 34),
+                      "Prefer another key? Change it whenever you like from the "
+                      "menu bar icon › Settings › Dictation key.",
+                      _sf(12), INK_SOFT, align=NSTextAlignmentCenter, multiline=True)
+        content.addSubview_(nota); add(nota)
+
         self._start = _cta_button(NSMakeRect(PAD, 26, W - 2 * PAD, 48), "Start dictating", self, "finish:")
         content.addSubview_(self._start); add(self._start)
 

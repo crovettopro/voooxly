@@ -213,3 +213,36 @@ def test_ai_llama_al_callback_de_conexion():
 def test_ai_sin_callback_no_revienta(controller):
     """Sin callback (standalone/tests) cae al re-detectar; no debe propagar."""
     controller.ai_(None)  # on_connect_ai es None → rama de fallback
+
+
+# --- Página 2: el usuario tiene que salir sabiendo que la tecla se cambia ---
+
+
+def _textos_pagina2(controller):
+    return [s.stringValue() for s in controller._page2
+            if hasattr(s, "stringValue")]
+
+
+def test_la_pagina_2_avisa_de_que_la_tecla_se_puede_cambiar(controller):
+    # Sin este renglón, quien no puede usar la ⌘ derecha (teclado externo sin
+    # ella, mano ocupada) cierra el onboarding creyendo que la app no le sirve,
+    # en vez de abrir Settings y cambiarla. Es la única pantalla que ve seguro.
+    todo = " ".join(_textos_pagina2(controller)).lower()
+    assert "dictation key" in todo
+    assert "settings" in todo
+
+
+def test_el_aviso_de_la_tecla_no_pisa_el_boton_de_empezar(controller):
+    # Se coló entre la última fila de atajos y el CTA. Si alguien añade otro
+    # atajo sin recolocar, el texto se monta encima del botón: se lee mal y el
+    # clic va a parar al sitio equivocado.
+    cta = controller._start.frame()
+    techo = cta.origin.y + cta.size.height
+    for s in controller._page2:
+        if s is controller._start:
+            continue
+        f = s.frame()
+        assert f.origin.y >= techo - 0.5, (
+            f"una vista de la página 2 baja hasta y={f.origin.y}, "
+            f"por debajo del techo del botón Start dictating (y={techo})"
+        )
