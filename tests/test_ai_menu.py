@@ -59,3 +59,24 @@ def test_titulo_siempre_empieza_por_ai_engine():
     ]
     for sel, detected in casos:
         assert app.ai_engine_title(sel, detected).startswith("AI engine")
+
+
+# --- El título del padre: la única pista de si hay IA conectada ---
+
+def test_el_titulo_lleva_el_nombre_pelado_sin_la_nota():
+    # provider.label es "Groq — free" (la fila del submenú). Metido tal cual en
+    # el título salía "AI engine — Groq — free": dos guiones largos seguidos,
+    # que se lee como si "free" fuera otro campo. El padre usa .name.
+    sel = ai_settings.Selection(providers.get("groq"), "https://api.groq.com/openai/v1", "m")
+    assert app.ai_engine_title(sel, "") == "AI engine — Groq"
+
+
+def test_la_fila_del_submenu_si_conserva_la_nota():
+    # El "free" tiene que seguir viéndose donde se elige proveedor: es el
+    # motivo por el que Groq va primero.
+    assert providers.get("groq").label == "Groq — free"
+    assert providers.get("claude").label == "Claude"
+
+
+def test_sin_ia_el_titulo_lo_dice():
+    assert "none" in app.ai_engine_title(None, "none")

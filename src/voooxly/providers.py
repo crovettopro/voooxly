@@ -18,12 +18,22 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class Provider:
     key: str
-    label: str
+    name: str  # nombre a secas: "Groq". Es lo que se lee en el título del menú.
     base_url: str
     default_model: str
     needs_key: bool
     kind: str  # "ollama" | "claude" | "openai"
     note: str = ""  # "free" → se muestra en el menú; el resto, vacío
+
+    @property
+    def label(self) -> str:
+        """Texto de la FILA del submenú: el nombre más su nota, si la tiene.
+
+        Se deriva en vez de guardarse porque el título del padre ("AI engine —
+        Groq") necesita el nombre pelado: con un label literal "Groq — free"
+        salía "AI engine — Groq — free", con dos guiones largos seguidos.
+        """
+        return f"{self.name} — {self.note}" if self.note else self.name
 
 
 PROVIDERS: dict[str, Provider] = {
@@ -32,7 +42,7 @@ PROVIDERS: dict[str, Provider] = {
     # encontraba nadie.
     "groq": Provider(
         key="groq",
-        label="Groq — free",
+        name="Groq",
         base_url="https://api.groq.com/openai/v1",
         default_model="llama-3.3-70b-versatile",
         needs_key=True,
@@ -41,7 +51,7 @@ PROVIDERS: dict[str, Provider] = {
     ),
     "claude": Provider(
         key="claude",
-        label="Claude",
+        name="Claude",
         base_url="",  # lo gestiona el SDK de anthropic
         default_model="claude-sonnet-5",
         needs_key=True,
@@ -49,7 +59,7 @@ PROVIDERS: dict[str, Provider] = {
     ),
     "openai": Provider(
         key="openai",
-        label="OpenAI",
+        name="OpenAI",
         base_url="https://api.openai.com/v1",
         default_model="gpt-4o-mini",
         needs_key=True,
@@ -57,7 +67,7 @@ PROVIDERS: dict[str, Provider] = {
     ),
     "gemini": Provider(
         key="gemini",
-        label="Google Gemini",
+        name="Google Gemini",
         # Endpoint OpenAI-compatible de Gemini: mismo camino que openai/groq.
         base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
         default_model="gemini-2.0-flash",
@@ -69,7 +79,7 @@ PROVIDERS: dict[str, Provider] = {
     # se le pregunta a SU Ollama (list_ollama_models) y elige el suyo.
     "ollama": Provider(
         key="ollama",
-        label="Ollama (local)",
+        name="Ollama (local)",
         base_url="http://localhost:11434",
         default_model="",
         needs_key=False,
