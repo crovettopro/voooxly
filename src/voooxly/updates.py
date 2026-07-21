@@ -23,7 +23,7 @@ log = logging.getLogger("voooxly.updates")
 # de producción es voooxly.com (proyecto "voooxly" de crovettopro).
 APPCAST_URL = "https://voooxly.com/appcast.json"
 # Fuera del .app (ejecutando desde el repo) no hay Info.plist del que leer.
-FALLBACK_VERSION = "1.0.0"
+FALLBACK_VERSION = "1.1.0"
 
 
 def _parse(v: str) -> tuple[int, ...] | None:
