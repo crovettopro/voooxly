@@ -384,6 +384,10 @@ Next up (1.2):
 
 - Edit Mode: select any text, speak an instruction, get it transformed.
 - Per-app modes and optional on-screen context for smarter cleanup.
+- **Better update checks.** Today the appcast is only read once, during
+  `_warmup` at launch — leave Voooxly running for a month and you will never
+  hear about a new version. Needs a periodic re-check and a manual
+  **Check for updates…** in the menu.
 
 ## License
 
