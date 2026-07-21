@@ -113,13 +113,16 @@ fi
 # ---------- DMG ----------
 echo "→ Construyendo el DMG…"
 DMG="$WORK/Voooxly-$VERSION.dmg"
-STAGE="$WORK/dmg"
-rm -rf "$STAGE"; mkdir -p "$STAGE"
-cp -R "$APP" "$STAGE/"
-ln -s /Applications "$STAGE/Applications"
 rm -f "$DMG"
-hdiutil create -volname "Voooxly" -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null
-rm -rf "$STAGE"
+# dmgbuild escribe el .DS_Store con el layout de la ventana y el icono del
+# volumen, cosas que `hdiutil create` a pelo no puede poner. Sin Finder de por
+# medio: determinista y sin permiso de Automatización. El symlink a
+# /Applications lo crea él, así que ya no hace falta carpeta de staging.
+[ -x "$VENV/bin/dmgbuild" ] || { echo "ERROR: falta dmgbuild en $VENV"; \
+  echo "       uv pip install --python $VENV/bin/python 'dmgbuild>=1.6'"; exit 1; }
+"$VENV/bin/dmgbuild" -s "$ROOT/scripts/dmg_settings.py" \
+  -D app="$APP" -D icon="$ROOT/assets/Voooxly.icns" \
+  "Voooxly" "$DMG" >/dev/null
 
 echo "→ Firmando el DMG…"
 codesign --force --timestamp -s "$IDENTITY" "$DMG"
