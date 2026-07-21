@@ -19,7 +19,7 @@ import time
 
 import rumps
 
-from . import audio, dictionary, history, media, modes, output, providers, refine, richtext, setup_checks, stats, stt, updates
+from . import audio, dictionary, history, keys, media, modes, output, providers, refine, richtext, setup_checks, stats, stt, updates
 from .config import get_config, resolve_language
 from .hotkey import HotkeyManager
 from .overlay import Overlay
@@ -159,12 +159,17 @@ class VoooxlyApp(rumps.App):
             template=True,
             quit_button=None,        # rumps añade un "Quit" propio si no se anula
         )                            # (usamos el nuestro, que apaga server/hotkey)
+        # Se resuelve ANTES de _build_menu(): el submenú de tecla/estilo marca
+        # el check inicial leyendo self._dictation_key/self._toggle_mode, así
+        # que tienen que existir antes de construir esos NSMenuItem.
+        tecla, modo, guarda = keys.resolve(self._prefs, cfg)
+        self._toggle_mode = modo
+        self._dictation_key = tecla
         self._build_menu()
         self._apply_login_default()
-        self._toggle_mode = cfg.get("hotkeys.toggle_mode", "toggle")
         self._hotkey = HotkeyManager(
-            toggle_mode=self._toggle_mode,
-            toggle_keys=cfg.get("hotkeys.toggle", ["cmd_r"]),
+            toggle_mode=modo,
+            toggle_keys=[tecla],
             cycle_keys=cfg.get("hotkeys.cycle_mode", ["ctrl", "shift", "m"]),
             paste_keys=cfg.get("hotkeys.paste_last", ["ctrl", "shift", "v"]),
             on_toggle=self.toggle_record,
@@ -176,6 +181,7 @@ class VoooxlyApp(rumps.App):
             on_cancel=self.cancel_record,
             latch_keys=cfg.get("hotkeys.latch", ["shift"]),
             on_latch=self._on_latch,
+            toggle_guard=guarda,
         )
 
     def _on_latch(self):
@@ -256,6 +262,30 @@ class VoooxlyApp(rumps.App):
         settings.add(self.login_item)
         settings.add(self.sounds_item)
         settings.add(self.dict_item)
+
+        # Tecla de dictado: la que va bien depende de cada teclado y de qué
+        # más use el usuario. Sin esto solo se cambia editando config.yaml.
+        self.key_parent = rumps.MenuItem("Dictation key")
+        self.key_items: dict[str, rumps.MenuItem] = {}
+        for k, dk in keys.DICTATION_KEYS.items():
+            mi = rumps.MenuItem(dk.label, callback=self._make_key_cb(k))
+            mi.state = 1 if k == self._dictation_key else 0
+            self.key_parent.add(mi)
+            self.key_items[k] = mi
+        self.key_parent.add(rumps.separator)
+        self.key_custom_item = rumps.MenuItem("Custom…", callback=self._pick_custom_key)
+        self.key_parent.add(self.key_custom_item)
+
+        self.style_parent = rumps.MenuItem("Dictation style")
+        self.style_items: dict[str, rumps.MenuItem] = {}
+        for m, label in keys.MODES.items():
+            mi = rumps.MenuItem(label, callback=self._make_style_cb(m))
+            mi.state = 1 if m == self._toggle_mode else 0
+            self.style_parent.add(mi)
+            self.style_items[m] = mi
+
+        settings.add(self.key_parent)
+        settings.add(self.style_parent)
 
         self.search_item = rumps.MenuItem("Search history…", callback=self._search_history)
 
@@ -968,6 +998,134 @@ class VoooxlyApp(rumps.App):
         _save_prefs(self._prefs)
         if self._sounds:
             self._play_sound("Pop")
+
+    def _make_key_cb(self, key: str):
+        def cb(_sender):
+            self._set_dictation_key(key)
+        return cb
+
+    def _make_style_cb(self, mode: str):
+        def cb(_sender):
+            self._set_dictation_style(mode)
+        return cb
+
+    def _set_dictation_key(self, key: str):
+        ok, msg = keys.validate_custom(key)
+        if not ok:
+            self._alert("Can't use that key", msg)
+            return
+        # Choque con las otras teclas: la de dictado no puede ser también la
+        # de cancelar ni la de latch, o una de las dos deja de funcionar.
+        # keys._RESERVADAS ya filtra esto para el catálogo y para Custom…,
+        # pero el hotkey lo vuelve a comprobar en reconfigure() — este chequeo
+        # de aquí solo da un mensaje más específico (qué tecla es y de quién)
+        # antes de intentar el reinicio en caliente.
+        for otra, dueno in ((self._hotkey._cancel_key, "cancel"), (self._hotkey._latch_key, "latch")):
+            if otra and (key == otra or key.startswith(otra + "_")):
+                self._alert("Can't use that key", f"“{key}” is already the {dueno} key.")
+                return
+        aplicado = self._restart_hotkey(key, self._toggle_mode)
+        if not aplicado:
+            # reconfigure() rechazó la tecla (choca con cancel/latch pese al
+            # chequeo de arriba, p.ej. un alias que _canon() colapsa igual).
+            # No se toca prefs.json ni el checkmark: lo que está sonando de
+            # verdad sigue siendo la tecla anterior.
+            self._alert(
+                "Can't use that key",
+                f"“{key}” collides with the cancel or latch key, so the "
+                "previous dictation key is still active.",
+            )
+            return
+        self._prefs["dictation_key"] = key
+        _save_prefs(self._prefs)
+        etiqueta = keys.get(key).label if keys.get(key) else key
+        if key == "ctrl_l":
+            # No es un bug de hotkey.py: Ctrl+Shift+M (cycle mode) usa la
+            # misma tecla física, así que al soltar la ventana de decisión
+            # el chord dispara los dos a la vez. Elegir esta tecla es
+            # legítimo (el usuario la pidió), pero hay que avisar — no
+            # bloquear la elección.
+            self._alert(
+                "Heads up",
+                "Left Control is now your dictation key. Ctrl+Shift+M "
+                "(cycle dictation style) uses the same key, so that "
+                "shortcut will fire together with dictation from now on.",
+            )
+        self._hud(etiqueta, title="✓ Dictation key changed")
+
+    def _set_dictation_style(self, mode: str):
+        if mode not in keys.MODES:
+            return
+        aplicado = self._restart_hotkey(self._dictation_key, mode)
+        if not aplicado:
+            self._alert(
+                "Can't change style",
+                "The current dictation key no longer works with the hotkey "
+                "engine; pick a different dictation key first.",
+            )
+            return
+        self._prefs["dictation_mode"] = mode
+        _save_prefs(self._prefs)
+        self._hud(keys.MODES[mode], title="✓ Dictation style changed")
+
+    def _pick_custom_key(self, _sender):
+        w = rumps.Window(
+            title="Custom dictation key",
+            message=(
+                "Type a pynput key name — for example f18, alt_r or ctrl_l.\n"
+                "Avoid single letters: that key would stop typing everywhere."
+            ),
+            default_text=self._dictation_key,
+            ok="Use it",
+            cancel="Cancel",
+            dimensions=(220, 22),
+        )
+        resp = w.run()
+        if not resp.clicked:
+            return
+        self._set_dictation_key((resp.text or "").strip().lower())
+
+    def _restart_hotkey(self, new_key: str, new_mode: str) -> bool:
+        """Reconstruye el listener con la tecla/modo nuevos, sin reiniciar la app.
+
+        POR EL HILO PRINCIPAL, siempre: parar y arrancar el listener de pynput
+        desde un hilo de fondo es el SIGABRT de HIToolbox que documenta el
+        header de hotkey.py. Y las marcas del menú son NSMenuItem, que es el
+        SIGTRAP del otro. Los dos motivos llevan al mismo sitio.
+
+        Devuelve si el cambio se aplicó de verdad. reconfigure() puede
+        rechazar `new_key` (choca con cancel/latch) y entonces deja su config
+        interna intacta — self._dictation_key/self._toggle_mode y las marcas
+        del menú tienen que reflejar ESE resultado, nunca lo que se pidió, o
+        el checkmark mentiría sobre qué tecla está activa de verdad.
+        """
+        resultado = {"ok": False}
+
+        def apply():
+            try:
+                self._hotkey.stop()
+                resultado["ok"] = self._hotkey.reconfigure(
+                    toggle_key=new_key,
+                    toggle_mode=new_mode,
+                    guard=keys.needs_guard(new_key),
+                )
+            except Exception:
+                log.exception("No pude reconfigurar el hotkey con la tecla nueva")
+            finally:
+                try:
+                    self._hotkey.start()
+                except Exception:
+                    log.exception("No pude rearrancar el listener de hotkeys")
+            if resultado["ok"]:
+                self._dictation_key = new_key
+                self._toggle_mode = new_mode
+            for k, mi in self.key_items.items():
+                mi.state = 1 if k == self._dictation_key else 0
+            for m, mi in self.style_items.items():
+                mi.state = 1 if m == self._toggle_mode else 0
+
+        self._on_main(apply)
+        return resultado["ok"]
 
     def _play_sound(self, name: str):
         if not self._sounds:
