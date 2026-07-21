@@ -60,11 +60,11 @@ def test_ninguna_subvista_se_sale_de_la_ventana(controller):
 
 
 def test_las_filas_no_se_solapan(controller):
-    h = onboarding.ROW_H - 10
-    ys = sorted(s.frame().origin.y for s in controller._win.contentView().subviews()
-                if abs(s.frame().size.height - h) < 0.5)
-    assert len(ys) == 4
-    assert all(ys[i] + h <= ys[i + 1] for i in range(len(ys) - 1))
+    rows = [controller._row_views[k] for k in ("mic", "accessibility", "model", "ai")]
+    boxes = sorted((r.frame().origin.y, r.frame().size.height) for r in rows)
+    assert len(boxes) == 4
+    assert all(boxes[i][0] + boxes[i][1] <= boxes[i + 1][0] + 0.5
+               for i in range(len(boxes) - 1))
 
 
 def test_todo_cumplido_permite_continuar(controller):
@@ -194,3 +194,22 @@ def test_mic_abre_ajustes_si_ya_denegado(controller):
     open_s.assert_called_once()
     req.assert_not_called()
     assert controller._hidden_for_settings is True
+
+
+# ---- IA opcional: "Connect AI" (nadie tiene IA en el primer arranque, así que
+#      no es un "test" sino un "conectar") delega en el callback del app ----
+def test_boton_ai_dice_connect_ai(controller):
+    assert controller._rows["ai"]["button"].attributedTitle().string() == "Connect AI"
+
+
+def test_ai_llama_al_callback_de_conexion():
+    llamado = []
+    c = onboarding.OnboardingController.alloc().initWithFinish_connectAI_(
+        None, lambda: llamado.append(1))
+    c.ai_(None)
+    assert llamado == [1]
+
+
+def test_ai_sin_callback_no_revienta(controller):
+    """Sin callback (standalone/tests) cae al re-detectar; no debe propagar."""
+    controller.ai_(None)  # on_connect_ai es None → rama de fallback

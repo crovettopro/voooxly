@@ -3,7 +3,9 @@
   Paso 1 — Configure   : permisos (mic, accesibilidad), modelo de voz, IA opcional.
   Paso 2 — How to dictar: la tecla de dictado y los atajos, con un hero ⌘.
 
-El estado se re-comprueba cada segundo con un NSTimer: cuando el usuario
+Estética (rediseño v2): marca **teal + papel** (voooxly.com + el icono de la app),
+títulos en serif (Iowan Old Style), filas separadas por hairlines en vez de
+tarjetas. El estado se re-comprueba cada segundo con un NSTimer: cuando el usuario
 concede Accesibilidad en Ajustes, la fila se marca sola sin reiniciar Voooxly.
 
 Tres bugs de macOS que esta versión arregla:
@@ -32,6 +34,12 @@ Botones "muertos" en macOS 26 (Tahoe) — el bug que más costó:
   re-activar UNA vez el run loop ya corre. Al terminar se restaura Accessory.
   El botón de micrófono, además, manda a Ajustes si el permiso ya se denegó:
   requestAccess solo abre el prompt cuando está "sin decidir".
+
+IA opcional: "Connect AI" delega en un callback (on_connect_ai) que abre el
+selector de proveedor + key del app.py (flujo ya probado). Lo conectado persiste
+tras el relanzamiento. Nadie tiene IA en el primer arranque, así que NO es un
+botón de "test" — es un "conectar", opcional, que convierte el dictado en algo
+más que transcribir (limpia, formatea y reescribe lo dictado).
 """
 from __future__ import annotations
 
@@ -52,7 +60,9 @@ from AppKit import (
     NSForegroundColorAttributeName,
     NSFloatingWindowLevel,
     NSImageView,
-    NSProgressIndicator,
+    NSTextAlignmentCenter,
+    NSTextAlignmentLeft,
+    NSTextAlignmentRight,
     NSTextField,
     NSView,
     NSWindow,
@@ -67,32 +77,83 @@ from . import setup_checks, stt
 log = logging.getLogger("voooxly.onboarding")
 
 W, H = 580, 700
-HEADER_H = 140
-ROW_H = 84
+PAD = 40
 
-# Paleta de marca. Violeta cálido + tintes para fondos y bordes.
-ACCENT = NSColor.colorWithSRGBRed_green_blue_alpha_(0.42, 0.36, 0.90, 1.0)
-ACCENT_DARK = NSColor.colorWithSRGBRed_green_blue_alpha_(0.32, 0.25, 0.78, 1.0)
-ACCENT_TINT = NSColor.colorWithSRGBRed_green_blue_alpha_(0.42, 0.36, 0.90, 0.10)
-INK = NSColor.colorWithSRGBRed_green_blue_alpha_(0.12, 0.11, 0.16, 1.0)
-INK_SOFT = NSColor.colorWithSRGBRed_green_blue_alpha_(0.40, 0.39, 0.46, 1.0)
-PAGE_BG = NSColor.colorWithSRGBRed_green_blue_alpha_(0.99, 0.99, 1.0, 1.0)
-CARD_BG = NSColor.colorWithSRGBRed_green_blue_alpha_(0.98, 0.98, 1.0, 1.0)
-CARD_BORDER = NSColor.colorWithSRGBRed_green_blue_alpha_(0.90, 0.89, 0.94, 1.0)
-DISABLED_BG = NSColor.colorWithSRGBRed_green_blue_alpha_(0.80, 0.79, 0.85, 1.0)
 
-# key, título, explicación, texto del botón. El orden es el de check_all().
+def _y(top, h):
+    """Convierte una 'y desde arriba' (como en el diseño) al origen abajo-izquierda."""
+    return H - top - h
+
+
+def _hex(s, a=1.0):
+    s = s.lstrip("#")
+    return NSColor.colorWithSRGBRed_green_blue_alpha_(
+        int(s[0:2], 16) / 255.0, int(s[2:4], 16) / 255.0, int(s[4:6], 16) / 255.0, a)
+
+
+# ---- paleta de marca: teal + papel (voooxly.com / make-icon.py) ----
+TEAL = _hex("#107A69")
+TEAL_DARK = _hex("#085448")
+INK = _hex("#1B241F")
+INK_SOFT = _hex("#5F6B65")
+INK_MUTED = _hex("#93A099")
+INK_KEYCAP = _hex("#3F4A46")
+PAGE_BG = _hex("#FCFDFC")
+HAIRLINE = _hex("#EEF2F0")
+DIVIDER = _hex("#E9EEEB")
+BTN_BORDER = _hex("#DDE4E1")
+BTN_GHOST_TEXT = _hex("#7C8A84")
+MODEL_BTN_BG = _hex("#EDF5F3")
+MODEL_BTN_BORDER = _hex("#BFDBD3")
+PROGRESS_TRACK = _hex("#E4EEEB")
+PENDING_RING = _hex("#CBD6D1")
+CTA_DISABLED_BG = _hex("#EDF1EF")
+CTA_DISABLED_TEXT = _hex("#AAB5B0")
+KEYCAP_BG = _hex("#FFFFFF")
+KEYCAP_BG2 = _hex("#EEF4F1")
+KEYCAP_EDGE = _hex("#DEE9E4")
+
+# key, título, explicación, texto del botón, estilo. El orden es el de check_all().
 STEPS = [
     ("mic", "Microphone",
-     "So Voooxly can hear you. Your voice never leaves this Mac.", "Allow"),
+     "So Voooxly can hear you. Your voice never leaves this Mac.", "Allow", "ghost"),
     ("accessibility", "Accessibility",
-     "Lets Voooxly type into any app and use the dictation hotkey.", "Open Settings"),
+     "Lets Voooxly type into any app and use the dictation hotkey.", "Open Settings", "ghost"),
     ("model", "Speech model",
-     "One-time 547 MB download. Runs fully offline after that.", "Download"),
-    ("ai", "AI engine — optional",
-     "Polish your dictation with Claude, ChatGPT, Gemini… Add it anytime from "
-     "the menu bar (🎙 icon → AI engine). Works great without it.", "Check again"),
+     "One-time 547 MB download. Runs fully offline after that.", "Download", "tint"),
+    ("ai", "AI engine",
+     "Optional, but it makes Voooxly more than a dictation tool: connect Claude, "
+     "ChatGPT or Gemini and it cleans up, formats and rewrites what you say. "
+     "You can also add it later from the menu bar.", "Connect AI", "text"),
 ]
+
+
+# ---------------- fuentes ----------------
+def _sf(size, weight=0.0):
+    return NSFont.systemFontOfSize_weight_(float(size), float(weight))
+
+
+def _mono(size, weight=0.0):
+    try:
+        return NSFont.monospacedSystemFontOfSize_weight_(float(size), float(weight))
+    except Exception:
+        return NSFont.systemFontOfSize_(float(size))
+
+
+def _serif(size, semibold=False):
+    for name in (("Iowan Old Style Bold",) if semibold else ()) + ("Iowan Old Style",):
+        f = NSFont.fontWithName_size_(name, float(size))
+        if f is not None:
+            return f
+    try:  # diseño serif del sistema (New York) como respaldo
+        d = NSFont.systemFontOfSize_(float(size)).fontDescriptor()
+        d = d.fontDescriptorWithDesign_("NSCTFontUIFontDesignSerif")
+        f = NSFont.fontWithDescriptor_size_(d, float(size))
+        if f is not None:
+            return f
+    except Exception:
+        pass
+    return NSFont.boldSystemFontOfSize_(float(size)) if semibold else NSFont.systemFontOfSize_(float(size))
 
 
 class OnboardingController(NSObject):
@@ -100,11 +161,16 @@ class OnboardingController(NSObject):
     botones y delegate de la ventana (así cerrar con el botón rojo = finish_)."""
 
     def initWithFinish_(self, on_finish):
+        return self.initWithFinish_connectAI_(on_finish, None)
+
+    def initWithFinish_connectAI_(self, on_finish, on_connect_ai):
         self = objc.super(OnboardingController, self).init()
         if self is None:
             return None
         self._on_finish = on_finish
+        self._on_connect_ai = on_connect_ai
         self._rows = {}
+        self._row_views = {}
         self._downloading = False
         self._timer = None
         self._page = 1
@@ -112,6 +178,9 @@ class OnboardingController(NSObject):
         self._hide_t = 0.0
         self._page1 = []
         self._page2 = []
+        self._model_fill = None
+        self._model_track_w = 1.0
+        self._model_pct = None
         self._build()
         return self
 
@@ -131,170 +200,173 @@ class OnboardingController(NSObject):
         self._win.setBackgroundColor_(PAGE_BG)
         content = self._win.contentView()
 
-        self._build_header(content)
+        # STEP label compartido (arriba a la derecha, ambas páginas).
+        self._step_label = _label(NSMakeRect(W - PAD - 160, _y(38, 12), 160, 12),
+                                  "STEP 1 OF 2", _mono(10, 0.3), INK_MUTED,
+                                  align=NSTextAlignmentRight)
+        content.addSubview_(self._step_label)
+
         self._build_page1(content)
         self._build_page2(content)
         self._show_page(1)
         self._refresh()
 
-    def _build_header(self, content):
-        header = NSView.alloc().initWithFrame_(NSMakeRect(0, H - HEADER_H, W, HEADER_H))
-        header.setWantsLayer_(True)
-        # Degradado de marca; si CAGradientLayer no está, color plano.
-        try:
-            from Quartz import CAGradientLayer
+    # ---------------- página 1: configurar ----------------
+    def _build_page1(self, content):
+        add = self._page1.append
 
-            grad = CAGradientLayer.layer()
-            grad.setFrame_(NSMakeRect(0, 0, W, HEADER_H))
-            grad.setColors_([ACCENT_DARK.CGColor(), ACCENT.CGColor()])
-            header.layer().addSublayer_(grad)
-        except Exception:
-            header.layer().setBackgroundColor_(ACCENT.CGColor())
-        content.addSubview_(header)
-
-        icon = NSImageView.alloc().initWithFrame_(NSMakeRect(32, H - 104, 64, 64))
+        icon = NSImageView.alloc().initWithFrame_(NSMakeRect(PAD, _y(32, 60), 60, 60))
         try:
             icon.setImage_(NSApplication.sharedApplication().applicationIconImage())
         except Exception:
             log.debug("No pude cargar el icono en el onboarding", exc_info=True)
-        content.addSubview_(icon)
+        content.addSubview_(icon); add(icon)
 
-        self._header_title = _label(
-            NSMakeRect(112, H - 66, W - 140, 32), "Welcome to Voooxly", 24,
-            bold=True, color=NSColor.whiteColor())
-        content.addSubview_(self._header_title)
-        self._header_sub = _label(
-            NSMakeRect(112, H - 98, W - 140, 24),
-            "Dictate anywhere — Voooxly types what you say.", 13,
-            color=NSColor.colorWithSRGBRed_green_blue_alpha_(1, 1, 1, 0.85))
-        content.addSubview_(self._header_sub)
+        title = _label(NSMakeRect(PAD, _y(114, 34), W - 2 * PAD, 34),
+                       "Welcome to Voooxly", _serif(27, semibold=True), INK)
+        content.addSubview_(title); add(title)
+        sub = _label(NSMakeRect(PAD, _y(154, 20), W - 2 * PAD, 20),
+                     "Dictate anywhere — Voooxly types what you say.", _sf(14.5), INK_SOFT)
+        content.addSubview_(sub); add(sub)
 
-        # Indicador de paso (arriba a la derecha de la cabecera).
-        self._step_label = _label(
-            NSMakeRect(W - 156, H - 38, 132, 18), "STEP 1 OF 2", 11,
-            bold=True, color=NSColor.colorWithSRGBRed_green_blue_alpha_(1, 1, 1, 0.85),
-            align=1)
-        content.addSubview_(self._step_label)
+        div = _rule(NSMakeRect(PAD, _y(196, 1), W - 2 * PAD, 1), DIVIDER)
+        content.addSubview_(div); add(div)
 
-    # ---------------- página 1: configurar ----------------
-    def _build_page1(self, content):
-        top = H - HEADER_H  # 560
-        sec = _label(NSMakeRect(40, top - 30, W - 80, 22),
-                     "A couple of one-time steps:", 13, bold=True, color=INK)
-        content.addSubview_(sec)
-        self._page1.append(sec)
+        sec = _label(NSMakeRect(PAD, _y(215, 14), W - 2 * PAD, 14),
+                     "A COUPLE OF ONE-TIME STEPS", _sf(11, 0.3), INK_MUTED)
+        content.addSubview_(sec); add(sec)
 
-        y = top - 36
-        for key, name, desc, action in STEPS:
-            y -= ROW_H
-            row = self._build_row(key, name, desc, action, y)
-            content.addSubview_(row)
-            self._page1.append(row)
+        rows_h = {"mic": 62, "accessibility": 62, "model": 72, "ai": 96}
+        t = 241
+        first = True
+        for key, name, desc, action, style in STEPS:
+            h = rows_h[key]
+            if not first:
+                hair = _rule(NSMakeRect(PAD, _y(t, 1), W - 2 * PAD, 1), HAIRLINE)
+                content.addSubview_(hair); add(hair)
+            first = False
+            row = self._build_row(key, name, desc, action, style, NSMakeRect(PAD, _y(t, h), W - 2 * PAD, h))
+            content.addSubview_(row); add(row)
+            self._row_views[key] = row
+            t += h
 
-        note = _label(
-            NSMakeRect(40, 122, W - 80, 44),
-            "Takes about 2 minutes. You can change any of this later from the "
-            "menu bar (🎙 icon).", 12, color=INK_SOFT)
-        _make_multiline(note)
-        content.addSubview_(note)
-        self._page1.append(note)
+        foot = _label(NSMakeRect(PAD, 84, W - 2 * PAD, 32),
+                      "Takes about 2 minutes. You can change any of this later "
+                      "from the menu bar (🎙 icon).", _sf(12), INK_MUTED,
+                      align=NSTextAlignmentCenter, multiline=True)
+        content.addSubview_(foot); add(foot)
 
-        self._done = _filled_button(
-            NSMakeRect((W - 220) / 2, 28, 220, 44), "Continue →", self, "continue:")
-        content.addSubview_(self._done)
-        self._page1.append(self._done)
+        self._done = _cta_button(NSMakeRect(PAD, 26, W - 2 * PAD, 48), "Continue →", self, "continue:")
+        content.addSubview_(self._done); add(self._done)
 
     # ---------------- página 2: cómo dictar ----------------
     def _build_page2(self, content):
-        top = H - HEADER_H  # 560
+        add = self._page2.append
 
-        h1 = _label(NSMakeRect(40, 518, W - 80, 36), "You're all set.", 28,
-                    bold=True, color=INK)
-        content.addSubview_(h1)
-        self._page2.append(h1)
+        hero = _keycap(NSMakeRect((W - 150) / 2, _y(56, 150), 150, 150), "⌘",
+                       _serif(66), 28, gradient=True)
+        content.addSubview_(hero); add(hero)
 
-        sub = _label(NSMakeRect(40, 492, W - 80, 22),
-                     "Here's how to dictate. It lives in your menu bar.", 14,
-                     color=INK_SOFT)
-        content.addSubview_(sub)
-        self._page2.append(sub)
+        title = _label(NSMakeRect(PAD, _y(232, 30), W - 2 * PAD, 30),
+                       "You're ready to dictate", _serif(22, semibold=True), INK,
+                       align=NSTextAlignmentCenter)
+        content.addSubview_(title); add(title)
+        sub = _label(NSMakeRect(PAD, _y(267, 20), W - 2 * PAD, 20),
+                     "Two keys are all you need.", _sf(14), INK_SOFT,
+                     align=NSTextAlignmentCenter)
+        content.addSubview_(sub); add(sub)
 
-        # ---- hero: la tecla de dictado ----
-        hero = _keycap(NSMakeRect((W - 150) / 2, 330, 150, 150), "⌘", 60, big=True)
-        content.addSubview_(hero)
-        self._page2.append(hero)
+        cap = _label(NSMakeRect(PAD, _y(309, 20), W - 2 * PAD, 20),
+                     "Hold the RIGHT ⌘ key", _sf(14.5, 0.3), INK,
+                     align=NSTextAlignmentCenter)
+        content.addSubview_(cap); add(cap)
+        instr = _label(NSMakeRect((W - 420) / 2, _y(335, 34), 420, 34),
+                       "speak, then release — your words get typed where the cursor is.",
+                       _sf(13), INK_SOFT, align=NSTextAlignmentCenter, multiline=True)
+        content.addSubview_(instr); add(instr)
 
-        cap = _label(NSMakeRect(40, 300, W - 80, 22), "Hold the RIGHT ⌘ key", 13,
-                     bold=True, color=INK, align=2)
-        content.addSubview_(cap)
-        self._page2.append(cap)
-
-        instr = _label(
-            NSMakeRect(50, 270, W - 100, 26),
-            "speak, then release — your words get typed where the cursor is.",
-            12, color=INK_SOFT, align=2)
-        _make_multiline(instr)
-        content.addSubview_(instr)
-        self._page2.append(instr)
-
-        # ---- tres atajos como tarjetas ----
-        y = 268
-        for keys, title, desc in (
+        t = 387
+        first = True
+        for keys, ttl, desc in (
             ("⌘ + Shift", "Hands-free", "Toggle dictation on/off without holding."),
             ("⌃⇧M", "Change mode", "Cycle 8 modes (verbatim, email, code…)."),
             ("Esc", "Cancel", "Throw away the dictation in progress."),
         ):
-            y -= 60
-            card = self._shortcut_card(y, keys, title, desc)
-            content.addSubview_(card)
-            self._page2.append(card)
+            hair = _rule(NSMakeRect(PAD, _y(t, 1), W - 2 * PAD, 1), HAIRLINE)
+            content.addSubview_(hair); add(hair)
+            first = False
+            card = self._shortcut_row(NSMakeRect(PAD, _y(t + 1, 52), W - 2 * PAD, 52), keys, ttl, desc)
+            content.addSubview_(card); add(card)
+            t += 53
 
-        self._start = _filled_button(
-            NSMakeRect((W - 220) / 2, 28, 220, 44), "Start dictating", self, "finish:")
-        content.addSubview_(self._start)
-        self._page2.append(self._start)
+        self._start = _cta_button(NSMakeRect(PAD, 26, W - 2 * PAD, 48), "Start dictating", self, "finish:")
+        content.addSubview_(self._start); add(self._start)
 
-    def _shortcut_card(self, y, keys, title, desc):
-        card = NSView.alloc().initWithFrame_(NSMakeRect(40, y, W - 80, 52))
-        card.setWantsLayer_(True)
-        card.layer().setBackgroundColor_(CARD_BG.CGColor())
-        card.layer().setCornerRadius_(10.0)
-        card.layer().setBorderWidth_(1.0)
-        card.layer().setBorderColor_(CARD_BORDER.CGColor())
+    def _shortcut_row(self, frame, keys, title, desc):
+        row = NSView.alloc().initWithFrame_(frame)
+        rw = frame.size.width
+        chip = _keycap(NSMakeRect(0, 8, 72, 36), keys, _sf(13, 0.3), 8)
+        row.addSubview_(chip)
+        row.addSubview_(_label(NSMakeRect(88, 27, rw - 88, 17), title, _sf(13.5, 0.3), INK))
+        d = _label(NSMakeRect(88, 8, rw - 88, 17), desc, _sf(12.5), INK_SOFT)
+        row.addSubview_(d)
+        return row
 
-        cap = _keycap(NSMakeRect(12, 6, 96, 40), keys, 12)
-        card.addSubview_(cap)
-        card.addSubview_(_label(NSMakeRect(120, 28, W - 80 - 132, 18), title, 12, bold=True, color=INK))
-        d = _label(NSMakeRect(120, 8, W - 80 - 132, 20), desc, 11, color=INK_SOFT)
-        _make_multiline(d)
-        card.addSubview_(d)
-        return card
+    def _build_row(self, key, name, desc, action, style, frame):
+        row = NSView.alloc().initWithFrame_(frame)
+        rw, rh = frame.size.width, frame.size.height
+        title_x = 34
 
-    def _build_row(self, key, name, desc, action, y):
-        row = NSView.alloc().initWithFrame_(NSMakeRect(40, y, W - 80, ROW_H - 10))
-        rw = W - 80
-
-        status = _label(NSMakeRect(0, 44, 24, 22), "○", 16)
+        # punto de estado (● hecho / ○ pendiente) alineado con el título
+        status = _label(NSMakeRect(0, rh - 29, 20, 20), "○", _sf(15), PENDING_RING,
+                        align=NSTextAlignmentCenter)
         row.addSubview_(status)
-        row.addSubview_(_label(NSMakeRect(30, 44, 240, 22), name, 13, bold=True, color=INK))
-        desc_lbl = _label(NSMakeRect(30, 6, rw - 150, 36), desc, 11, color=INK_SOFT)
-        _make_multiline(desc_lbl)
-        row.addSubview_(desc_lbl)
 
-        btn = NSButton.alloc().initWithFrame_(NSMakeRect(rw - 130, 42, 130, 28))
-        btn.setTitle_(action)
-        btn.setBezelStyle_(1)
-        btn.setTarget_(self)
-        btn.setAction_(f"{key}:")
+        row.addSubview_(_label(NSMakeRect(title_x, rh - 27, 200, 16), name, _sf(14, 0.3), INK))
+        if key == "ai":  # etiqueta "Optional" en gris junto al título
+            row.addSubview_(_label(NSMakeRect(title_x + 78, rh - 26, 90, 15), "Optional",
+                                   _sf(11.5), INK_MUTED))
+
+        # Botón arriba, alineado con el título; la descripción va DEBAJO, a todo
+        # el ancho (así no la recorta el botón — el bug que había).
+        btn_w = {"Allow": 70, "Open Settings": 116, "Download": 104, "Connect AI": 100}.get(action, 100)
+        btn = _row_button(NSMakeRect(rw - btn_w, rh - 31, btn_w, 24), action, style, self, f"{key}:")
         row.addSubview_(btn)
 
-        bar = NSProgressIndicator.alloc().initWithFrame_(NSMakeRect(30, 2, rw - 160, 12))
-        bar.setStyle_(0)              # NSProgressIndicatorStyleBar
-        bar.setIndeterminate_(False)
-        bar.setMinValue_(0.0)
-        bar.setMaxValue_(100.0)
-        bar.setHidden_(True)
-        row.addSubview_(bar)
+        full_w = rw - title_x - 8
+        if key == "model":
+            desc_lbl = _label(NSMakeRect(title_x, 20, full_w, 18), desc, _sf(12), INK_SOFT)
+        elif key == "ai":
+            desc_lbl = _label(NSMakeRect(title_x, 8, full_w, rh - 40), desc, _sf(12),
+                              INK_SOFT, multiline=True)
+        else:
+            desc_lbl = _label(NSMakeRect(title_x, 8, full_w, 20), desc, _sf(12), INK_SOFT)
+        row.addSubview_(desc_lbl)
+
+        bar = None
+        if key == "model":
+            track_w = rw - title_x - 48
+            bar = NSView.alloc().initWithFrame_(NSMakeRect(title_x, 6, track_w, 4))
+            bar.setWantsLayer_(True)
+            bar.layer().setBackgroundColor_(PROGRESS_TRACK.CGColor())
+            bar.layer().setCornerRadius_(2.0)
+            bar.setHidden_(True)
+            try:
+                from Quartz import CALayer
+                fill = CALayer.layer()
+                fill.setBackgroundColor_(TEAL.CGColor())
+                fill.setCornerRadius_(2.0)
+                fill.setFrame_(NSMakeRect(0, 0, 0, 4))
+                bar.layer().addSublayer_(fill)
+                self._model_fill = fill
+                self._model_track_w = float(track_w)
+            except Exception:
+                log.debug("Sin CALayer para la barra de progreso", exc_info=True)
+            row.addSubview_(bar)
+            self._model_pct = _label(NSMakeRect(title_x + track_w + 6, 3, 36, 12), "",
+                                     _mono(10.5, 0.3), BTN_GHOST_TEXT)
+            self._model_pct.setHidden_(True)
+            row.addSubview_(self._model_pct)
 
         self._rows[key] = {"status": status, "button": btn, "bar": bar}
         return row
@@ -332,15 +404,26 @@ class OnboardingController(NSObject):
         self._downloading = True
         row = self._rows["model"]
         row["button"].setEnabled_(False)
-        row["button"].setTitle_("Downloading…")
+        _set_button_title(row["button"], "Downloading…", TEAL_DARK)
         row["bar"].setHidden_(False)
+        if self._model_pct is not None:
+            self._model_pct.setHidden_(False)
         threading.Thread(target=self._download_model, daemon=True).start()
 
     def ai_(self, _sender):
-        from . import refine
-
-        refine.detect_backend(force=True)
-        self._refresh()
+        """Conectar IA: delega en el callback del app (selector de proveedor +
+        key, flujo ya probado). Sin callback (test / standalone), re-detecta."""
+        log.info("Onboarding: clic en Connect AI")
+        if self._on_connect_ai is not None:
+            try:
+                self._on_connect_ai()
+            except Exception:
+                log.warning("Connect AI falló", exc_info=True)
+            self._refresh()
+        else:
+            from . import refine
+            refine.detect_backend(force=True)
+            self._refresh()
 
     def continue_(self, _sender):
         """Página 1 → 2. Solo se habilita cuando los checks bloqueantes pasan."""
@@ -384,13 +467,19 @@ class OnboardingController(NSObject):
 
     def updateProgress_(self, pct):
         try:
-            self._rows["model"]["bar"].setDoubleValue_(float(pct))
+            p = float(pct)
+            if self._model_fill is not None:
+                self._model_fill.setFrame_(NSMakeRect(0, 0, self._model_track_w * p / 100.0, 4))
+            if self._model_pct is not None:
+                self._model_pct.setStringValue_(f"{int(p)}%")
         except Exception:
             pass
 
     def downloadFinished_(self, _arg):
         row = self._rows["model"]
-        row["button"].setTitle_("Download")
+        _set_button_title(row["button"], "Download", TEAL_DARK)
+        if self._model_pct is not None:
+            self._model_pct.setHidden_(True)
         self._refresh()
 
     # ---------- refresco periódico ----------
@@ -416,15 +505,17 @@ class OnboardingController(NSObject):
             if row is None:
                 continue
             row["status"].setStringValue_("●" if check.ok else "○")
-            row["status"].setTextColor_(
-                ACCENT if check.ok else NSColor.tertiaryLabelColor())
+            row["status"].setTextColor_(TEAL if check.ok else PENDING_RING)
             if not (check.key == "model" and self._downloading):
                 row["button"].setEnabled_(not check.ok or check.key == "ai")
-            if check.key == "model" and check.ok:
+            # Cuando el requisito ya está, el botón sobra (el punto ● lo dice);
+            # la IA queda siempre reconectable.
+            row["button"].setHidden_(bool(check.ok) and check.key != "ai")
+            if check.key == "model" and check.ok and row["bar"] is not None:
                 row["bar"].setHidden_(True)
             if check.blocking and not check.ok:
                 ready = False
-        _style_filled_button(self._done, ready, "Continue →")
+        _style_cta(self._done, ready, "Continue →")
 
         # Re-mostrar la ventana si la escondimos para ir a Ajustes del Sistema.
         if self._hidden_for_settings:
@@ -446,15 +537,10 @@ class OnboardingController(NSObject):
         for v in self._page2:
             v.setHidden_(n != 2)
         if n == 1:
-            self._header_title.setStringValue_("Welcome to Voooxly")
-            self._header_sub.setStringValue_(
-                "Dictate anywhere — Voooxly types what you say.")
             self._step_label.setStringValue_("STEP 1 OF 2")
             self._done.setKeyEquivalent_("\r")
             self._start.setKeyEquivalent_("")
         else:
-            self._header_title.setStringValue_("You're ready to dictate")
-            self._header_sub.setStringValue_("Two keys are all you need.")
             self._step_label.setStringValue_("STEP 2 OF 2")
             self._done.setKeyEquivalent_("")
             self._start.setKeyEquivalent_("\r")
@@ -499,51 +585,102 @@ class OnboardingController(NSObject):
             pass
 
 
-def _label(rect, text, size, bold=False, secondary=False, color=None, align=0):
+# ---------------- helpers de vistas ----------------
+def _label(rect, text, font, color=None, align=NSTextAlignmentLeft, multiline=False):
     f = NSTextField.alloc().initWithFrame_(rect)
     f.setStringValue_(text)
     f.setBezeled_(False)
     f.setDrawsBackground_(False)
     f.setEditable_(False)
     f.setSelectable_(False)
-    f.setFont_(NSFont.boldSystemFontOfSize_(size) if bold else NSFont.systemFontOfSize_(size))
+    f.setFont_(font)
     if color is not None:
         f.setTextColor_(color)
-    elif secondary:
-        f.setTextColor_(NSColor.secondaryLabelColor())
-    if align:
+    if align != NSTextAlignmentLeft:
         f.setAlignment_(align)
+    if multiline:
+        _make_multiline(f)
     return f
 
 
-def _keycap(rect, text, size=13, big=False):
-    """Tecla estilizada: rectángulo redondeado blanco con borde y sombra suave
-    (profundidad). El texto centrado."""
-    w = rect.size.width
-    h = rect.size.height
+def _rule(rect, color):
+    """Línea hairline (divisor / separador de filas)."""
+    v = NSView.alloc().initWithFrame_(rect)
+    v.setWantsLayer_(True)
+    v.layer().setBackgroundColor_(color.CGColor())
+    return v
+
+
+def _keycap(rect, text, glyph_font, radius, gradient=False):
+    """Tecla estilizada: papel/blanco redondeado con borde y borde-inferior en
+    relieve (profundidad). El glifo centrado."""
+    w, h = rect.size.width, rect.size.height
     v = NSView.alloc().initWithFrame_(rect)
     v.setWantsLayer_(True)
     layer = v.layer()
-    layer.setBackgroundColor_(NSColor.whiteColor().CGColor())
-    layer.setCornerRadius_(18.0 if big else 10.0)
+    layer.setCornerRadius_(float(radius))
     layer.setBorderWidth_(1.0)
-    layer.setBorderColor_(CARD_BORDER.CGColor())
-    # sombra para que parezca una tecla real, no un cuadro plano
+    layer.setBorderColor_(KEYCAP_EDGE.CGColor())
+    if gradient:
+        try:
+            from Quartz import CAGradientLayer
+            g = CAGradientLayer.layer()
+            g.setFrame_(NSMakeRect(0, 0, w, h))
+            g.setCornerRadius_(float(radius))
+            g.setColors_([KEYCAP_BG.CGColor(), KEYCAP_BG2.CGColor()])
+            layer.addSublayer_(g)
+        except Exception:
+            layer.setBackgroundColor_(KEYCAP_BG.CGColor())
+    else:
+        layer.setBackgroundColor_(KEYCAP_BG.CGColor())
     try:
-        layer.setShadowOpacity_(0.20 if big else 0.12)
-        layer.setShadowRadius_(10.0 if big else 4.0)
-        layer.setShadowOffset_(NSMakeSize(0, -3 if big else -1))
-        layer.setShadowColor_(NSColor.colorWithSRGBRed_green_blue_alpha_(0.20, 0.18, 0.30, 1.0).CGColor())
+        layer.setShadowOpacity_(0.22 if gradient else 0.10)
+        layer.setShadowRadius_(12.0 if gradient else 3.0)
+        layer.setShadowOffset_(NSMakeSize(0, -3 if gradient else -1))
+        layer.setShadowColor_(TEAL_DARK.CGColor())
     except Exception:
         pass
-    lbl = _label(NSMakeRect(0, (h - (size + 8)) // 2, w, size + 8), text, size,
-                 bold=True, color=INK, align=2)
+    lbl = _label(NSMakeRect(0, (h - (glyph_font.pointSize() + 8)) / 2, w, glyph_font.pointSize() + 8),
+                 text, glyph_font, TEAL_DARK if gradient else INK_KEYCAP, align=NSTextAlignmentCenter)
     v.addSubview_(lbl)
     return v
 
 
-def _filled_button(rect, title, target, action):
-    """Botón CTA relleno con el color de marca y texto blanco bold."""
+def _row_button(rect, title, style, target, action):
+    """Botón de fila: 'ghost' (borde fino), 'tint' (relleno teal claro) o
+    'text' (solo texto teal)."""
+    b = NSButton.alloc().initWithFrame_(rect)
+    b.setBordered_(False)
+    b.setBezelStyle_(0)
+    b.setWantsLayer_(True)
+    b.layer().setCornerRadius_(8.0)
+    b.setTarget_(target)
+    b.setAction_(action)
+    if style == "tint":
+        b.layer().setBackgroundColor_(MODEL_BTN_BG.CGColor())
+        b.layer().setBorderWidth_(1.0)
+        b.layer().setBorderColor_(MODEL_BTN_BORDER.CGColor())
+        fg = TEAL_DARK
+    elif style == "text":
+        fg = TEAL_DARK
+    else:  # ghost
+        b.layer().setBorderWidth_(1.0)
+        b.layer().setBorderColor_(BTN_BORDER.CGColor())
+        fg = BTN_GHOST_TEXT
+    b.setTitle_(title)
+    _set_button_title(b, title, fg)
+    return b
+
+
+def _set_button_title(b, title, fg):
+    """Título de un botón de fila con color de marca (attributedTitle manda sobre
+    setTitle_, así que los cambios de texto del modelo pasan por aquí)."""
+    b.setAttributedTitle_(NSAttributedString.alloc().initWithString_attributes_(
+        title, {NSFontAttributeName: _sf(12.5, 0.3), NSForegroundColorAttributeName: fg}))
+
+
+def _cta_button(rect, title, target, action):
+    """CTA principal, relleno teal, texto blanco."""
     b = NSButton.alloc().initWithFrame_(rect)
     b.setBordered_(False)
     b.setBezelStyle_(0)
@@ -551,21 +688,15 @@ def _filled_button(rect, title, target, action):
     b.layer().setCornerRadius_(10.0)
     b.setTarget_(target)
     b.setAction_(action)
-    _style_filled_button(b, True, title)
+    _style_cta(b, True, title)
     return b
 
 
-def _style_filled_button(b, enabled, title):
-    """Apariencia del botón relleno según esté habilitado o no (lo usa
-    _refresh para el botón Continuar)."""
-    bg = ACCENT if enabled else DISABLED_BG
-    b.layer().setBackgroundColor_(bg.CGColor())
-    fg = NSColor.whiteColor() if enabled else NSColor.colorWithSRGBRed_green_blue_alpha_(1, 1, 1, 0.55)
-    attrs = {
-        NSFontAttributeName: NSFont.boldSystemFontOfSize_(14),
-        NSForegroundColorAttributeName: fg,
-    }
-    b.setAttributedTitle_(NSAttributedString.alloc().initWithString_attributes_(title, attrs))
+def _style_cta(b, enabled, title):
+    b.layer().setBackgroundColor_((TEAL if enabled else CTA_DISABLED_BG).CGColor())
+    fg = NSColor.whiteColor() if enabled else CTA_DISABLED_TEXT
+    b.setAttributedTitle_(NSAttributedString.alloc().initWithString_attributes_(
+        title, {NSFontAttributeName: _sf(14, 0.3), NSForegroundColorAttributeName: fg}))
     b.setEnabled_(enabled)
 
 
@@ -583,11 +714,12 @@ def _make_multiline(field):
 _controller = None
 
 
-def show_onboarding(on_finish=None) -> None:
+def show_onboarding(on_finish=None, on_connect_ai=None) -> None:
     """Muestra el asistente. DEBE llamarse desde el hilo principal."""
     global _controller
     try:
-        _controller = OnboardingController.alloc().initWithFinish_(on_finish)
+        _controller = OnboardingController.alloc().initWithFinish_connectAI_(
+            on_finish, on_connect_ai)
         _controller.show()
     except Exception as e:
         log.error("No pude mostrar el onboarding: %s", e)

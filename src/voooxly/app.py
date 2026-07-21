@@ -1028,6 +1028,36 @@ class VoooxlyApp(rumps.App):
             self._connect_provider(prov_key)
         return cb
 
+    def _connect_ai_from_onboarding(self):
+        """Selector de proveedor para el paso "Connect AI" del onboarding, que
+        delega en _connect_provider (flujo probado: pide key, valida, guarda en
+        llavero + prefs). Lo conectado persiste tras el relanzamiento de la app.
+
+        Nadie tiene IA en el primer arranque, así que aquí no hay "test": es
+        conectar. Es opcional; el onboarding deja claro que el dictado va sin ella.
+        """
+        from AppKit import NSAlert, NSPopUpButton
+        from Foundation import NSMakeRect
+
+        from . import providers
+
+        keys = list(providers.PROVIDERS.keys())
+        alert = NSAlert.alloc().init()
+        alert.setMessageText_("Connect an AI engine")
+        alert.setInformativeText_(
+            "Pick a provider — Voooxly will ask for its API key next. It's "
+            "optional; dictation works fine without it.")
+        popup = NSPopUpButton.alloc().initWithFrame_pullsDown_(
+            NSMakeRect(0, 0, 260, 26), False)
+        for k in keys:
+            popup.addItemWithTitle_(providers.PROVIDERS[k].label)
+        alert.setAccessoryView_(popup)
+        alert.addButtonWithTitle_("Continue")
+        alert.addButtonWithTitle_("Cancel")
+        if alert.runModal() != 1000:  # NSAlertFirstButtonReturn = Continue
+            return
+        self._connect_provider(keys[popup.indexOfSelectedItem()])
+
     def _connect_provider(self, prov_key: str):
         """Pide lo que falte, valida contra el proveedor y guarda si funciona."""
         from . import ai_settings, keychain, providers
@@ -1229,7 +1259,8 @@ class VoooxlyApp(rumps.App):
             if setup_checks.needs_setup():
                 from .onboarding import show_onboarding
 
-                show_onboarding(on_finish=self._on_onboarding_done)
+                show_onboarding(on_finish=self._on_onboarding_done,
+                                on_connect_ai=self._connect_ai_from_onboarding)
         except Exception as e:
             log.warning("No pude mostrar el onboarding: %s", e)
         # arranca whisper-server en background para que el primer dictado no pague el coste
