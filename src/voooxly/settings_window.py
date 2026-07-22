@@ -79,6 +79,12 @@ _LADO_MARGEN_D = 4  # hueco entre la etiqueta de lado y el borde de la fila
 _KEYCAP_W = 62
 _KEYCAP_H = 26
 
+# Tamaño de la leyenda de cada casilla del teclado visual. 9pt le sobra hueco
+# incluso al texto más ancho ("F13") en la casilla más estrecha del teclado
+# (~30pt de ancho real, medido con theme.text_width): no hace falta ganar
+# tamaño de ventana para que se lea.
+_LEYENDA_TECLADO_PT = 9.0
+
 
 def _lado_ancho(font) -> float:
     """Puntos que necesita el campo del lado para no cortar ningún valor de
@@ -211,6 +217,7 @@ class ShortcutsController(NSObject):
         lado_w = _lado_ancho(lado_font)   # una sola vez: mismo ancho en las 4 filas
 
         self._keys = {}          # nombre → NSView de la casilla
+        self._legends = {}       # nombre → NSTextField con la leyenda de la casilla
         self._build_keyboard(content, top=84, height=228)
         self._paint_keyboard()
 
@@ -258,9 +265,23 @@ class ShortcutsController(NSObject):
         return row
 
     def _build_keyboard(self, content, top, height):
-        """Dibuja el teclado. Las casillas se crean UNA vez y luego solo se
-        recolorean: añadir y quitar subviews en cada repintado es lo que hace
-        parpadear una ventana."""
+        """Dibuja el teclado. Las casillas (y sus leyendas) se crean UNA vez y
+        luego solo se recolorean: añadir y quitar subviews en cada repintado
+        es lo que hace parpadear una ventana.
+
+        Una casilla sin leyenda no dice qué tecla es — encendida o no, hay
+        que contar posiciones en la fila para saberlo, que es exactamente lo
+        que un teclado dibujado existe para evitar. Cada casilla NOMBRADA
+        lleva su leyenda, construida con key_label([nombre]): la misma
+        función que ya pintan los keycaps de las cuatro filas, para que el
+        teclado y la lista no puedan tener dos ideas distintas de cómo se
+        escribe una tecla. Las casillas de RELLENO ("") se quedan sin
+        leyenda: existen solo para que el contorno del teclado se reconozca
+        de un vistazo (ver el comentario de KEYBOARD_ROWS) y, como nunca se
+        pueden asignar ni encender, ponerles una letra sería inventar una
+        segunda tabla de símbolos — justo lo que este módulo lleva toda la
+        tarde evitando.
+        """
         marco = NSView.alloc().initWithFrame_(
             NSMakeRect(PAD, y_(top, height), W - PAD * 2, height))
         marco.setWantsLayer_(True)
@@ -271,6 +292,9 @@ class ShortcutsController(NSObject):
         content.addSubview_(marco)
         self._teclado_marco = marco
 
+        leyenda_font = theme.sf(_LEYENDA_TECLADO_PT, 0.2)
+        leyenda_h = leyenda_font.pointSize() + 8
+
         ancho = marco.frame().size.width - 16
         alto_fila = (height - 16) / len(KEYBOARD_ROWS)
         for i, fila in enumerate(KEYBOARD_ROWS):
@@ -279,13 +303,21 @@ class ShortcutsController(NSObject):
             fy = height - 8 - (i + 1) * alto_fila
             for nombre, w in fila:
                 kw = (ancho * w / total) - 3
+                kw = max(kw, 4)
+                cy = alto_fila - 4
                 casilla = NSView.alloc().initWithFrame_(
-                    NSMakeRect(x, fy + 2, max(kw, 4), alto_fila - 4))
+                    NSMakeRect(x, fy + 2, kw, cy))
                 casilla.setWantsLayer_(True)
                 casilla.layer().setCornerRadius_(4.0)
                 marco.addSubview_(casilla)
                 if nombre:
                     self._keys[nombre] = casilla
+                    leyenda = theme.label(
+                        NSMakeRect(0, (cy - leyenda_h) / 2, kw, leyenda_h),
+                        key_label([nombre]), leyenda_font, theme.INK_KEYCAP,
+                        align=NSTextAlignmentCenter)
+                    casilla.addSubview_(leyenda)
+                    self._legends[nombre] = leyenda
                 else:
                     _apagar(casilla)
                 x += kw + 3
@@ -293,20 +325,39 @@ class ShortcutsController(NSObject):
     def _paint_keyboard(self):
         """Recolorea las casillas según self._estado. DEBE correr en el hilo
         principal: lo llama también la captura, que llega por el hilo del
-        listener de pynput."""
+        listener de pynput.
+
+        La leyenda se recolorea en la misma rama que el relleno de su
+        casilla, nunca en un paso aparte: dictation enciende en teal
+        SÓLIDO (theme.TEAL) y ahí el gris oscuro de una leyenda apagada
+        (theme.INK_KEYCAP) sería ilegible, así que pasa a theme.PAGE_BG
+        (el "papel" casi blanco de la marca). El resto de atajos encienden
+        en un teal muy claro (theme.MODEL_BTN_BG) — ahí el mismo gris
+        oscuro de siempre ya se lee bien, así que su leyenda se queda
+        igual que una apagada. Tenerlo en la misma rama que
+        setBackgroundColor_ es lo que impide que relleno y leyenda se
+        desincronicen si mañana cambia uno de los dos colores.
+        """
         encendidas = lit_keys(self._estado)
         for nombre, casilla in self._keys.items():
             sid = encendidas.get(nombre)
+            leyenda = self._legends.get(nombre)
             if sid == "dictation":
                 casilla.layer().setBackgroundColor_(theme.TEAL.CGColor())
                 casilla.layer().setBorderWidth_(1.0)
                 casilla.layer().setBorderColor_(theme.TEAL_DARK.CGColor())
+                if leyenda is not None:
+                    leyenda.setTextColor_(theme.PAGE_BG)
             elif sid:
                 casilla.layer().setBackgroundColor_(theme.MODEL_BTN_BG.CGColor())
                 casilla.layer().setBorderWidth_(1.0)
                 casilla.layer().setBorderColor_(theme.MODEL_BTN_BORDER.CGColor())
+                if leyenda is not None:
+                    leyenda.setTextColor_(theme.INK_KEYCAP)
             else:
                 _apagar(casilla)
+                if leyenda is not None:
+                    leyenda.setTextColor_(theme.INK_KEYCAP)
 
     # ---------- ciclo de vida ----------
     def show(self):
