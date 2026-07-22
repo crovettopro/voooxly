@@ -94,6 +94,22 @@ def ai_engine_title(selection, detected: str) -> str:
     return f"AI engine — {label} (auto)"
 
 
+def check_now_message(status: str, info: dict | None, local: str) -> tuple[str, str]:
+    """(title, message) para el resultado de un 'Check for updates…' manual.
+
+    Pure: el cableado UI la llama desde _check_now y le pasa lo que devolvió
+    updates.check_status(). Sin info -> error o al día según status.
+    """
+    if status == updates.UPDATE_AVAILABLE and info:
+        ver = info["version"]
+        notes = (info.get("notes") or "").strip()
+        body = f"Voooxly {ver} is available." + (f"\n\n{notes}" if notes else "")
+        return "Update available", body
+    if status == updates.UP_TO_DATE:
+        return "Up to date", f"You're running the latest version (Voooxly {local})."
+    return "Couldn't check", "Couldn't reach the update server. Try again later."
+
+
 def apply_ai_selection(cfg, sel) -> None:
     """Aplica la elección al config VIVO (aquí sí toca: es configurar la app).
 
