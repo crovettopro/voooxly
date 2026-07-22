@@ -26,24 +26,22 @@ key and no account.
 
 ## Using Voooxly
 
-**Nothing here is fixed. Every key below can be changed.**
+**Nothing here is fixed. Every shortcut below can be changed from Settings →
+Shortcuts…**, one window in the menu bar for all four:
 
-| | | Change it in |
-|---|---|---|
-| **Hold right ⌘** | Dictate | Settings → Dictation key |
-| **Esc** | Throw away the dictation in progress | `config.yaml` |
-| **Shift** (while holding) | Latch hands-free, so you can let go | `config.yaml` |
-| **Ctrl+Shift+M** | Cycle through the modes | `config.yaml` |
-| **Ctrl+Shift+V** | Paste your last result again | `config.yaml` |
+| | |
+|---|---|
+| **Hold right ⌘** | Dictation — dictate |
+| **Ctrl+Shift+M** | Cycle mode — switch to the next mode |
+| **Shift** (while holding) | Latch dictation — keep recording hands-free, so you can let go |
+| **Esc** | Cancel dictation — throw away what's in progress |
 
-**The dictation key is the one most people want to change**, and it's the one
-you can change without touching a file: **Settings → Dictation key** in the
-menu bar offers all six bottom-row modifiers — right ⌘/⌥/⌃ and left ⌘/⌥/⌃.
-The left ones need a short hold rather than a tap, which is exactly what keeps
+**Settings → Shortcuts…** lets you press new keys for any of the four, pick
+"hold" or "tap to start/stop" for Dictation, and set its guard delay with a
+slider (0–800 ms). The guard delay only matters for keys that double as
+modifiers — right ⌘/⌥/⌃ and left ⌘/⌥/⌃ are the ones most people pick, and the
+left ones need a short hold rather than a tap, which is exactly what keeps
 ⌘C, ⌘V and ⌘Tab working normally while that key also dictates.
-
-Prefer pressing once to start and again to stop, instead of holding?
-**Settings → Dictation style**.
 
 Talk as long as you need — a single dictation can run up to five minutes.
 
@@ -250,8 +248,8 @@ Everything lives in `config.yaml`, with `.env` overrides (see `.env.example`).
 | `audio.max_duration` | `300` | Hard stop for one dictation, in seconds |
 | `stt.transcribe_timeout_floor` | `30` | Lower bound for the `/inference` timeout |
 | `stt.transcribe_timeout_ceiling` | `180` | Upper bound; the real timeout scales with audio length |
-| `hotkeys.toggle` | `[cmd_r]` | Dictation key. The menu writes `prefs.json`, which wins over this |
-| `hotkeys.cancel` · `latch` · `cycle_mode` · `paste_last` | | The other shortcuts |
+| `hotkeys.toggle` | `[cmd_r]` | Dictation key. Settings → Shortcuts… writes `prefs.json`, which wins over this |
+| `hotkeys.cancel` · `latch` · `cycle_mode` | | The other three shortcuts |
 | `llm.custom_rules` | — | Free-text style rules appended to every mode |
 | `app.language` | `null` | Output language; `null` keeps whatever you spoke |
 
