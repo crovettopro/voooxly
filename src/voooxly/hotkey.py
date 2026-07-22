@@ -44,7 +44,7 @@ import threading
 
 from pynput import keyboard
 
-from .keys import _ALIAS_MISMA_TECLA
+from . import keys
 
 log = logging.getLogger("voooxly.hotkey")
 
@@ -80,46 +80,12 @@ def _norm(key) -> str:
     return name
 
 
-# GOTCHA pynput: en macOS, Key.cmd_l NO es un miembro propio del enum sino un
-# ALIAS de Key.cmd — el backend darwin les da el mismo virtual keycode (0x37) y
-# enum.Enum colapsa los valores iguales en un solo miembro. Así que
-# `Key.cmd_l is Key.cmd` y su .name es "cmd": _norm() jamás devuelve "cmd_l".
-# Las derechas sí son miembros propios (vk distinto) y salen como "cmd_r".
-# Resultado: el nombre genérico que reporta pynput ES el de la tecla izquierda,
-# y hay que traducir el nombre del catálogo ("cmd_l") al que llega del teclado
-# ("cmd") o la tecla de dictado no casaría nunca y no arrancaría ninguna
-# grabación. Se traduce SOLO la configuración; _norm() ya devuelve canónico.
-_ALIAS_IZQUIERDA = {
-    "cmd_l": "cmd",
-    "alt_l": "alt",
-    "ctrl_l": "ctrl",
-    "shift_l": "shift",
-}
-
-# GOTCHA aparte (mismo mecanismo del enum de arriba, pero no es un alias de
-# IZQUIERDA): alt_gr tampoco es miembro propio en macOS — no hay una tecla
-# AltGr física distinta de la Option derecha, así que comparte virtual
-# keycode con alt_r y enum.Enum los colapsa (`Key.alt_gr is Key.alt_r`,
-# verificado contra el pynput del proyecto). Sin este alias, quien configura
-# "alt_gr" nunca vería _norm() devolver ese nombre — siempre reporta
-# "alt_r" — y la tecla de dictado no arrancaría jamás: sin error, sin log,
-# el fallo mudo que este módulo existe para evitar.
-#
-# Importado de keys.py, no redefinido: dos literales {"alt_gr": "alt_r"} en
-# dos módulos es la misma clase de bug que el propio alias arregla — nada
-# los mantendría sincronizados si alguna vez cambia uno solo. keys.py es un
-# módulo de datos puro (sin pynput ni AppKit) así que importar de ahí hacia
-# aquí no cierra ningún ciclo.
-
-
-def _canon(name: str | None) -> str | None:
-    """Nombre de tecla configurado → nombre que pynput reporta de verdad."""
-    if not name:
-        return name
-    low = name.lower()
-    if low in _ALIAS_IZQUIERDA:
-        return _ALIAS_IZQUIERDA[low]
-    return _ALIAS_MISMA_TECLA.get(low, low)
+# La canonicalización vive en keys.py: es aritmética de diccionarios, no toca
+# pynput, y shortcuts.py también la necesita para detectar conflictos. Aquí se
+# conserva el nombre privado _canon porque lo usan _combo_names, __init__ y
+# reconfigure, y renombrarlos no aporta nada.
+_canon = keys.canon
+_ALIAS_MISMA_TECLA = keys._ALIAS_MISMA_TECLA
 
 
 def _combo_names(keys: list[str]) -> frozenset[str]:
