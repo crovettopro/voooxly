@@ -4,7 +4,7 @@ El teclado y la lista son la MISMA verdad. Si divergen, el usuario ve una
 tecla encendida que la lista dice que no está asignada y deja de fiarse de
 las dos. Por eso lit_keys() sale del mismo estado que pinta la lista.
 """
-from voooxly import settings_window, shortcuts
+from voooxly import settings_window, shortcuts, theme
 
 ESTADO = {
     "dictation": {"keys": ["cmd_r"], "style": "hold", "delay_ms": 0},
@@ -90,6 +90,91 @@ def test_el_teclado_no_se_solapa_con_la_primera_fila():
     # superior de la fila.
     assert marco.origin.y >= fila.origin.y + fila.size.height
 
+    c.close()
+
+
+def test_las_casillas_con_nombre_tienen_su_leyenda():
+    """El bug real de la Task 9: una casilla encendida sin leyenda no dice
+    QUÉ tecla es — hay que contar posiciones en la fila para saberlo. Esto
+    lee stringValue() de la leyenda ya renderizada, no solo que exista.
+
+    El texto tiene que ser el mismo que produce key_label() para esa misma
+    tecla sola: es la función que YA usan los keycaps de las cuatro filas
+    (ver test_key_label_* en test_settings_window.py), y una segunda tabla
+    de símbolos que tuviera que mantenerse de acuerdo con _SIMBOLO es
+    precisamente la clase de bug que esta tarde se ha estado arreglando.
+    """
+    c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
+        ESTADO, lambda sid, fila: (True, ""))
+    esperado = {
+        "esc": "esc", "f1": "F1", "f13": "F13",
+        "cmd_r": "⌘", "cmd": "⌘", "shift": "⇧", "shift_r": "⇧",
+        "ctrl": "⌃", "alt": "⌥", "alt_r": "⌥",
+        "tab": "⇥", "enter": "⏎", "backspace": "⌫", "space": "␣",
+        "m": "M", "a": "A", "1": "1", "0": "0",
+    }
+    for nombre, texto in esperado.items():
+        assert c._legends[nombre].stringValue() == texto, nombre
+        # la misma verdad que key_label(), no una tabla paralela
+        assert c._legends[nombre].stringValue() == settings_window.key_label([nombre])
+    c.close()
+
+
+def test_toda_casilla_nombrada_tiene_exactamente_una_leyenda_y_las_de_relleno_ninguna():
+    """Ni huérfanas (una casilla con nombre sin su leyenda) ni de más: las
+    casillas de relleno ("") existen solo para que el teclado se reconozca
+    de un vistazo y nunca se encienden (ver el comentario de KEYBOARD_ROWS),
+    así que tampoco llevan leyenda."""
+    c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
+        ESTADO, lambda sid, fila: (True, ""))
+    assert set(c._legends) == set(c._keys)
+    assert len(c._legends) > 40
+    c.close()
+
+
+def test_repintar_el_teclado_no_reconstruye_las_leyendas():
+    """_paint_keyboard() recolorea casillas existentes, nunca las
+    reconstruye (ver el docstring de _build_keyboard: añadir y quitar
+    subviews en cada repintado hace parpadear la ventana). Las leyendas
+    tienen que seguir la misma regla: se crea el NSTextField una vez y se
+    recolorea, no se crea uno nuevo con el mismo texto en cada repintado."""
+    c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
+        ESTADO, lambda sid, fila: (True, ""))
+    antes = c._legends["cmd_r"]
+    c._paint_keyboard()
+    c._paint_keyboard()
+    assert c._legends["cmd_r"] is antes
+    c.close()
+
+
+def test_la_leyenda_de_una_tecla_encendida_en_solido_cambia_de_color_para_seguir_siendo_legible():
+    """dictation pinta su casilla de teal sólido (theme.TEAL): el gris
+    oscuro de una leyenda apagada (theme.INK_KEYCAP) sería ilegible ahí.
+    La leyenda tiene que recolorearse en el mismo sitio donde se recolorea
+    el relleno (_paint_keyboard), o las dos se pueden desincronizar: una
+    casilla encendida con su leyenda del color de una apagada.
+    """
+    c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
+        ESTADO, lambda sid, fila: (True, ""))
+    encendida = c._legends["cmd_r"]   # dictation en ESTADO: keys=["cmd_r"]
+    apagada = c._legends["a"]         # ninguna asignación por defecto la toca
+
+    assert apagada.textColor().isEqual_(theme.INK_KEYCAP)
+    assert encendida.textColor().isEqual_(theme.PAGE_BG)
+    assert not encendida.textColor().isEqual_(apagada.textColor())
+    c.close()
+
+
+def test_la_leyenda_de_una_tecla_encendida_en_tono_suave_sigue_legible():
+    """cycle_mode/latch/cancel pintan su casilla de un teal muy claro
+    (theme.MODEL_BTN_BG): ahí el gris oscuro de siempre ya es legible, así
+    que la leyenda NO tiene que cambiar de color como en dictation — solo
+    la casilla de relleno sólido necesita ese ajuste. Esto documenta la
+    decisión con un test, no solo con un comentario."""
+    c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
+        ESTADO, lambda sid, fila: (True, ""))
+    suave = c._legends["esc"]   # cancel en ESTADO: keys=["esc"]
+    assert suave.textColor().isEqual_(theme.INK_KEYCAP)
     c.close()
 
 
