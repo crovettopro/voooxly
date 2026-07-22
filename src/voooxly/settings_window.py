@@ -182,6 +182,7 @@ class ShortcutsController(NSObject):
         self._rows = {}          # sid → NSView de la fila
         self._keycaps = {}       # sid → NSTextField del keycap
         self._sides = {}         # sid → NSTextField del lado
+        self._teclado_marco = None  # NSView del fondo del teclado (tests de geometría)
         self._build()
         return self
 
@@ -261,13 +262,14 @@ class ShortcutsController(NSObject):
         recolorean: añadir y quitar subviews en cada repintado es lo que hace
         parpadear una ventana."""
         marco = NSView.alloc().initWithFrame_(
-            NSMakeRect(PAD, y_(top + height, height), W - PAD * 2, height))
+            NSMakeRect(PAD, y_(top, height), W - PAD * 2, height))
         marco.setWantsLayer_(True)
         marco.layer().setBackgroundColor_(theme.KEYCAP_BG.CGColor())
         marco.layer().setCornerRadius_(10.0)
         marco.layer().setBorderWidth_(1.0)
         marco.layer().setBorderColor_(theme.DIVIDER.CGColor())
         content.addSubview_(marco)
+        self._teclado_marco = marco
 
         ancho = marco.frame().size.width - 16
         alto_fila = (height - 16) / len(KEYBOARD_ROWS)
