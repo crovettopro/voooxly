@@ -43,6 +43,7 @@ _SIMBOLO = {
     "ctrl": "⌃", "ctrl_l": "⌃", "ctrl_r": "⌃",
     "shift": "⇧", "shift_l": "⇧", "shift_r": "⇧",
     "space": "␣", "enter": "⏎", "tab": "⇥", "backspace": "⌫",
+    "caps_lock": "⇪",
 }
 
 def y_(top, h):
@@ -51,14 +52,21 @@ def y_(top, h):
 
 
 def key_label(names: list[str]) -> str:
-    """['ctrl','shift','m'] → '⌃⇧M'. Lo que se pinta en el keycap."""
+    """['ctrl','shift','m'] → '⌃⇧M'. Lo que se pinta en el keycap.
+
+    También es la única tabla de símbolos del módulo: las casillas de
+    relleno del teclado visual (Task 9, Defecto 2 — ⇪ y fn no tienen tecla
+    asignable pero sí necesitan leyenda) pasan por aquí igual que los
+    keycaps de las cuatro filas, para que no exista una segunda tabla
+    paralela que se pueda desincronizar de esta.
+    """
     fuera = []
     for n in names or []:
         low = n.lower()
         if low in _SIMBOLO:
             fuera.append(_SIMBOLO[low])
-        elif low == "esc":
-            fuera.append("esc")
+        elif low in ("esc", "fn"):
+            fuera.append(low)
         else:
             fuera.append(low.upper())
     return "".join(fuera)
@@ -122,16 +130,24 @@ def side_label(sid: str, names: list[str]) -> str:
 # cycle_mode se puede reasignar a cualquier ctrl+alt+<letra> — si el teclado
 # solo supiera encender "m", esa reasignación se vería en la fila pero nunca
 # en el dibujo, rompiendo la regla de que las dos vistas son la misma verdad.
-# La puntuación (-, =, [, ], \, ;, ', ,, ., /) se deja sin nombrar: hoy nadie
-# la puede asignar y no vale la pena el ruido visual por una tecla que nunca
-# se va a encender.
+#
+# La puntuación (-, =, [, ], \, ;, ', ,, ., /) y las dos teclas especiales de
+# la fila de abajo (⇪ caps lock, fn) SÍ se nombran, aunque ninguna sea
+# asignable hoy (Task 9, Defecto 2): sin nombre se pintaban como rectángulos
+# en blanco y en la captura de pantalla se leían como teclas rotas, no como
+# "esto no se puede asignar". Nombrarlas les da leyenda vía key_label() sin
+# encenderlas nunca (lit_keys() nunca las incluye porque ningún atajo puede
+# apuntar a ellas — ver keys.validate_custom). Quedan dos casillas SIN
+# nombre a propósito, y no por descuido: la de la fila de números (no hay
+# una tecla real ahí, solo hueco de más) y la ancha del final de la fila de
+# abajo (el bloque de flechas, que son varias teclas y no una sola).
 KEYBOARD_ROWS: list[list[tuple[str, float]]] = [
     [("esc", 1.4)] + [(f"f{i}", 1.0) for i in range(1, 13)] + [("f13", 1.0)],
-    [(d, 1.0) for d in "1234567890"] + [("", 1.0)] * 3 + [("backspace", 1.5)],
-    [("tab", 1.5)] + [(c, 1.0) for c in "qwertyuiop"] + [("", 1.0)] * 2 + [("", 1.2)],
-    [("", 1.7)] + [(c, 1.0) for c in "asdfghjkl"] + [("", 1.0)] * 2 + [("enter", 1.6)],
-    [("shift", 2.2)] + [(c, 1.0) for c in "zxcvbnm"] + [("", 1.0)] * 3 + [("shift_r", 2.2)],
-    [("", 1.1), ("ctrl", 1.1), ("alt", 1.1), ("cmd", 1.4), ("space", 5.6),
+    [(d, 1.0) for d in "1234567890"] + [("-", 1.0), ("=", 1.0), ("", 1.0)] + [("backspace", 1.5)],
+    [("tab", 1.5)] + [(c, 1.0) for c in "qwertyuiop"] + [("[", 1.0), ("]", 1.0)] + [("\\", 1.2)],
+    [("caps_lock", 1.7)] + [(c, 1.0) for c in "asdfghjkl"] + [(";", 1.0), ("'", 1.0)] + [("enter", 1.6)],
+    [("shift", 2.2)] + [(c, 1.0) for c in "zxcvbnm"] + [(",", 1.0), (".", 1.0), ("/", 1.0)] + [("shift_r", 2.2)],
+    [("fn", 1.1), ("ctrl", 1.1), ("alt", 1.1), ("cmd", 1.4), ("space", 5.6),
      ("cmd_r", 1.4), ("alt_r", 1.1), ("", 2.2)],
 ]
 
