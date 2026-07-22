@@ -102,3 +102,80 @@ def test_download_sin_content_length_no_rompe_el_progreso(tmp_path):
         path = updates.download("https://x/y.dmg", "1.0.1", tmp_path, seen.append)
     assert path is not None and path.read_bytes() == b"dmg-bytes"
     assert seen == [100]  # solo el 100 final
+
+
+# --- check_status: distingue "sin novedad" de "error" ---
+
+def test_check_status_available_devuelve_info():
+    resp = MagicMock(ok=True)
+    resp.json.return_value = {"version": "2.0.0", "url": "https://x/y.dmg", "notes": "Nuevo"}
+    with patch("voooxly.updates.requests.get", return_value=resp):
+        status, info = updates.check_status("https://u", "1.0.0")
+    assert status == updates.UPDATE_AVAILABLE
+    assert info == {"version": "2.0.0", "url": "https://x/y.dmg", "notes": "Nuevo"}
+
+
+def test_check_status_up_to_date_sin_info():
+    resp = MagicMock(ok=True)
+    resp.json.return_value = {"version": "1.0.0", "url": "https://x/y.dmg"}
+    with patch("voooxly.updates.requests.get", return_value=resp):
+        status, info = updates.check_status("https://u", "1.0.0")
+    assert status == updates.UP_TO_DATE
+    assert info is None
+
+
+def test_check_status_error_si_no_hay_red():
+    with patch("voooxly.updates.requests.get", side_effect=OSError("sin red")):
+        status, info = updates.check_status("https://u", "1.0.0")
+    assert status == updates.UPDATE_ERROR
+    assert info is None
+
+
+def test_check_status_error_si_falta_la_url():
+    resp = MagicMock(ok=True)
+    resp.json.return_value = {"version": "2.0.0"}
+    with patch("voooxly.updates.requests.get", return_value=resp):
+        status, info = updates.check_status("https://u", "1.0.0")
+    assert status == updates.UPDATE_ERROR
+    assert info is None
+
+
+def test_check_status_error_si_http_falla():
+    resp = MagicMock(ok=False)
+    with patch("voooxly.updates.requests.get", return_value=resp):
+        status, info = updates.check_status("https://u", "1.0.0")
+    assert status == updates.UPDATE_ERROR
+
+
+# --- check() intacto tras refactor (regression) ---
+
+def test_check_sigue_devolviendo_info_solo_si_hay_novedad():
+    resp = MagicMock(ok=True)
+    resp.json.return_value = {"version": "2.0.0", "url": "https://x/y.dmg"}
+    with patch("voooxly.updates.requests.get", return_value=resp):
+        assert updates.check("https://u", "1.0.0")["version"] == "2.0.0"
+    resp2 = MagicMock(ok=True)
+    resp2.json.return_value = {"version": "1.0.0", "url": "https://x/y.dmg"}
+    with patch("voooxly.updates.requests.get", return_value=resp2):
+        assert updates.check("https://u", "1.0.0") is None
+
+
+# --- should_notify: HUD una sola vez por versión ---
+
+def test_should_notify_avisa_para_version_nueva():
+    info = {"version": "1.3.0", "url": "u", "notes": ""}
+    assert updates.should_notify(info, None) is True
+    assert updates.should_notify(info, "1.2.0") is True
+
+
+def test_should_notify_no_repite_para_misma_version():
+    info = {"version": "1.3.0", "url": "u", "notes": ""}
+    assert updates.should_notify(info, "1.3.0") is False
+
+
+def test_should_notify_false_si_no_hay_novedad():
+    assert updates.should_notify(None, None) is False
+
+
+def test_check_interval_es_24_horas():
+    assert updates.CHECK_INTERVAL == 24 * 3600
