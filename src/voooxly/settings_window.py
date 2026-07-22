@@ -113,7 +113,78 @@ _CAPTURANDO_TXT = "…"
 # banda nueva que queda libre debajo, DENTRO del frame de la fila -no fuera
 # de él-, para que no invada la fila de abajo (ver el comentario largo en
 # _build_row).
-_DELAY_ROW_EXTRA_H = 24
+#
+# Subido de 24 a 36 en el Finding 1 del review: con 24 el slíder (alto 20)
+# llegaba pegado al borde inferior de la fila y no quedaba sitio para las
+# marcas nuevas debajo de la pista. Los 12pt de más son exactamente los que
+# piden _DELAY_MARCA_H + el hueco que las separa del slíder (ver más abajo);
+# subir esta constante empuja automáticamente todas las filas siguientes
+# (Cycle mode incluida) hacia abajo -_build() sólo repite alto_fila+1-, así
+# que no hace falta tocar nada más para que no se coman una a otra.
+_DELAY_ROW_EXTRA_H = 36
+
+# Geometría del slíder y sus marcas dentro de la banda [0, _DELAY_ROW_EXTRA_H)
+# que queda libre debajo del contenido normal de la fila de Dictation (ver el
+# comentario de arriba y el de _build_row). El slíder sube de su antiguo y=2
+# a _DELAY_SLIDER_Y=14 para dejar, debajo, la franja [0, 14) para las marcas
+# -antes esa franja no existía y las marcas no tenían dónde ir sin invadir
+# nada-, conservando el mismo margen de ~8pt entre el slíder y el subtítulo
+# de arriba que ya tenía el diseño original.
+_DELAY_SLIDER_Y = 14
+_DELAY_MARCA_Y = 0
+_DELAY_MARCA_H = 11
+_DELAY_MARCA_PT = 9.0        # pequeñas y en gris secundario, como pide el brief
+# 2pt de holgura recortaba en pantalla el último dígito de "200"/"400"/"600"
+# (comprobado con screencapture: "200" se leía "20"), aunque
+# theme.text_width() midiera "bien" -sizeWithAttributes_ da el avance puro
+# del glifo, no el hueco que la celda de un NSTextField quiere alrededor.
+# 6pt es la misma holgura que ya usan _LADO_HOLGURA y _NOTA_HUERFANA_HOLGURA
+# más arriba en este módulo, y ahí no recorta.
+_DELAY_MARCA_HOLGURA = 6.0   # aire entre el texto medido de cada marca y su campo
+_DELAY_VALOR_PT = 13.5
+_DELAY_VALOR_PESO = 0.5      # negrita de verdad (NSFontWeightBold es 0.40)
+_DELAY_VALOR_GAP = 14.0      # hueco entre el borde derecho del slíder y el valor
+_DELAY_VALOR_HOLGURA = 6.0   # aire entre el texto medido del valor y su campo
+
+
+def _marcas_delay() -> list[int]:
+    """Los cinco valores que reparte el slíder de delay (Finding 1 del
+    review): 0, MAX/4, MAX/2, 3·MAX/4 y MAX -no 0/200/400/600/800 clavados a
+    mano-, para que si mañana cambia shortcuts.MAX_DELAY_MS las marcas lo
+    sigan solas, sin que haga falta acordarse de tocar este número también
+    aquí (la misma lección que _lado_ancho() ya aplica con
+    shortcuts.side_hint más arriba en este módulo)."""
+    paso = shortcuts.MAX_DELAY_MS / 4
+    return [round(paso * i) for i in range(5)]
+
+
+def _fmt_delay(ms) -> str:
+    """'400 ms': el formato exacto que pide el brief para el valor elegido."""
+    return f"{int(ms)} ms"
+
+
+def _valor_ancho(font) -> float:
+    """Ancho que necesita el texto del valor del delay ('N ms') para
+    CUALQUIER N entre 0 y shortcuts.MAX_DELAY_MS, medido de verdad con
+    AppKit sobre el rango entero: un font proporcional no mide lo mismo
+    para todas las cifras de tres dígitos, así que el peor caso se calcula
+    sobre el rango completo en vez de asumir que el valor máximo es el más
+    ancho (la misma razón por la que _lado_ancho() mide las cuatro
+    posibilidades de side_hint en vez de clavar un número)."""
+    return math.ceil(max(
+        theme.text_width(_fmt_delay(ms), font)
+        for ms in range(0, shortcuts.MAX_DELAY_MS + 1)
+    )) + _DELAY_VALOR_HOLGURA
+
+
+def _alto_multilinea(font, lineas=2) -> float:
+    """Alto en puntos que necesitan `lineas` líneas de `font`, medido con las
+    métricas reales de AppKit (ascender/descender/leading) en vez de doblar
+    a ojo el alto de una línea: el mismo principio que theme.text_width()
+    ya aplica al ancho, aplicado ahora al alto (Finding 3 del review: el
+    campo de error vivía al filo con una sola línea fija de 17pt)."""
+    alto_linea = math.ceil(font.ascender() - font.descender() + font.leading())
+    return alto_linea * lineas
 
 # Tamaño de la leyenda de cada casilla del teclado visual. 9pt le sobra hueco
 # incluso al texto más ancho ("F13") en la casilla más estrecha del teclado
@@ -338,6 +409,8 @@ class ShortcutsController(NSObject):
         self._error_text = ""
         self._error = None        # NSTextField del mensaje de error de la fila
         self._slider = None       # NSSlider del delay de Dictation
+        self._delay_ticks = []    # NSTextField × 5: las marcas 0/200/400/600/800 ms
+        self._delay_valor = None  # NSTextField del valor elegido ('400 ms')
         # HotkeyManager real, si lo hay: lo conecta quien wire esta ventana en
         # el menú de la app (Task 11) con attachHotkey_(). None en los tests
         # (y en verificar-ventana.py) — sin él, begin_capture_/cancel_capture_
@@ -410,9 +483,24 @@ class ShortcutsController(NSObject):
         # ventana: como solo una fila puede estar en captura a la vez, el
         # mensaje siempre pertenece a esa fila aunque el campo viva fuera de
         # su rectángulo.
+        #
+        # Finding 3 del review: el informe midió "los tres mensajes reales
+        # de shortcuts.validate", pero _error_text también lleva los de
+        # keys.validate_custom() -son justo los que salen al capturar una
+        # sola tecla, ver apply_capture_-, y el peor caso real de los DOS
+        # validadores juntos se quedaba a menos de 9pt del borde en una
+        # sola línea. Dos líneas (multiline=True, _make_multiline ya existe
+        # en theme.py) le dan aire de verdad en vez de vivir al filo; el
+        # alto sale de _alto_multilinea(), medido con las métricas reales
+        # del font, no de doblar a ojo el 17 de antes. El "top" (H-46) no
+        # se toca: al crecer el alto, el campo gana espacio hacia ABAJO
+        # -hacia el borde de la ventana, donde no hay nada más-, nunca
+        # hacia arriba, donde vive la última fila de atajos.
+        error_font = theme.sf(11.5)
+        error_h = _alto_multilinea(error_font, 2)
         self._error = theme.label(
-            NSMakeRect(PAD, y_(H - 46, 17), W - PAD * 2, 17),
-            "", theme.sf(11.5), theme.TEAL_DARK)
+            NSMakeRect(PAD, y_(H - 46, error_h), W - PAD * 2, error_h),
+            "", error_font, theme.TEAL_DARK, multiline=True)
         content.addSubview_(self._error)
 
     def _build_row(self, sid, frame, lado_font, lado_w):
@@ -489,22 +577,105 @@ class ShortcutsController(NSObject):
             # pista propia, dibujada a mano y por DEBAJO del NSSlider real
             # (que sigue siendo el que recibe el arrastre), deja esto legible
             # sin depender de que AppKit pinte lo que promete.
-            pista_y = 2 + 9   # centro vertical del slíder (alto 20, y=2)
+            pista_y = _DELAY_SLIDER_Y + 9   # centro vertical del slíder
             pista = theme.rule(NSMakeRect(6, pista_y, 168, 2), theme.BTN_BORDER)
             row.addSubview_(pista)
 
-            sl = NSSlider.alloc().initWithFrame_(NSMakeRect(0, 2, 180, 20))
+            sl = NSSlider.alloc().initWithFrame_(
+                NSMakeRect(0, _DELAY_SLIDER_Y, 180, 20))
             sl.setMinValue_(0.0)
             sl.setMaxValue_(float(shortcuts.MAX_DELAY_MS))
             sl.setNumberOfTickMarks_(5)          # 0 / 200 / 400 / 600 / 800
             sl.setAllowsTickMarkValuesOnly_(True)
-            sl.setDoubleValue_(float(self._estado.get(sid, {}).get("delay_ms") or 0))
+            ms_inicial = int(self._estado.get(sid, {}).get("delay_ms") or 0)
+            sl.setDoubleValue_(float(ms_inicial))
             sl.setTarget_(self)
             sl.setAction_("sliderMoved:")
             row.addSubview_(sl)
             self._slider = sl
 
+            # Finding 1 (CRÍTICO) del review: el slíder no enseñaba ningún
+            # número -ni marcas (setNumberOfTickMarks_ tampoco pinta nada en
+            # este macOS, igual que la pista) ni el valor elegido-. Elegir
+            # un delay era adivinar, no elegir. Lo que faltaba:
+            #
+            # 1. Las marcas, debajo de la pista, en las posiciones REALES
+            #    del pomo: _marca_x() lee knobRectFlipped_ del propio
+            #    slíder en vez de repartir el ancho del control a partes
+            #    iguales (rectOfTickMarkAtIndex_ existe pero no descuenta
+            #    el ancho del pomo y da una numeración que ya no coincide
+            #    con dónde se ve -o se vería- de verdad).
+            # 2. El valor en texto, a la derecha, en teal y negrita.
+            #
+            # Los dos anchos se miden con theme.text_width(), no a ojo: la
+            # misma lección de _lado_ancho() y _nota_huerfana_ancho() de
+            # más arriba en este módulo -un campo ajustado de menos recorta
+            # el texto en silencio y stringValue() sigue devolviendo el
+            # texto completo.
+            #
+            # OJO, esto mordió de verdad: con align=NSTextAlignmentCenter y
+            # un campo ajustado al ancho medido + holgura, "200" se pintaba
+            # "20" -comprobado con screencapture a pixel, no era una
+            # ilusión de la captura de pantalla-, aunque theme.text_width()
+            # midiera bien y stringValue() siguiera devolviendo "200". La
+            # celda centrada calcula su propio ancho "natural" para
+            # centrar, más ancho que el medido, y si el campo no le sobra
+            # ese margen recorta un carácter aunque el campo mida de sobra
+            # para el ancho REAL del texto (aislado en una ventana de
+            # prueba: el mismo texto con align IZQUIERDA en el mismo campo
+            # de 24pt no recortaba nada). Por eso aquí NO se usa align=
+            # Center: se centra a mano -el origen x resta el ancho medido
+            # del texto (sin holgura) entre dos, no el ancho del campo- y
+            # se deja la etiqueta en alineación izquierda, que es la que de
+            # verdad no recorta.
+            marca_font = theme.sf(_DELAY_MARCA_PT)
+            self._delay_ticks = []
+            marcas = _marcas_delay()
+            for i, ms in enumerate(marcas):
+                texto = _fmt_delay(ms) if i == len(marcas) - 1 else str(ms)
+                ancho_texto = theme.text_width(texto, marca_font)
+                ancho_campo = math.ceil(ancho_texto) + _DELAY_MARCA_HOLGURA
+                cx = self._marca_x(sl, ms)
+                marca = theme.label(
+                    NSMakeRect(cx - ancho_texto / 2, _DELAY_MARCA_Y, ancho_campo, _DELAY_MARCA_H),
+                    texto, marca_font, theme.INK_MUTED)
+                row.addSubview_(marca)
+                self._delay_ticks.append(marca)
+
+            valor_font = theme.sf(_DELAY_VALOR_PT, _DELAY_VALOR_PESO)
+            valor_w = _valor_ancho(valor_font)
+            self._delay_valor = theme.label(
+                NSMakeRect(180 + _DELAY_VALOR_GAP, _DELAY_SLIDER_Y, valor_w, 20),
+                _fmt_delay(ms_inicial), valor_font, theme.TEAL)
+            row.addSubview_(self._delay_valor)
+
         return row
+
+    def _marca_x(self, sl, ms):
+        """Centro (eje x) del pomo real de `sl` en el valor `ms`.
+
+        NSSlider no pinta ni pista ni marcas en este macOS (ver el
+        comentario grande de _build_row), pero el pomo SÍ responde de
+        verdad al valor -stringValue()/doubleValue() funcionan-, así que su
+        rectángulo (knobRectFlipped_) es la posición real a la que hay que
+        alinear la marca, no un reparto a partes iguales del ancho del
+        control: rectOfTickMarkAtIndex_ existe pero mide la pista completa
+        sin descontar el ancho del pomo, y da una numeración que ya no
+        coincide con dónde se ve -o se vería, si este macOS pintase algo-
+        el pomo de verdad (comprobado a mano con las dos: para un slíder de
+        180pt con pomo de 20pt, rectOfTickMarkAtIndex_ reparte 0/45/90/135/
+        180 pero el pomo real viaja de 10 a 170).
+
+        Sube y baja doubleValue_ para leerlo y lo deja como estaba: es una
+        consulta, no un cambio de estado, y no dispara sliderMoved_ porque
+        setDoubleValue_ nunca manda la acción (solo lo hace un arrastre de
+        verdad o un sendAction_to_ explícito).
+        """
+        anterior = sl.doubleValue()
+        sl.setDoubleValue_(float(ms))
+        rect = sl.cell().knobRectFlipped_(True)
+        sl.setDoubleValue_(anterior)
+        return rect.origin.x + rect.size.width / 2.0
 
     def _build_keyboard(self, content, top, height):
         """Dibuja el teclado. Las casillas (y sus leyendas) se crean UNA vez y
@@ -748,6 +919,7 @@ class ShortcutsController(NSObject):
         self._paint_keyboard()
         if fila.get("delay_ms") is not None and self._slider is not None and sid == "dictation":
             self._slider.setDoubleValue_(float(fila["delay_ms"]))
+            self._actualizar_valor_delay(int(fila["delay_ms"]))
 
     @objc.python_method
     def set_delay_(self, ms):
@@ -760,10 +932,24 @@ class ShortcutsController(NSObject):
             self._error_text = aviso
             return
         self._estado["dictation"] = fila
+        self._actualizar_valor_delay(ms)
         self._refresh_row("dictation")
 
     def sliderMoved_(self, sender):
         self.set_delay_(int(round(sender.doubleValue())))
+
+    def _actualizar_valor_delay(self, ms):
+        """Sincroniza el texto del valor ('400 ms') con el delay real.
+
+        Se llama tanto desde set_delay_ (arrastrar el slíder) como desde
+        apply_capture_ (el salto automático a shortcuts.DEFAULT_DELAY_MS al
+        elegir una tecla con guarda, ver delay_for): las dos vías cambian
+        delay_ms, y las dos tienen que dejar el número visible de acuerdo
+        con el estado, o el Finding 1 del review volvería a repetirse por
+        otro camino.
+        """
+        if self._delay_valor is not None:
+            self._delay_valor.setStringValue_(_fmt_delay(ms))
 
     def _refresh_row(self, sid):
         """Repinta el keycap, el lado y el mensaje de una fila.
