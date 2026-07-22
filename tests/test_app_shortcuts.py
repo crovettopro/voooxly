@@ -12,6 +12,11 @@ class _HotkeyFalso:
         self._ok = ok
         self.reconfigurado = None
         self.rebindeado = []
+        # Vigilan la regla del sistema (ver test_aplicar_un_atajo_no_reinicia_el_listener
+        # más abajo): reconfigure()/rebind() solo pueden mutar atributos, jamás
+        # tocar el keyboard.Listener en marcha.
+        self.parada = False
+        self.arrancada = False
 
     def reconfigure(self, toggle_key, toggle_mode, guard, guard_delay=None):
         self.reconfigurado = (toggle_key, toggle_mode, guard, guard_delay)
@@ -20,6 +25,12 @@ class _HotkeyFalso:
     def rebind(self, sid, names):
         self.rebindeado.append((sid, names))
         return self._ok
+
+    def stop(self):
+        self.parada = True
+
+    def start(self):
+        self.arrancada = True
 
 
 def test_dictation_va_por_reconfigure_con_el_delay_en_segundos():
@@ -58,3 +69,47 @@ def test_una_excepcion_del_hotkey_no_propaga():
                              {"keys": ["cmd_r"], "style": "hold", "delay_ms": 0})
     assert not ok
     assert msg
+
+
+def test_aplicar_un_atajo_no_reinicia_el_listener():
+    """Regla del sistema, no detalle de reconfigure()/rebind(): cambiar
+    CUALQUIERA de los cuatro atajos jamás llama a .stop() ni a .start()
+    sobre el HotkeyManager.
+
+    Reiniciar el keyboard.Listener de pynput reventó la app de verdad con
+    SIGTRAP en dispatch_assert_queue (arranca con `with keycode_context()`,
+    que toca TIS/TSM desde el hilo del propio listener, y HIToolbox exige
+    que eso pase en el hilo principal). Y aunque el hilo fuera el correcto,
+    tener dos listeners vivos a la vez — el viejo aún sin unir y el nuevo —
+    aborta el proceso con SIGABRT: ambos llamarían a TIS/TSM desde hilos
+    distintos. reconfigure() y rebind() lo evitan de raíz: solo mutan
+    atributos normales que _on_press/_on_release releen en cada evento, así
+    que jamás hace falta recrear el listener (ver sus docstrings en
+    hotkey.py). Este test deja esa regla vigilada: si algún día
+    apply_shortcut() empieza a llamar a hk.stop()/hk.start(), tiene que
+    fallar señalando el crash que evita, no con un AttributeError que el
+    `except Exception` de apply_shortcut se traga y disfraza de un
+    ok=False genérico.
+    """
+    hk = _HotkeyFalso()
+    filas = {
+        "dictation": {"keys": ["cmd_l"], "style": "hold", "delay_ms": 400},
+        "cycle_mode": {"keys": ["f13"]},
+        "latch": {"keys": ["f14"]},
+        "cancel": {"keys": ["f15"]},
+    }
+    for sid, fila in filas.items():
+        ok, msg = apply_shortcut(hk, sid, fila)
+        assert ok, msg
+
+    assert not hk.parada, (
+        "apply_shortcut() paró el listener: reiniciarlo revienta la app con "
+        "SIGTRAP en dispatch_assert_queue. Cambiar un atajo nunca debe tocar "
+        "stop()."
+    )
+    assert not hk.arrancada, (
+        "apply_shortcut() arrancó un listener nuevo: con el anterior aún "
+        "vivo, dos keyboard.Listener a la vez abortan el proceso con "
+        "SIGABRT (HIToolbox: la Text Input Sources API llamada desde dos "
+        "hilos a la vez). Cambiar un atajo nunca debe tocar start()."
+    )
