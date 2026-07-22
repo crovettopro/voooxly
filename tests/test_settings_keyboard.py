@@ -88,7 +88,7 @@ def test_las_teclas_de_relleno_llevan_nombre_y_ya_no_quedan_huecos():
     nunca se enciende.
 
     Los dos huecos sin nombre que quedaban a propósito ya no existen
-    (Defectos 3 y 4 del segundo repaso): el de la fila de números era un
+    (Defectos 3 y 4 de la segunda ronda): el de la fila de números era un
     error de retrato -un Mac ANSI de verdad empieza esa fila por el backtick
     y no tiene hueco entre "=" y ⌫-, y el bloque de flechas lleva ahora la
     leyenda "◀▼▶" con el nombre sintético "arrows". No queda ninguna casilla
@@ -101,6 +101,56 @@ def test_las_teclas_de_relleno_llevan_nombre_y_ya_no_quedan_huecos():
 
     huecos = [n for fila in settings_window.KEYBOARD_ROWS for n, _ in fila if n == ""]
     assert huecos == []
+
+
+def test_keyboard_rows_sin_teclas_huerfanas_devuelve_el_retrato_tal_cual():
+    """Sin ninguna tecla asignada fuera de KEYBOARD_ROWS, keyboard_rows() no
+    inventa una fila extra: devuelve KEYBOARD_ROWS tal cual, para que la
+    geometría (alto_fila) no cambie sin que nada lo justifique."""
+    assert settings_window.keyboard_rows(ESTADO) == settings_window.KEYBOARD_ROWS
+
+
+def test_toda_tecla_de_lit_keys_aparece_en_el_layout_dibujado():
+    """Defecto 1 de la Task 9 (segunda ronda): KEYBOARD_ROWS retrata un
+    MacBook y no contiene toda tecla asignable -ctrl_r es la primera: la app
+    ya la ofrece hoy en su menú (keys.DICTATION_KEYS) y un prefs.json real
+    puede traerla tras shortcuts.migrate()-. Con la tecla encendida en la
+    lista y ausente del teclado, el usuario ve exactamente la contradicción
+    que este componente existe para impedir.
+
+    Estructural y no una lista de casos: para varios estados -incluido uno
+    con ctrl_r y otro con una tecla claramente fuera del retrato (f14), y uno
+    con las dos huérfanas a la vez- toda clave de lit_keys() tiene que
+    aparecer entre los nombres de keyboard_rows(). Nada de comparar la fila
+    extra contra una lista clavada a mano.
+    """
+    estados = [
+        ESTADO,
+        dict(ESTADO, dictation={"keys": ["ctrl_r"], "style": "hold", "delay_ms": 0}),
+        dict(ESTADO, latch={"keys": ["f14"]}),
+        dict(ESTADO,
+             dictation={"keys": ["ctrl_r"], "style": "hold", "delay_ms": 0},
+             latch={"keys": ["f14"]}),
+    ]
+    for estado in estados:
+        filas = settings_window.keyboard_rows(estado)
+        nombres = {n for fila in filas for n, _ in fila if n}
+        for tecla in settings_window.lit_keys(estado):
+            assert tecla in nombres, (estado, tecla)
+
+
+def test_una_tecla_fuera_del_retrato_se_ve_de_verdad_en_la_ventana():
+    """No basta con que keyboard_rows() incluya la tecla huérfana en teoría:
+    _build_keyboard() tiene que usar esa fila de verdad para que la casilla
+    exista en la ventana real, con su leyenda, o la ventana seguiría
+    mostrando la misma contradicción que este defecto arregla."""
+    estado = dict(ESTADO, dictation={"keys": ["ctrl_r"], "style": "hold", "delay_ms": 0})
+    c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
+        estado, lambda sid, fila: (True, ""))
+    assert "ctrl_r" in c._keys
+    assert c._legends["ctrl_r"].stringValue() == settings_window.key_label(["ctrl_r"])
+    assert settings_window.lit_keys(estado)["ctrl_r"] == "dictation"
+    c.close()
 
 
 def test_las_teclas_de_relleno_nombradas_llevan_la_leyenda_de_key_label():

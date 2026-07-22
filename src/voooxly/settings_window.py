@@ -128,9 +128,12 @@ def side_label(sid: str, names: list[str]) -> str:
     return shortcuts.side_hint(sid, names)
 
 
-# Teclado de un MacBook, por filas. (nombre pynput o "" si no es asignable,
-# ancho relativo). El nombre "" son teclas de relleno: se dibujan para que el
-# teclado se reconozca de un vistazo, pero nunca se encienden.
+# Teclado de un MacBook, por filas. (nombre pynput, nombre sintético de
+# relleno como "arrows", o "" si hiciera falta una casilla puramente muda; hoy
+# ninguna fila la usa, ver más abajo), ancho relativo). Las teclas asignadas
+# que este retrato no contenga las añade keyboard_rows() en una fila aparte:
+# _build_keyboard() nunca dibuja KEYBOARD_ROWS directamente, dibuja lo que
+# esa función devuelve.
 #
 # Las letras y dígitos se nombran (con el char en minúscula que reporta
 # hotkey._norm) y no solo "m": shortcuts.py no restringe qué tecla puede
@@ -147,9 +150,9 @@ def side_label(sid: str, names: list[str]) -> str:
 # encenderlas nunca (lit_keys() nunca las incluye porque ningún atajo puede
 # apuntar a ellas — ver keys.validate_custom). El bloque de flechas del final
 # de la fila de abajo lleva el nombre sintético "arrows" por el mismo motivo
-# (Task 9, segundo repaso, Defecto 4): son varias teclas y no una sola, así
-# que no puede ser asignable, pero un rectángulo sin leyenda ahí se lee igual
-# de roto que los demás. No queda ninguna casilla sin nombre: el hueco que
+# (Task 9 fix2, Defecto 4): son varias teclas y no una sola, así que no
+# puede ser asignable, pero un rectángulo sin leyenda ahí se lee igual de
+# roto que los demás. No queda ninguna casilla sin nombre: el hueco que
 # tenía la fila de números (Defecto 3) era un error de retrato -en un Mac
 # ANSI de verdad esa fila empieza por el backtick y no tiene hueco entre
 # "=" y ⌫-, no una casilla de relleno legítima.
@@ -189,6 +192,33 @@ def lit_keys(estado: dict) -> dict[str, str]:
             if canon not in fuera:
                 fuera[canon] = sid
     return fuera
+
+
+def keyboard_rows(estado: dict) -> list[list[tuple[str, float]]]:
+    """KEYBOARD_ROWS y, si hace falta, una fila extra con las teclas
+    asignadas que ese retrato de MacBook no dibuja.
+
+    Defecto 1 de la Task 9 (segunda ronda): KEYBOARD_ROWS retrata un MacBook
+    concreto, pero hay teclas asignables que ese retrato no contiene -ctrl_r
+    es la primera, keys.DICTATION_KEYS:114 ya la ofrece en el menú hoy y un
+    prefs.json real puede traerla tras shortcuts.migrate()-. Sin esta fila
+    extra la lista decía "⌃ right" y el teclado no encendía nada: exactamente
+    la contradicción que este componente existe para impedir.
+
+    Se construye sobre lit_keys(), no sobre una lista de nombres puesta a
+    mano, para que CUALQUIER tecla asignable futura caiga aquí sola -f14, una
+    tecla del teclado numérico, home...- en cuanto algún atajo la use de
+    verdad, sin que haga falta acordarse de tocar este módulo otra vez.
+
+    Sin huérfanas devuelve KEYBOARD_ROWS tal cual (ni una fila de más ni una
+    lista distinta que comparar), así que la geometría de siempre no cambia
+    para el caso común.
+    """
+    en_retrato = {n for fila in KEYBOARD_ROWS for n, _ in fila if n}
+    huerfanas = sorted(n for n in lit_keys(estado) if n not in en_retrato)
+    if not huerfanas:
+        return KEYBOARD_ROWS
+    return [*KEYBOARD_ROWS, [(n, 1.0) for n in huerfanas]]
 
 
 def _apagar(casilla):
@@ -302,6 +332,14 @@ class ShortcutsController(NSObject):
         luego solo se recolorean: añadir y quitar subviews en cada repintado
         es lo que hace parpadear una ventana.
 
+        Las filas salen de keyboard_rows(self._estado), no de KEYBOARD_ROWS
+        directamente (Task 9 fix2, Defecto 1): así, si el estado trae una
+        tecla asignada que el retrato de MacBook no dibuja, aparece en una
+        fila extra en vez de quedarse encendida en la lista y ausente aquí.
+        alto_fila se calcula sobre len(filas), no sobre una constante, para
+        que la fila extra reparta el alto disponible con las demás sin que
+        haga falta agrandar la ventana.
+
         Una casilla sin leyenda no dice qué tecla es — encendida o no, hay
         que contar posiciones en la fila para saberlo, que es exactamente lo
         que un teclado dibujado existe para evitar. Cada casilla NOMBRADA
@@ -309,12 +347,11 @@ class ShortcutsController(NSObject):
         función que ya pintan los keycaps de las cuatro filas, para que el
         teclado y la lista no puedan tener dos ideas distintas de cómo se
         escribe una tecla. Las casillas de RELLENO ("") se quedan sin
-        leyenda: existen solo para que el contorno del teclado se reconozca
-        de un vistazo (ver el comentario de KEYBOARD_ROWS) y, como nunca se
-        pueden asignar ni encender, ponerles una letra sería inventar una
-        segunda tabla de símbolos — justo lo que este módulo lleva toda la
-        tarde evitando.
+        leyenda: hoy KEYBOARD_ROWS ya no tiene ninguna (Defectos 3 y 4 de
+        esta ronda), pero la rama se deja como red de seguridad por si algún
+        retrato futuro vuelve a necesitar un hueco puramente decorativo.
         """
+        filas = keyboard_rows(self._estado)
         marco = NSView.alloc().initWithFrame_(
             NSMakeRect(PAD, y_(top, height), W - PAD * 2, height))
         marco.setWantsLayer_(True)
@@ -329,8 +366,8 @@ class ShortcutsController(NSObject):
         leyenda_h = leyenda_font.pointSize() + 8
 
         ancho = marco.frame().size.width - 16
-        alto_fila = (height - 16) / len(KEYBOARD_ROWS)
-        for i, fila in enumerate(KEYBOARD_ROWS):
+        alto_fila = (height - 16) / len(filas)
+        for i, fila in enumerate(filas):
             total = sum(w for _, w in fila)
             x = 8.0
             fy = height - 8 - (i + 1) * alto_fila
