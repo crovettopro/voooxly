@@ -99,3 +99,37 @@ def test_un_tipo_erroneo_en_hotkeys_toggle_mode_no_rompe_todos_los_atajos():
     assert r["cycle_mode"]["keys"] == ["ctrl", "shift", "m"]
     assert r["latch"]["keys"] == ["shift"]
     assert r["cancel"]["keys"] == ["esc"]
+
+
+def test_un_delay_no_finito_no_rompe_todos_los_atajos():
+    # json.dump escribe Infinity y NaN en floats no finitos: un valor de prefs.json
+    # con delay_ms: Infinity o delay_ms: NaN es posible sin que nadie edite a mano.
+    # float('inf') e float('nan') son instancias de float, así que pasan las guardas
+    # de tipo actuales y causan OverflowError / ValueError en int(valor).
+    # Un delay no finito no debe dejar la app sin atajos: es un error de la pila de
+    # serialización, no un fallo del usuario.
+    for delay_invalido in (float('inf'), float('nan')):
+        r = shortcuts.resolve(
+            {"shortcuts": {"dictation": {"keys": ["cmd_l"], "delay_ms": delay_invalido}}},
+            _Cfg()
+        )
+        # El delay debe caer al default sin lanzar OverflowError / ValueError
+        # cmd_l necesita guarda, así que el default es DEFAULT_DELAY_MS, no 0
+        assert r["dictation"]["delay_ms"] == shortcuts.DEFAULT_DELAY_MS, f"delay_invalido={delay_invalido}"
+        # Crítico: todos los cuatro atajos deben resolverse, no solo "dictation"
+        assert "cycle_mode" in r
+        assert "latch" in r
+        assert "cancel" in r
+        assert r["cycle_mode"]["keys"] == ["ctrl", "shift", "m"], f"delay_invalido={delay_invalido}"
+        assert r["latch"]["keys"] == ["shift"], f"delay_invalido={delay_invalido}"
+        assert r["cancel"]["keys"] == ["esc"], f"delay_invalido={delay_invalido}"
+
+
+def test_los_atajos_llevan_las_claves_exactas_esperadas():
+    # Tareas posteriores leen esta forma: dictation lleva delay_ms y style, los
+    # otros tres solo "keys". Esta prueba blinda esa forma contractual.
+    r = shortcuts.resolve({}, _Cfg())
+    assert set(r["dictation"].keys()) == {"keys", "delay_ms", "style"}
+    assert set(r["cycle_mode"].keys()) == {"keys"}
+    assert set(r["latch"].keys()) == {"keys"}
+    assert set(r["cancel"].keys()) == {"keys"}
