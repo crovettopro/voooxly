@@ -13,6 +13,7 @@ default en silencio, igual que hacía keys.resolve().
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 from . import keys
@@ -91,13 +92,17 @@ def _delay_seguro(valor, teclas: list[str]) -> int:
     """
     if isinstance(valor, bool) or not isinstance(valor, (int, float)):
         return DEFAULT_DELAY_MS if keys.needs_guard(teclas[0]) else 0
+    if isinstance(valor, float) and not math.isfinite(valor):
+        return DEFAULT_DELAY_MS if keys.needs_guard(teclas[0]) else 0
     return max(0, min(MAX_DELAY_MS, int(valor)))
 
 
 def resolve(prefs: dict, cfg) -> dict[str, dict]:
     """Estado efectivo de los cuatro atajos: prefs por encima del YAML.
 
-    Devuelve {sid: {"keys": [...], "delay_ms": int}}, más "style" en dictation.
+    Devuelve {sid: {"keys": [...]}}, más "delay_ms" y "style" solo en dictation
+    (que es el único con has_delay=True). Los otros tres (cycle_mode, latch, cancel)
+    llevan solo "keys".
     """
     guardado = prefs.get("shortcuts") if isinstance(prefs, dict) else None
     if not isinstance(guardado, dict):
