@@ -28,6 +28,21 @@ def test_reasignarse_su_propia_tecla_pasa():
     assert ok
 
 
+def test_cancel_y_latch_pueden_reasignarse_su_propia_tecla_reservada():
+    """cancel y latch tienen por defecto "esc" y "shift", que son EXACTAMENTE
+    las teclas que keys._RESERVADAS bloquea para dictado. El chequeo de
+    autoasignación tiene que compararse contra la tecla propia ANTES de caer
+    a validate_custom(), o confirmar la fila sin cambiar nada rechazaría la
+    propia tecla de fábrica del atajo como si fuera ajena y reservada para
+    dictado.
+    """
+    ok, msg = shortcuts.validate("cancel", ["esc"], ACTUALES)
+    assert ok, msg
+
+    ok, msg = shortcuts.validate("latch", ["shift"], ACTUALES)
+    assert ok, msg
+
+
 def test_la_tecla_de_otro_atajo_choca_y_dice_de_quien():
     ok, msg = shortcuts.validate("dictation", ["esc"], ACTUALES)
     assert not ok
