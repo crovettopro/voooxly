@@ -272,6 +272,110 @@ def test_la_leyenda_de_una_tecla_encendida_en_tono_suave_sigue_legible():
     c.close()
 
 
+def test_la_casilla_huerfana_tiene_ancho_de_modificadora_no_de_fila():
+    """Defecto 1 de la Task 9 (tercera ronda): con una sola tecla huérfana en
+    la fila, un peso proporcional de 1.0 se llevaba el 100% del ancho y la
+    casilla se dibujaba como una barra espaciadora -justo lo que un teclado
+    dibujado existe para no mentir. La casilla huérfana tiene que salir con
+    un ancho comparable al de una tecla modificadora normal del retrato
+    (aquí "cmd"), muy por debajo del ancho completo de la fila. Comparación
+    estructural entre anchos ya dibujados, nada de una constante de píxeles
+    clavada.
+    """
+    estado = dict(ESTADO, dictation={"keys": ["ctrl_r"], "style": "hold", "delay_ms": 0})
+    c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
+        estado, lambda sid, fila: (True, ""))
+
+    ancho_huerfana = c._keys["ctrl_r"].frame().size.width
+    ancho_cmd = c._keys["cmd"].frame().size.width
+    ancho_fila = c._teclado_marco.frame().size.width
+
+    # "Comparable", no idéntico a fuerza: unos pocos puntos de margen
+    # absorben el redondeo de la aritmética de pesos sin dejar pasar una
+    # regresión al reparto proporcional de antes.
+    assert abs(ancho_huerfana - ancho_cmd) < 2.0, (ancho_huerfana, ancho_cmd)
+    assert ancho_huerfana < ancho_fila / 3, (ancho_huerfana, ancho_fila)
+    c.close()
+
+
+def test_la_casilla_huerfana_no_se_estira_con_varias_huerfanas_a_la_vez():
+    """La misma garantía que el test anterior, pero con dos teclas huérfanas
+    en la fila a la vez (ctrl_r y f14): cada una sigue con el ancho de una
+    modificadora normal, no el de la fila repartido entre dos.
+    """
+    estado = dict(ESTADO,
+                   dictation={"keys": ["ctrl_r"], "style": "hold", "delay_ms": 0},
+                   latch={"keys": ["f14"]})
+    c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
+        estado, lambda sid, fila: (True, ""))
+
+    ancho_cmd = c._keys["cmd"].frame().size.width
+    for tecla in ("ctrl_r", "f14"):
+        ancho = c._keys[tecla].frame().size.width
+        assert abs(ancho - ancho_cmd) < 2.0, (tecla, ancho, ancho_cmd)
+    c.close()
+
+
+def test_el_resto_de_la_fila_huerfana_no_dibuja_ninguna_casilla():
+    """Defecto 1 de la Task 9 (tercera ronda): el ancho que la casilla
+    huérfana no usa se queda vacío -fondo del teclado, sin vista dibujada-
+    en vez de una casilla de relleno apagada, que es justo el "agujero sin
+    leyenda que parece tecla rota" de la ronda anterior. keyboard_rows()
+    reserva ese resto con un nombre `None`; este test comprueba que
+    _build_keyboard() de verdad lo salta y no crea ninguna casilla ni
+    leyenda para él.
+    """
+    estado = dict(ESTADO, dictation={"keys": ["ctrl_r"], "style": "hold", "delay_ms": 0})
+    fila_huerfana = settings_window.keyboard_rows(estado)[-1]
+    huecos = [n for n, _ in fila_huerfana if n is None]
+    assert huecos, "la fila huérfana debería reservar hueco vacío"
+
+    c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
+        estado, lambda sid, fila: (True, ""))
+    # Ninguna casilla ni leyenda lleva clave None: no hay vista para el hueco.
+    assert None not in c._keys
+    assert None not in c._legends
+    c.close()
+
+
+def test_la_fila_huerfana_explica_por_que_esa_tecla_esta_ahi():
+    """Defecto 2 de la Task 9 (tercera ronda): una tecla huérfana suelta y
+    sin explicación parece puesta al azar. La ventana tiene que mostrar el
+    texto "not on this keyboard" cuando hay fila huérfana, y NO mostrarlo
+    cuando no la hay (el caso común, con el estado de fábrica).
+    """
+    sin_huerfanas = settings_window.ShortcutsController.alloc().initWithState_onChange_(
+        ESTADO, lambda sid, fila: (True, ""))
+    assert sin_huerfanas._nota_huerfana is None
+    sin_huerfanas.close()
+
+    estado = dict(ESTADO, dictation={"keys": ["ctrl_r"], "style": "hold", "delay_ms": 0})
+    con_huerfana = settings_window.ShortcutsController.alloc().initWithState_onChange_(
+        estado, lambda sid, fila: (True, ""))
+    assert con_huerfana._nota_huerfana is not None
+    assert con_huerfana._nota_huerfana.stringValue() == settings_window.NOTA_HUERFANA
+    con_huerfana.close()
+
+
+def test_el_texto_de_la_fila_huerfana_no_se_recorta():
+    """La Task 8 recortó "either side" en silencio con un campo de ancho
+    clavado a ojo, y el test que leía stringValue() pasaba igual porque
+    stringValue() no sabe nada del glifo cortado. Aquí se comprueba lo
+    mismo que evitó ese bug: el campo dibujado mide, medido con la MISMA
+    función (theme.text_width) que _build_keyboard() usa para dimensionarlo,
+    al menos tanto como el texto necesita con su propia fuente -si el campo
+    fuera más angosto, el texto (correcto en stringValue()) se recortaría al
+    dibujarse sin que este test lo notara igual que le pasó a la Task 8.
+    """
+    estado = dict(ESTADO, dictation={"keys": ["ctrl_r"], "style": "hold", "delay_ms": 0})
+    c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
+        estado, lambda sid, fila: (True, ""))
+    nota = c._nota_huerfana
+    ancho_necesario = theme.text_width(nota.stringValue(), nota.font())
+    assert nota.frame().size.width >= ancho_necesario
+    c.close()
+
+
 def test_el_teclado_no_se_sale_del_contenido_de_la_ventana():
     """El error simétrico al solapamiento: un teclado desplazado de más
     hacia arriba se saldría del borde superior de la ventana en lugar de
