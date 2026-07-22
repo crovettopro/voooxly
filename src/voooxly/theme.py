@@ -116,9 +116,42 @@ def rule(rect, color):
     return v
 
 
+# Aire entre el ancho medido de un glifo (text_width) y el campo que lo
+# pinta dentro de keycap(): la misma holgura de 6pt que ya usan
+# _LADO_HOLGURA y _NOTA_HUERFANA_HOLGURA en settings_window.py, aquí
+# también hace falta -incluso en alineación IZQUIERDA- para que el propio
+# NSTextField no recorte su último carácter (ver el "OJO" en la docstring
+# de keycap()).
+_KEYCAP_LABEL_HOLGURA = 6
+
+
 def keycap(rect, text, glyph_font, radius, gradient=False):
     """Tecla estilizada: papel/blanco redondeado con borde y borde-inferior en
-    relieve (profundidad). El glifo centrado."""
+    relieve (profundidad). El glifo centrado.
+
+    El centrado NO usa NSTextAlignmentCenter (Task 10, Defecto 2 -fix2-): un
+    NSTextField centrado calcula su propio ancho "natural" para pintar el
+    texto, más ancho que lo que text_width() mide de verdad, y si el campo no
+    le sobra ese margen recorta el último glifo en silencio -mismo defecto,
+    exactamente la misma familia de bug que ya escarmentó al valor del delay
+    en settings_window.py (ver el comentario largo de _build_row ahí: "200"
+    se pintaba "20" con align=Center aunque el campo midiera de sobra el
+    ancho REAL del texto con text_width()). Aquí se centra a mano: el ancho
+    real del glifo sale de text_width() con el font que de verdad se va a
+    pintar, y el campo se coloca ya centrado dentro del keycap, en alineación
+    IZQUIERDA -la que de verdad no recorta-, en vez de fiarse de que
+    NSTextAlignmentCenter reserve el margen que ese cálculo interno pide.
+
+    OJO, esto mordió de verdad en la propia comprobación visual de este
+    arreglo: la primera versión medía el campo EXACTO a text_width(), sin
+    holgura, y "esc" se pintaba "es" -comprobado con screencapture, no una
+    ilusión de la captura-, aunque text_width() ya midiera bien y
+    stringValue() siguiera devolviendo "esc" completo. Ni siquiera la
+    alineación izquierda se libra de necesitar aire de sobra (la misma
+    lección, otra vez, que ya escarmentó a los campos del delay en
+    settings_window.py): el campo se ensancha con _KEYCAP_LABEL_HOLGURA de
+    más y el origen se sigue centrando sobre el ancho SIN holgura, así que
+    el sobrante queda a la derecha, donde no se nota."""
     w, h = rect.size.width, rect.size.height
     v = NSView.alloc().initWithFrame_(rect)
     v.setWantsLayer_(True)
@@ -145,8 +178,10 @@ def keycap(rect, text, glyph_font, radius, gradient=False):
         layer.setShadowColor_(TEAL_DARK.CGColor())
     except Exception:
         pass
-    lbl = label(NSMakeRect(0, (h - (glyph_font.pointSize() + 8)) / 2, w, glyph_font.pointSize() + 8),
-                text, glyph_font, TEAL_DARK if gradient else INK_KEYCAP, align=NSTextAlignmentCenter)
+    ancho_glifo = text_width(text, glyph_font)
+    lbl = label(NSMakeRect((w - ancho_glifo) / 2, (h - (glyph_font.pointSize() + 8)) / 2,
+                           ancho_glifo + _KEYCAP_LABEL_HOLGURA, glyph_font.pointSize() + 8),
+                text, glyph_font, TEAL_DARK if gradient else INK_KEYCAP)
     v.addSubview_(lbl)
     return v
 
