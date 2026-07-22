@@ -101,6 +101,23 @@ _KEYCAP_H = 26
 # tamaño de ventana para que se lea.
 _LEYENDA_TECLADO_PT = 9.0
 
+# Texto de la fila huérfana (Task 9, tercera ronda, Defecto 2): sin él, una
+# tecla suelta al final del teclado parece puesta al azar. En inglés, como
+# el resto de la interfaz.
+NOTA_HUERFANA = "not on this keyboard"
+_NOTA_HUERFANA_PT = 10.0
+_NOTA_HUERFANA_HOLGURA = 6.0   # aire entre el texto medido y su campo
+_NOTA_HUERFANA_MARGEN_D = 8.0  # aire entre el texto y el borde derecho del teclado
+
+
+def _nota_huerfana_ancho(font) -> float:
+    """Puntos que necesita el texto de la fila huérfana con `font`, medidos
+    de verdad con AppKit (theme.text_width) en vez de clavados a ojo: la
+    misma lección que _lado_ancho() ya aplica más abajo -en la Task 8 un
+    campo de 58pt recortó "either side" en silencio y el test que leía
+    stringValue() pasaba igual."""
+    return math.ceil(theme.text_width(NOTA_HUERFANA, font)) + _NOTA_HUERFANA_HOLGURA
+
 
 def _lado_ancho(font) -> float:
     """Puntos que necesita el campo del lado para no cortar ningún valor de
@@ -194,7 +211,18 @@ def lit_keys(estado: dict) -> dict[str, str]:
     return fuera
 
 
-def keyboard_rows(estado: dict) -> list[list[tuple[str, float]]]:
+# Referencia de "tecla modificadora normal" para el ancho de una casilla
+# huérfana (Task 9, tercera ronda, Defecto 1): la fila de abajo del retrato
+# es la que tiene más modificadoras juntas, y "cmd" es justo el ejemplo que
+# pide el brief. Se leen de KEYBOARD_ROWS en vez de clavarse a mano para que
+# si mañana cambia el peso de "cmd" en el retrato, la huérfana lo siga sin
+# que haga falta acordarse de tocar dos sitios.
+_FILA_MODIFICADORAS = KEYBOARD_ROWS[-1]
+_PESO_MODIFICADOR = next(w for n, w in _FILA_MODIFICADORAS if n == "cmd")
+_PESO_FILA_MODIFICADORAS = sum(w for _, w in _FILA_MODIFICADORAS)
+
+
+def keyboard_rows(estado: dict) -> list[list[tuple[str | None, float]]]:
     """KEYBOARD_ROWS y, si hace falta, una fila extra con las teclas
     asignadas que ese retrato de MacBook no dibuja.
 
@@ -213,12 +241,27 @@ def keyboard_rows(estado: dict) -> list[list[tuple[str, float]]]:
     Sin huérfanas devuelve KEYBOARD_ROWS tal cual (ni una fila de más ni una
     lista distinta que comparar), así que la geometría de siempre no cambia
     para el caso común.
+
+    Defecto 1 de la tercera ronda: cada huérfana lleva el mismo peso que
+    "cmd" en la fila de abajo (_PESO_MODIFICADOR), no un peso de 1.0 que solo
+    significa algo comparado con las demás casillas de ESA fila -con una sola
+    casilla en la fila, peso 1.0 es el 100% del ancho y la casilla se dibuja
+    como una barra espaciadora, el defecto que este arreglo corrige. El resto
+    del peso de referencia (_PESO_FILA_MODIFICADORAS) se reserva con un
+    nombre `None`: una casilla que _build_keyboard() cuenta para el ancho
+    pero nunca dibuja, así que el resto de la fila queda vacío -fondo, sin
+    casilla- en vez de un hueco sin leyenda que parece tecla rota.
     """
     en_retrato = {n for fila in KEYBOARD_ROWS for n, _ in fila if n}
     huerfanas = sorted(n for n in lit_keys(estado) if n not in en_retrato)
     if not huerfanas:
         return KEYBOARD_ROWS
-    return [*KEYBOARD_ROWS, [(n, 1.0) for n in huerfanas]]
+    fila_huerfana: list[tuple[str | None, float]] = [
+        (n, _PESO_MODIFICADOR) for n in huerfanas]
+    resto = _PESO_FILA_MODIFICADORAS - _PESO_MODIFICADOR * len(huerfanas)
+    if resto > 0:
+        fila_huerfana.append((None, resto))
+    return [*KEYBOARD_ROWS, fila_huerfana]
 
 
 def _apagar(casilla):
@@ -252,6 +295,7 @@ class ShortcutsController(NSObject):
         self._keycaps = {}       # sid → NSTextField del keycap
         self._sides = {}         # sid → NSTextField del lado
         self._teclado_marco = None  # NSView del fondo del teclado (tests de geometría)
+        self._nota_huerfana = None  # NSTextField de la fila huérfana, si la hay
         self._build()
         return self
 
@@ -350,6 +394,14 @@ class ShortcutsController(NSObject):
         leyenda: hoy KEYBOARD_ROWS ya no tiene ninguna (Defectos 3 y 4 de
         esta ronda), pero la rama se deja como red de seguridad por si algún
         retrato futuro vuelve a necesitar un hueco puramente decorativo.
+
+        Un nombre `None` (Task 9, tercera ronda, Defecto 1) es distinto de
+        "": cuenta para el reparto de ancho de la fila -para que las
+        casillas huérfanas no hereden el ancho que se le reserva- pero no
+        dibuja NADA, ni siquiera una casilla apagada; si dibujara una
+        casilla vacía sería el mismo "agujero sin leyenda que parece tecla
+        rota" que evita el caso `""`. Por eso el bucle lo salta antes de
+        crear la NSView.
         """
         filas = keyboard_rows(self._estado)
         marco = NSView.alloc().initWithFrame_(
@@ -364,6 +416,15 @@ class ShortcutsController(NSObject):
 
         leyenda_font = theme.sf(_LEYENDA_TECLADO_PT, 0.2)
         leyenda_h = leyenda_font.pointSize() + 8
+        nota_font = theme.sf(_NOTA_HUERFANA_PT)
+        nota_w = _nota_huerfana_ancho(nota_font)
+
+        # La fila huérfana es siempre la última de keyboard_rows() cuando la
+        # hay (ver su docstring): compararla contra KEYBOARD_ROWS, no contra
+        # un índice clavado, es lo que deja este bucle correcto tanto si hoy
+        # hay una fila huérfana como si algún día KEYBOARD_ROWS gana una fila
+        # de verdad y dejan de coincidir en longitud.
+        indice_huerfana = len(filas) - 1 if len(filas) > len(KEYBOARD_ROWS) else -1
 
         ancho = marco.frame().size.width - 16
         alto_fila = (height - 16) / len(filas)
@@ -371,10 +432,13 @@ class ShortcutsController(NSObject):
             total = sum(w for _, w in fila)
             x = 8.0
             fy = height - 8 - (i + 1) * alto_fila
+            cy = alto_fila - 4
             for nombre, w in fila:
                 kw = (ancho * w / total) - 3
                 kw = max(kw, 4)
-                cy = alto_fila - 4
+                if nombre is None:
+                    x += kw + 3
+                    continue
                 casilla = NSView.alloc().initWithFrame_(
                     NSMakeRect(x, fy + 2, kw, cy))
                 casilla.setWantsLayer_(True)
@@ -391,6 +455,21 @@ class ShortcutsController(NSObject):
                 else:
                     _apagar(casilla)
                 x += kw + 3
+
+            if i == indice_huerfana:
+                # Defecto 2 de la tercera ronda: decir por qué esa tecla está
+                # sola ahí. El hueco reservado por el `None` de arriba es
+                # justo el sitio para el texto -a la derecha, en el mismo
+                # gris secundario que ya usa la etiqueta de lado (side_label)
+                # de las cuatro filas de abajo.
+                nota = theme.label(
+                    NSMakeRect(8 + ancho - _NOTA_HUERFANA_MARGEN_D - nota_w,
+                               fy + 2 + (cy - (nota_font.pointSize() + 8)) / 2,
+                               nota_w, nota_font.pointSize() + 8),
+                    NOTA_HUERFANA, nota_font, theme.INK_MUTED,
+                    align=NSTextAlignmentRight)
+                marco.addSubview_(nota)
+                self._nota_huerfana = nota
 
     def _paint_keyboard(self):
         """Recolorea las casillas según self._estado. DEBE correr en el hilo
