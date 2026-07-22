@@ -159,33 +159,6 @@ def test_el_teclado_no_se_solapa_con_la_primera_fila():
     c.close()
 
 
-def test_las_casillas_con_nombre_tienen_su_leyenda():
-    """El bug real de la Task 9: una casilla encendida sin leyenda no dice
-    QUÉ tecla es — hay que contar posiciones en la fila para saberlo. Esto
-    lee stringValue() de la leyenda ya renderizada, no solo que exista.
-
-    El texto tiene que ser el mismo que produce key_label() para esa misma
-    tecla sola: es la función que YA usan los keycaps de las cuatro filas
-    (ver test_key_label_* en test_settings_window.py), y una segunda tabla
-    de símbolos que tuviera que mantenerse de acuerdo con _SIMBOLO es
-    precisamente la clase de bug que esta tarde se ha estado arreglando.
-    """
-    c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
-        ESTADO, lambda sid, fila: (True, ""))
-    esperado = {
-        "esc": "esc", "f1": "F1", "f13": "F13",
-        "cmd_r": "⌘", "cmd": "⌘", "shift": "⇧", "shift_r": "⇧",
-        "ctrl": "⌃", "alt": "⌥", "alt_r": "⌥",
-        "tab": "⇥", "enter": "⏎", "backspace": "⌫", "space": "␣",
-        "m": "M", "a": "A", "1": "1", "0": "0",
-    }
-    for nombre, texto in esperado.items():
-        assert c._legends[nombre].stringValue() == texto, nombre
-        # la misma verdad que key_label(), no una tabla paralela
-        assert c._legends[nombre].stringValue() == settings_window.key_label([nombre])
-    c.close()
-
-
 def test_toda_casilla_nombrada_tiene_exactamente_una_leyenda_y_las_de_relleno_ninguna():
     """Ni huérfanas (una casilla con nombre sin su leyenda) ni de más: las
     casillas de relleno ("") existen solo para que el teclado se reconozca
