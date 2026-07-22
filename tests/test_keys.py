@@ -189,6 +189,33 @@ def test_resolve_cae_al_default_si_la_tecla_del_yaml_no_pasa_validate_custom():
     assert keys.resolve({}, _FakeCfg(cfg))[0] == keys.DEFAULT_KEY
 
 
+def test_canon_traduce_el_nombre_del_catalogo_al_que_reporta_pynput():
+    # En macOS Key.cmd_l ES Key.cmd (mismo virtual keycode, enum.Enum los
+    # colapsa), así que _norm() jamás devuelve "cmd_l". Sin esta traducción
+    # la tecla configurada no casaría nunca y no arrancaría ningún dictado.
+    assert keys.canon("cmd_l") == "cmd"
+    assert keys.canon("alt_l") == "alt"
+    assert keys.canon("ctrl_l") == "ctrl"
+    assert keys.canon("shift_l") == "shift"
+
+
+def test_canon_deja_las_derechas_como_estan():
+    # Las derechas sí son miembros propios del enum y salen tal cual.
+    assert keys.canon("cmd_r") == "cmd_r"
+    assert keys.canon("alt_r") == "alt_r"
+
+
+def test_canon_colapsa_alt_gr_en_alt_r():
+    # No hay AltGr física distinta de la Option derecha en macOS.
+    assert keys.canon("alt_gr") == "alt_r"
+
+
+def test_canon_tolera_none_y_mayusculas():
+    assert keys.canon(None) is None
+    assert keys.canon("") == ""
+    assert keys.canon("CMD_L") == "cmd"
+
+
 class _FakeCfg:
     """La config real solo se usa vía .get(path, default)."""
 

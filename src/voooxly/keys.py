@@ -57,6 +57,32 @@ _RESERVADAS = {"esc", "shift", "shift_l", "shift_r"}
 # las derechas — que es lo que alt_gr ES de verdad — sin guarda.
 _ALIAS_MISMA_TECLA = {"alt_gr": "alt_r"}
 
+# GOTCHA pynput: en macOS, Key.cmd_l NO es un miembro propio del enum sino un
+# ALIAS de Key.cmd — el backend darwin les da el mismo virtual keycode (0x37) y
+# enum.Enum colapsa los valores iguales en un solo miembro. Así que
+# `Key.cmd_l is Key.cmd` y su .name es "cmd": el listener jamás reporta
+# "cmd_l". El nombre genérico que reporta pynput ES el de la tecla izquierda,
+# y hay que traducir el nombre del catálogo al que llega del teclado o la
+# tecla no casaría nunca. Vive aquí y no en hotkey.py porque es aritmética de
+# diccionarios —no toca pynput— y shortcuts.py la necesita para ver conflictos
+# sin arrastrar pynput a un módulo de datos.
+_ALIAS_IZQUIERDA = {
+    "cmd_l": "cmd",
+    "alt_l": "alt",
+    "ctrl_l": "ctrl",
+    "shift_l": "shift",
+}
+
+
+def canon(name: str | None) -> str | None:
+    """Nombre de tecla configurado → nombre que pynput reporta de verdad."""
+    if not name:
+        return name
+    low = name.lower()
+    if low in _ALIAS_IZQUIERDA:
+        return _ALIAS_IZQUIERDA[low]
+    return _ALIAS_MISMA_TECLA.get(low, low)
+
 # Nombres de pynput que aceptamos fuera del catálogo. Ya no hay entrada
 # "Custom…" en el menú (la retiramos: ver DICTATION_KEYS), pero validate_custom
 # sigue siendo la puerta de prefs.json y de config.yaml > hotkeys.toggle, que
