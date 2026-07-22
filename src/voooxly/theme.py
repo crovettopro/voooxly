@@ -11,12 +11,13 @@ from __future__ import annotations
 from AppKit import (
     NSColor,
     NSFont,
+    NSFontAttributeName,
     NSTextAlignmentCenter,
     NSTextAlignmentLeft,
     NSTextField,
     NSView,
 )
-from Foundation import NSMakeRect, NSMakeSize
+from Foundation import NSMakeRect, NSMakeSize, NSString
 
 
 def hex_(s, a=1.0):
@@ -58,6 +59,19 @@ def mono(size, weight=0.0):
         return NSFont.monospacedSystemFontOfSize_weight_(float(size), float(weight))
     except Exception:
         return NSFont.systemFontOfSize_(float(size))
+
+
+def text_width(text, font):
+    """Ancho en puntos que ocupa `text` dibujado con `font`.
+
+    Para dimensionar un campo por medición real de AppKit en vez de a ojo:
+    un número de puntos fijo se queda corto en cuanto el texto cambia (le
+    pasó a la etiqueta de lado de settings_window.py, pensada para "right" y
+    reventada por "either side"), pero el ancho medido con el font real
+    nunca se desincroniza de lo que AppKit va a pintar.
+    """
+    return NSString.stringWithString_(text or "").sizeWithAttributes_(
+        {NSFontAttributeName: font}).width
 
 
 def serif(size, semibold=False):

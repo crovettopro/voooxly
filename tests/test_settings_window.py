@@ -81,6 +81,40 @@ def test_construye_una_fila_por_atajo():
     c.close()
 
 
+def test_la_etiqueta_de_lado_no_corta_either_side():
+    """El bug real: el campo medía 58pt fijos, pensados para "right", y
+    "either side" (el valor de latch de fábrica) mide más que eso con su
+    propio font — el texto era correcto (stringValue() ya lo probaba) pero
+    el glifo se recortaba en pantalla. Esto no puede probar que no se vea
+    recortado (para eso hace falta un screenshot manual), pero sí puede
+    reventar en cuanto el frame construido vuelva a quedarse corto para el
+    texto que de verdad tiene que pintar."""
+    from AppKit import NSFontAttributeName
+    from Foundation import NSString
+
+    c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
+        ESTADO, lambda sid, fila: (True, ""))
+    campo = c._sides["latch"]
+    ancho_texto = NSString.stringWithString_(campo.stringValue()).sizeWithAttributes_(
+        {NSFontAttributeName: campo.font()}).width
+    assert campo.frame().size.width >= ancho_texto, (
+        campo.frame().size.width, ancho_texto)
+    c.close()
+
+
+def test_los_keycaps_quedan_alineados_en_las_cuatro_filas():
+    """El ancho de la etiqueta de lado depende del font, no del texto de
+    cada fila en concreto — hace falta el mismo hueco para "either side" en
+    la fila de latch que en la de dictation, aunque esta última solo vaya a
+    mostrar "right". Si cada fila calculase su propio ancho, la columna de
+    keycaps quedaría escalonada; las cuatro comparten un x."""
+    c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
+        ESTADO, lambda sid, fila: (True, ""))
+    xs = {sid: cap.frame().origin.x for sid, cap in c._keycaps.items()}
+    assert len(set(xs.values())) == 1, xs
+    c.close()
+
+
 def test_la_ventana_es_un_nswindow_no_un_nspanel():
     # En macOS 26 (Darwin 25) el window server NUNCA compone un NSPanel:
     # isVisible=True, alpha=1, CGWindowList vacío y cero píxeles. El HUD

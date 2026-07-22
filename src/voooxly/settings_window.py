@@ -14,6 +14,7 @@ shortcuts.py, que es puro y está probado.
 from __future__ import annotations
 
 import logging
+import math
 
 import objc
 from AppKit import (
@@ -61,6 +62,34 @@ def key_label(names: list[str]) -> str:
         else:
             fuera.append(low.upper())
     return "".join(fuera)
+
+
+# Los cuatro valores que shortcuts.side_hint puede devolver (ver su
+# docstring): la etiqueta de lado se dimensiona sobre el más ancho de
+# estos con AppKit, no sobre un número puesto a ojo. Ese fue justo el bug:
+# 58pt alcanzaban para "right" pero "either side" ya no cabía, y el texto
+# (correcto) se recortaba en pantalla sin que ningún test lo viera, porque
+# stringValue() sigue devolviendo el texto completo aunque el glifo se
+# corte al dibujarse.
+_LADOS_POSIBLES = ("right", "left", "either side", "")
+_LADO_HOLGURA = 6   # aire entre el texto medido y el borde del campo
+_LADO_ALTO = 15
+_LADO_GAP = 4       # hueco entre el keycap y la etiqueta de lado
+_LADO_MARGEN_D = 4  # hueco entre la etiqueta de lado y el borde de la fila
+_KEYCAP_W = 62
+_KEYCAP_H = 26
+
+
+def _lado_ancho(font) -> float:
+    """Puntos que necesita el campo del lado para no cortar ningún valor de
+    shortcuts.side_hint con `font`, medido de verdad con AppKit.
+
+    Autodefensivo a propósito: si mañana side_hint gana un quinto valor más
+    largo que "either side", basta con añadirlo a _LADOS_POSIBLES — el
+    ancho se recalcula solo, no hay un número de puntos que reajustar
+    también a mano y que se pueda olvidar.
+    """
+    return math.ceil(max(theme.text_width(t, font) for t in _LADOS_POSIBLES)) + _LADO_HOLGURA
 
 
 def side_label(sid: str, names: list[str]) -> str:
@@ -114,16 +143,20 @@ class ShortcutsController(NSObject):
             "Click a shortcut, then press the keys you want to use.",
             theme.sf(12.5), theme.INK_SOFT))
 
+        lado_font = theme.mono(9.5)
+        lado_w = _lado_ancho(lado_font)   # una sola vez: mismo ancho en las 4 filas
+
         top = 330   # el teclado de la Task 9 ocupa de 84 a 320
         for sid in shortcuts.SHORTCUTS:
-            fila = self._build_row(sid, NSMakeRect(PAD, y_(top, ROW_H), W - PAD * 2, ROW_H))
+            fila = self._build_row(
+                sid, NSMakeRect(PAD, y_(top, ROW_H), W - PAD * 2, ROW_H), lado_font, lado_w)
             content.addSubview_(fila)
             self._rows[sid] = fila
             content.addSubview_(theme.rule(
                 NSMakeRect(PAD, y_(top + ROW_H, 1), W - PAD * 2, 1), theme.HAIRLINE))
             top += ROW_H + 1
 
-    def _build_row(self, sid, frame):
+    def _build_row(self, sid, frame, lado_font, lado_w):
         sc = shortcuts.SHORTCUTS[sid]
         row = NSView.alloc().initWithFrame_(frame)
         rw = frame.size.width
@@ -134,14 +167,24 @@ class ShortcutsController(NSObject):
             NSMakeRect(0, 6, rw - 150, 16), sc.subtitle, theme.sf(11.5), theme.INK_MUTED))
 
         nombres = list(self._estado.get(sid, {}).get("keys") or [])
-        cap = theme.keycap(NSMakeRect(rw - 128, 12, 62, 26),
+
+        # La columna del lado se reserva primero, con el ancho ya calculado
+        # para caber cualquiera de sus cuatro valores posibles, y el keycap
+        # se cuelga a su izquierda con el mismo hueco de siempre. lado_w es
+        # igual en las cuatro filas, así que cap_x también lo es — la
+        # columna de keycaps queda alineada pase lo que pase el texto de
+        # cada fila.
+        lado_x = rw - _LADO_MARGEN_D - lado_w
+        cap_x = lado_x - _LADO_GAP - _KEYCAP_W
+
+        cap = theme.keycap(NSMakeRect(cap_x, 12, _KEYCAP_W, _KEYCAP_H),
                            key_label(nombres), theme.sf(14, 0.3), 7)
         row.addSubview_(cap)
         self._keycaps[sid] = cap
 
-        lado = theme.label(NSMakeRect(rw - 62, 17, 58, 15),
+        lado = theme.label(NSMakeRect(lado_x, 17, lado_w, _LADO_ALTO),
                            side_label(sid, nombres),
-                           theme.mono(9.5), theme.INK_MUTED)
+                           lado_font, theme.INK_MUTED)
         row.addSubview_(lado)
         self._sides[sid] = lado
         return row
