@@ -129,12 +129,23 @@ def apply_shortcut(hk, sid: str, fila: dict) -> tuple[bool, str]:
     try:
         if sid == "dictation":
             tecla = (fila.get("keys") or [""])[0]
+            delay_ms = int(fila.get("delay_ms") or 0)
+            # El guard es la ventana de "mantén la tecla N ms antes de que
+            # arranque el dictado" (evita que un ⌘C dispare grabación). Antes
+            # se activaba SOLO si la tecla lo necesitaba por diseño
+            # (keys.needs_guard: izquierdas sí, derechas no), así que el
+            # slíder se ignoraba por completo en el ⌘ derecho aunque el
+            # usuario le pusiera un delay (punto 2 del feedback). Ahora el
+            # delay es elección del usuario en cualquier tecla: needs_guard
+            # sigue decidiendo el DEFAULT (izquierdas → 400), pero un delay>0
+            # lo activa siempre. needs_guard se mantiene por separado para
+            # que una tecla izquierda con delay 0 no pierda su guarda.
             ok = hk.reconfigure(
                 toggle_key=tecla,
                 toggle_mode=fila.get("style", "hold"),
-                guard=keys.needs_guard(tecla),
+                guard=keys.needs_guard(tecla) or delay_ms > 0,
                 # El hotkey trabaja en SEGUNDOS; la ventana y prefs.json en ms.
-                guard_delay=float(fila.get("delay_ms") or 0) / 1000.0,
+                guard_delay=float(delay_ms) / 1000.0,
             )
         else:
             ok = hk.rebind(sid, list(fila.get("keys") or []))
@@ -277,8 +288,10 @@ class VoooxlyApp(rumps.App):
             on_cancel=self.cancel_record,
             latch_keys=self._shortcuts["latch"]["keys"],
             on_latch=self._on_latch,
-            toggle_guard=keys.needs_guard(tecla),
-            guard_delay=float(dic["delay_ms"]) / 1000.0,
+            # Ver apply_shortcut: el delay es elección del usuario en cualquier
+            # tecla, no solo en las que needs_guard dice que lo necesitan.
+            toggle_guard=keys.needs_guard(tecla) or int(dic.get("delay_ms") or 0) > 0,
+            guard_delay=float(dic.get("delay_ms") or 0) / 1000.0,
         )
 
     def _on_latch(self):

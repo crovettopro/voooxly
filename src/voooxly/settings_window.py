@@ -98,6 +98,15 @@ _KEYCAP_W = 62
 _KEYCAP_H = 26
 _KEYCAP_HOLGURA = 6   # misma holgura que ya usan _LADO_HOLGURA y _NOTA_HUERFANA_HOLGURA
 
+# Afordancia visible "✎ Change" al final de cada fila: la fila entera es un
+# botón invisible (click en cualquier sitio arma la captura), pero sin una
+# pista visible el usuario no sabe DÓNDE clica para reasignar (punto 4 del
+# feedback). Va a la derecha de la etiqueta de lado, que es el sitio que
+# queda libre a ese lado del keycap.
+_CHANGE_TXT = "✎ Change"
+_CHANGE_W = 66
+_CHANGE_H = 20
+
 
 def _keycap_ancho(text: str, font) -> float:
     """Ancho que necesita el keycap para no recortar `text` con `font`,
@@ -295,8 +304,13 @@ KEYBOARD_ROWS: list[list[tuple[str, float]]] = [
     [("tab", 1.5)] + [(c, 1.0) for c in "qwertyuiop"] + [("[", 1.0), ("]", 1.0)] + [("\\", 1.2)],
     [("caps_lock", 1.7)] + [(c, 1.0) for c in "asdfghjkl"] + [(";", 1.0), ("'", 1.0)] + [("enter", 1.6)],
     [("shift", 2.2)] + [(c, 1.0) for c in "zxcvbnm"] + [(",", 1.0), (".", 1.0), ("/", 1.0)] + [("shift_r", 2.2)],
-    [("fn", 1.1), ("ctrl", 1.1), ("alt", 1.1), ("cmd", 1.4), ("space", 5.6),
-     ("cmd_r", 1.4), ("alt_r", 1.1), ("arrows", 2.2)],
+    # La fila de abajo lleva los cuatro modificadores en AMBOS lados para que
+    # izquierda y derecha sean simétricas: antes faltaba ctrl_r y quien la
+    # asignaba la veía caer en la fila "not on this keyboard", mientras que
+    # cmd_r y alt_r sí tenían casilla. El peso se lo recortamos a la barra
+    # espaciadora (5.6 → 4.5) para que el total de la fila no cambie.
+    [("fn", 1.1), ("ctrl", 1.1), ("alt", 1.1), ("cmd", 1.4), ("space", 4.5),
+     ("cmd_r", 1.4), ("alt_r", 1.1), ("ctrl_r", 1.1), ("arrows", 2.2)],
 ]
 
 # Quién gana cuando dos atajos comparten una tecla física. Dictation primero:
@@ -541,24 +555,26 @@ class ShortcutsController(NSObject):
         # slíder — dentro del frame de la fila, no fuera de él.
         dy = _DELAY_ROW_EXTRA_H if sc.has_delay else 0
 
-        row.addSubview_(theme.label(
-            NSMakeRect(0, 24 + dy, rw - 150, 17), sc.label, theme.sf(13.5, 0.3), theme.INK))
-        row.addSubview_(theme.label(
-            NSMakeRect(0, 6 + dy, rw - 150, 16), sc.subtitle, theme.sf(11.5), theme.INK_MUTED))
-
         nombres = list(self._estado.get(sid, {}).get("keys") or [])
 
-        # La columna del lado se reserva primero, con el ancho ya calculado
-        # para caber cualquiera de sus cuatro valores posibles, y el keycap
-        # se cuelga a su izquierda con el mismo hueco de siempre. lado_w es
-        # igual en las cuatro filas, así que cap_x también lo es — la
-        # columna de keycaps queda alineada pase lo que pase el texto de
-        # cada fila.
-        lado_x = rw - _LADO_MARGEN_D - lado_w
+        # Zona derecha de la fila, de DERECHA a IZQUIERDA: [✎ Change] [lado]
+        # [keycap]. Reservar el Change antes que nada fija cap_x para que el
+        # título/subtítulo sepan hasta dónde llegar sin pisar el keycap.
+        change_x = rw - _LADO_MARGEN_D - _CHANGE_W
+        lado_x = change_x - _LADO_GAP - lado_w
         keycap_font = theme.sf(14, 0.3)
         texto_keycap = key_label(nombres)
         keycap_w = _keycap_ancho(texto_keycap, keycap_font)
         cap_x = lado_x - _LADO_GAP - keycap_w
+        # Título/subtítulo: hasta el keycap con holgura. Antes era rw-150 fijo,
+        # pero al añadir la columna Change el keycap se desplaza a la izquierda
+        # y ese ancho fijo lo pisaría. Dinámico = nunca se solapan.
+        titulo_w = max(80, cap_x - 8)
+
+        row.addSubview_(theme.label(
+            NSMakeRect(0, 24 + dy, titulo_w, 17), sc.label, theme.sf(13.5, 0.3), theme.INK))
+        row.addSubview_(theme.label(
+            NSMakeRect(0, 6 + dy, titulo_w, 16), sc.subtitle, theme.sf(11.5), theme.INK_MUTED))
 
         cap = theme.keycap(NSMakeRect(cap_x, 12 + dy, keycap_w, _KEYCAP_H),
                            texto_keycap, keycap_font, 7)
@@ -577,6 +593,14 @@ class ShortcutsController(NSObject):
                            lado_font, theme.INK_MUTED)
         row.addSubview_(lado)
         self._sides[sid] = lado
+
+        # Pista visible de "clica para cambiar": el botón invisible de toda
+        # la fila (más abajo) recibe el click de verdad, este label solo
+        # comunica DÓNDE. Teal para que se lea como acción, no como texto.
+        row.addSubview_(theme.label(
+            NSMakeRect(change_x, 15 + dy, _CHANGE_W, _CHANGE_H),
+            _CHANGE_TXT, theme.sf(11.5, 0.25), theme.TEAL,
+            align=NSTextAlignmentCenter))
 
         # Toda la fila arma la captura al pulsarla (Task 10: "clicking a row
         # starts key capture"), no solo el keycap — un botón invisible del
@@ -871,7 +895,13 @@ class ShortcutsController(NSObject):
         """
         anterior = self._capturing
         self._capturing = sid
-        self._error_text = ""
+        # Guía clara mientras captura (punto 5 del feedback): el keycap pone
+        # "…" y poco más orientaba; ahora el campo de estado dice qué hacer y
+        # que Esc deja el atajo como estaba. Se limpia al terminar la captura.
+        self._error_text = (
+            f"Press the keys for {shortcuts.SHORTCUTS[sid].label}… "
+            f"(Esc to keep the current one)"
+        )
         if anterior and anterior != sid:
             # Cambiar de fila a mitad de captura no puede dejar el keycap
             # anterior encallado en "…": esa fila ya no es la que se está
@@ -1003,8 +1033,17 @@ class ShortcutsController(NSObject):
 
     # ---------- ciclo de vida ----------
     def show(self):
-        self._win.makeKeyAndOrderFront_(None)
+        # Voooxly es una app de menu-bar: makeKeyAndOrderFront() solo no le
+        # roba el foco a la app que estaba delante y la ventana se abre
+        # DETRÁS (el usuario la pierde de vista). Activar la app la pone
+        # delante; orderFrontRegardless es el cinturón para el caso en que
+        # activate no baste (espacios de trabajo, apps en pantalla completa).
+        from AppKit import NSApp
+
         self._win.center()
+        NSApp.activateIgnoringOtherApps_(True)
+        self._win.makeKeyAndOrderFront_(None)
+        self._win.orderFrontRegardless()
 
     def close(self):
         try:
