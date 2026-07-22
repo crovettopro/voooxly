@@ -125,6 +125,37 @@ def test_un_delay_no_finito_no_rompe_todos_los_atajos():
         assert r["cancel"]["keys"] == ["esc"], f"delay_invalido={delay_invalido}"
 
 
+def test_side_hint_de_una_tecla_de_lado_unico():
+    # dictation y cancel casan por igualdad exacta (hotkey.py:397 y :432): un
+    # nombre con lado siempre casa solo ese lado, sin ambigüedad posible.
+    assert shortcuts.side_hint("dictation", ["cmd_r"]) == "right"
+    assert shortcuts.side_hint("dictation", ["cmd_l"]) == "left"
+    assert shortcuts.side_hint("cancel", ["esc"]) == ""
+
+
+def test_side_hint_de_un_combo_no_tiene_lado():
+    # Un combo de tres teclas no es "de un lado": ctrl+shift+m no distingue
+    # el ctrl izquierdo del derecho, y afirmar uno de los dos sería mentir
+    # sobre lo que el binding realmente exige.
+    assert shortcuts.side_hint("cycle_mode", ["ctrl", "shift", "m"]) == ""
+
+
+def test_side_hint_del_latch_de_fabrica_casa_las_dos_manos():
+    # hotkey.py:421 casa "shift" Y "shift_r" (matcheo de PREFIJO, documentado
+    # en hotkey.py:158: "shift también casa shift_r"). Con el shift de fábrica,
+    # decir "left" sería falso: el shift derecho también fija la grabación.
+    assert shortcuts.side_hint("latch", ["shift"]) == "either side"
+
+
+def test_side_hint_de_latch_reasignado_a_una_tecla_con_lado_ya_no_ensancha():
+    # Si latch pasa a cmd_r, el prefijo que ensancharía sería "cmd_r_" — nada
+    # empieza así, así que solo la Cmd derecha casa en runtime. El
+    # ensanchamiento de hotkey.py es exclusivo de los modificadores SIN lado
+    # ("shift", "cmd", "alt", "ctrl"), no una propiedad general del atajo
+    # latch: rebindear a una tecla con lado propio vuelve a ser side-specific.
+    assert shortcuts.side_hint("latch", ["cmd_r"]) == "right"
+
+
 def test_los_atajos_llevan_las_claves_exactas_esperadas():
     # Tareas posteriores leen esta forma: dictation lleva delay_ms y style, los
     # otros tres solo "keys". Esta prueba blinda esa forma contractual.

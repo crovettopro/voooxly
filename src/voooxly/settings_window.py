@@ -44,10 +44,6 @@ _SIMBOLO = {
     "space": "␣", "enter": "⏎", "tab": "⇥", "backspace": "⌫",
 }
 
-_IZQUIERDAS = {"cmd", "alt", "ctrl", "shift", "cmd_l", "alt_l", "ctrl_l", "shift_l"}
-_DERECHAS = {"cmd_r", "alt_r", "ctrl_r", "shift_r", "alt_gr"}
-
-
 def y_(top, h):
     """'y desde arriba' (como en el diseño) → origen abajo-izquierda."""
     return H - top - h
@@ -67,19 +63,18 @@ def key_label(names: list[str]) -> str:
     return "".join(fuera)
 
 
-def side_label(name: str) -> str:
-    """'right' / 'left' / '' — el matiz que un símbolo ⌘ solo no puede dar.
+def side_label(sid: str, names: list[str]) -> str:
+    """'right' / 'left' / 'either side' / '' — el matiz que un símbolo ⌘ solo
+    no puede dar.
 
-    Sin esto, ⌘ izquierdo y ⌘ derecho se pintan idénticos y el usuario no
-    puede saber cuál tiene puesto. Los nombres sin lado ("cmd") son la
-    IZQUIERDA: pynput colapsa Key.cmd_l en Key.cmd (ver keys._ALIAS_IZQUIERDA).
+    Envoltorio de presentación: la decisión de qué lado(s) casan de verdad en
+    runtime es semántica de atajos, no de pintado, y vive en
+    shortcuts.side_hint (probada ahí sin AppKit). Hace falta `sid` y no solo
+    el nombre de la tecla porque el mismo nombre significa cosas distintas
+    según el atajo — "shift" en latch casa las dos manos (hotkey.py:421),
+    pero un combo o una tecla sin lado en cualquier otro atajo no la casan.
     """
-    low = (name or "").lower()
-    if low in _DERECHAS:
-        return "right"
-    if low in _IZQUIERDAS:
-        return "left"
-    return ""
+    return shortcuts.side_hint(sid, names)
 
 
 class ShortcutsController(NSObject):
@@ -145,7 +140,7 @@ class ShortcutsController(NSObject):
         self._keycaps[sid] = cap
 
         lado = theme.label(NSMakeRect(rw - 62, 17, 58, 15),
-                           side_label(nombres[0] if nombres else ""),
+                           side_label(sid, nombres),
                            theme.mono(9.5), theme.INK_MUTED)
         row.addSubview_(lado)
         self._sides[sid] = lado
