@@ -44,6 +44,14 @@ _SIMBOLO = {
     "shift": "⇧", "shift_l": "⇧", "shift_r": "⇧",
     "space": "␣", "enter": "⏎", "tab": "⇥", "backspace": "⌫",
     "caps_lock": "⇪",
+    # "arrows" no es un nombre de tecla pynput (keys.validate_custom lo
+    # rechaza): es el nombre sintético de la casilla de relleno que
+    # representa el bloque de flechas del teclado visual (Task 9, Defecto
+    # 4 — un rectángulo vacío ahí se leía como tecla rota). Vive en esta
+    # tabla y no como caso especial en _build_keyboard() por la misma
+    # razón que ⇪ y fn: una segunda tabla de símbolos en el sitio de
+    # dibujado es justo el bug que este módulo lleva evitando toda la tarde.
+    "arrows": "◀▼▶",
 }
 
 def y_(top, h):
@@ -131,24 +139,28 @@ def side_label(sid: str, names: list[str]) -> str:
 # solo supiera encender "m", esa reasignación se vería en la fila pero nunca
 # en el dibujo, rompiendo la regla de que las dos vistas son la misma verdad.
 #
-# La puntuación (-, =, [, ], \, ;, ', ,, ., /) y las dos teclas especiales de
-# la fila de abajo (⇪ caps lock, fn) SÍ se nombran, aunque ninguna sea
+# La puntuación (`, -, =, [, ], \, ;, ', ,, ., /) y las dos teclas especiales
+# de la fila de abajo (⇪ caps lock, fn) SÍ se nombran, aunque ninguna sea
 # asignable hoy (Task 9, Defecto 2): sin nombre se pintaban como rectángulos
 # en blanco y en la captura de pantalla se leían como teclas rotas, no como
 # "esto no se puede asignar". Nombrarlas les da leyenda vía key_label() sin
 # encenderlas nunca (lit_keys() nunca las incluye porque ningún atajo puede
-# apuntar a ellas — ver keys.validate_custom). Quedan dos casillas SIN
-# nombre a propósito, y no por descuido: la de la fila de números (no hay
-# una tecla real ahí, solo hueco de más) y la ancha del final de la fila de
-# abajo (el bloque de flechas, que son varias teclas y no una sola).
+# apuntar a ellas — ver keys.validate_custom). El bloque de flechas del final
+# de la fila de abajo lleva el nombre sintético "arrows" por el mismo motivo
+# (Task 9, segundo repaso, Defecto 4): son varias teclas y no una sola, así
+# que no puede ser asignable, pero un rectángulo sin leyenda ahí se lee igual
+# de roto que los demás. No queda ninguna casilla sin nombre: el hueco que
+# tenía la fila de números (Defecto 3) era un error de retrato -en un Mac
+# ANSI de verdad esa fila empieza por el backtick y no tiene hueco entre
+# "=" y ⌫-, no una casilla de relleno legítima.
 KEYBOARD_ROWS: list[list[tuple[str, float]]] = [
     [("esc", 1.4)] + [(f"f{i}", 1.0) for i in range(1, 13)] + [("f13", 1.0)],
-    [(d, 1.0) for d in "1234567890"] + [("-", 1.0), ("=", 1.0), ("", 1.0)] + [("backspace", 1.5)],
+    [("`", 1.0)] + [(d, 1.0) for d in "1234567890"] + [("-", 1.0), ("=", 1.0)] + [("backspace", 1.5)],
     [("tab", 1.5)] + [(c, 1.0) for c in "qwertyuiop"] + [("[", 1.0), ("]", 1.0)] + [("\\", 1.2)],
     [("caps_lock", 1.7)] + [(c, 1.0) for c in "asdfghjkl"] + [(";", 1.0), ("'", 1.0)] + [("enter", 1.6)],
     [("shift", 2.2)] + [(c, 1.0) for c in "zxcvbnm"] + [(",", 1.0), (".", 1.0), ("/", 1.0)] + [("shift_r", 2.2)],
     [("fn", 1.1), ("ctrl", 1.1), ("alt", 1.1), ("cmd", 1.4), ("space", 5.6),
-     ("cmd_r", 1.4), ("alt_r", 1.1), ("", 2.2)],
+     ("cmd_r", 1.4), ("alt_r", 1.1), ("arrows", 2.2)],
 ]
 
 # Quién gana cuando dos atajos comparten una tecla física. Dictation primero:

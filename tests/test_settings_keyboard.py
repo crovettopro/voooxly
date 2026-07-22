@@ -80,22 +80,27 @@ def test_el_teclado_incluye_las_teclas_que_importan():
         assert n in todas, n
 
 
-def test_las_catorce_teclas_de_relleno_llevan_nombre_salvo_dos_huecos_reales():
-    """Defecto 2 de la Task 9: KEYBOARD_ROWS dibujaba rectángulos en blanco
-    para la puntuación y para ⇪/fn; en la captura de pantalla se leían como
-    teclas rotas, no como "esto no se puede asignar". Ahora llevan nombre,
-    aunque ninguna sea asignable, y por tanto su casilla nunca se enciende.
+def test_las_teclas_de_relleno_llevan_nombre_y_ya_no_quedan_huecos():
+    """Defecto 2 de la Task 9 (primera ronda): KEYBOARD_ROWS dibujaba
+    rectángulos en blanco para la puntuación y para ⇪/fn; en la captura de
+    pantalla se leían como teclas rotas, no como "esto no se puede asignar".
+    Ahora llevan nombre, aunque ninguna sea asignable, y por tanto su casilla
+    nunca se enciende.
 
-    Quedan exactamente dos casillas sin nombre A PROPÓSITO: un hueco de más
-    en la fila de números (no hay tecla real ahí) y el bloque de flechas de
-    la fila de abajo (son varias teclas, no una sola).
+    Los dos huecos sin nombre que quedaban a propósito ya no existen
+    (Defectos 3 y 4 del segundo repaso): el de la fila de números era un
+    error de retrato -un Mac ANSI de verdad empieza esa fila por el backtick
+    y no tiene hueco entre "=" y ⌫-, y el bloque de flechas lleva ahora la
+    leyenda "◀▼▶" con el nombre sintético "arrows". No queda ninguna casilla
+    sin nombre.
     """
     nombres = {n for fila in settings_window.KEYBOARD_ROWS for n, _ in fila if n}
-    for n in ("-", "=", "[", "]", "\\", ";", "'", ",", ".", "/", "caps_lock", "fn"):
+    for n in ("`", "-", "=", "[", "]", "\\", ";", "'", ",", ".", "/",
+              "caps_lock", "fn", "arrows"):
         assert n in nombres, n
 
     huecos = [n for fila in settings_window.KEYBOARD_ROWS for n, _ in fila if n == ""]
-    assert len(huecos) == 2
+    assert huecos == []
 
 
 def test_las_teclas_de_relleno_nombradas_llevan_la_leyenda_de_key_label():
