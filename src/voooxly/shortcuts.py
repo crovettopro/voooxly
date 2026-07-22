@@ -134,3 +134,39 @@ def resolve(prefs: dict, cfg) -> dict[str, dict]:
             fila["style"] = estilo
         fuera[sid] = fila
     return fuera
+
+
+# El delay que la v1.3.0 aplicaba sin preguntar a las teclas con guarda. NO es
+# DEFAULT_DELAY_MS: quien actualiza conserva su tacto de siempre y solo ve 400
+# si cambia de tecla desde la ventana nueva.
+_DELAY_HEREDADO_MS = 300
+
+
+def migrate(prefs: dict) -> bool:
+    """Traduce el formato de v1.3.0 al bloque `shortcuts`. Muta `prefs`.
+
+    Solo migra `dictation`: los otros tres nunca fueron configurables, así que
+    resolve() ya les da el default correcto sin ayuda.
+
+    Las claves viejas se dejan escritas a propósito. Si el usuario vuelve a
+    una versión anterior, se las encuentra intactas; y si no vuelve, en dos
+    versiones se limpian. Borrarlas aquí haría el downgrade destructivo.
+    """
+    if not isinstance(prefs, dict):
+        return False
+    if isinstance(prefs.get("shortcuts"), dict) and prefs["shortcuts"]:
+        return False
+
+    tecla = prefs.get("dictation_key")
+    if not isinstance(tecla, str) or not keys.validate_custom(tecla)[0]:
+        return False
+
+    fila = {
+        "keys": [tecla],
+        "delay_ms": _DELAY_HEREDADO_MS if keys.needs_guard(tecla) else 0,
+    }
+    estilo = prefs.get("dictation_mode")
+    fila["style"] = estilo if isinstance(estilo, str) and estilo in keys.MODES else DEFAULT_STYLE
+
+    prefs["shortcuts"] = {"dictation": fila}
+    return True
