@@ -48,6 +48,40 @@ def test_el_teclado_incluye_las_teclas_que_importan():
         assert n in todas, n
 
 
+def test_las_catorce_teclas_de_relleno_llevan_nombre_salvo_dos_huecos_reales():
+    """Defecto 2 de la Task 9: KEYBOARD_ROWS dibujaba rectángulos en blanco
+    para la puntuación y para ⇪/fn; en la captura de pantalla se leían como
+    teclas rotas, no como "esto no se puede asignar". Ahora llevan nombre,
+    aunque ninguna sea asignable, y por tanto su casilla nunca se enciende.
+
+    Quedan exactamente dos casillas sin nombre A PROPÓSITO: un hueco de más
+    en la fila de números (no hay tecla real ahí) y el bloque de flechas de
+    la fila de abajo (son varias teclas, no una sola).
+    """
+    nombres = {n for fila in settings_window.KEYBOARD_ROWS for n, _ in fila if n}
+    for n in ("-", "=", "[", "]", "\\", ";", "'", ",", ".", "/", "caps_lock", "fn"):
+        assert n in nombres, n
+
+    huecos = [n for fila in settings_window.KEYBOARD_ROWS for n, _ in fila if n == ""]
+    assert len(huecos) == 2
+
+
+def test_las_teclas_de_relleno_nombradas_llevan_la_leyenda_de_key_label():
+    """Ata la casilla dibujada con key_label(), la misma función que ya
+    pintan los keycaps de las cuatro filas: nada de una tabla paralela de
+    símbolos en el sitio de dibujado (la instrucción explícita del brief).
+    Estructural sobre TODOS los nombres de KEYBOARD_ROWS, no una lista de
+    pares clavada a mano.
+    """
+    c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
+        ESTADO, lambda sid, fila: (True, ""))
+    nombres = {n for fila in settings_window.KEYBOARD_ROWS for n, _ in fila if n}
+    for n in nombres:
+        assert c._legends[n].stringValue() == settings_window.key_label([n]), n
+        assert c._legends[n].stringValue() != "", n
+    c.close()
+
+
 def test_pintar_el_teclado_no_revienta():
     c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
         ESTADO, lambda sid, fila: (True, ""))
