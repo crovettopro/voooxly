@@ -172,6 +172,55 @@ def migrate(prefs: dict) -> bool:
     return True
 
 
+# Nombres pynput SIN lado: son la IZQUIERDA (pynput colapsa cmd_l/alt_l/
+# ctrl_l/shift_l en el nombre plano, ver keys._ALIAS_IZQUIERDA) — pero en el
+# atajo latch también ensanchan a la derecha, porque hotkey.py:421 casa por
+# PREFIJO (`name.startswith(self._latch_key + "_")`) y no por igualdad.
+_MODIFICADORES_SIN_LADO = {"cmd", "alt", "ctrl", "shift"}
+
+# Nombres pynput que identifican la tecla derecha sin ambigüedad posible: no
+# existe un "<nombre>_r_algo" con el que el prefijo de latch pueda seguir
+# ensanchando, así que estos casan un único lado pase lo que pase el atajo.
+_MODIFICADORES_DERECHA = {"cmd_r", "alt_r", "ctrl_r", "shift_r"}
+
+
+def side_hint(sid: str, names: list[str]) -> str:
+    """'right' / 'left' / 'either side' / '' — qué lado(s) de la tecla casan
+    de VERDAD en runtime para el atajo `sid`, con `names` como binding actual.
+
+    Vive aquí y no en settings_window.py porque es una decisión sobre
+    semántica de atajos (qué hace hotkey.py con este nombre), no de pintado.
+
+    Un combo (len(names) != 1) no tiene lado: son varias teclas a la vez y
+    ninguna combinación de manos es "la" respuesta — cycle_mode con su
+    ctrl+shift+m de fábrica cae aquí.
+
+    Para una tecla suelta, dictation/cancel/cycle_mode-de-una-sola-tecla casan
+    por igualdad exacta (hotkey.py:397, :432, y el frozenset de
+    _cycle_combo): un nombre sin lado como "cmd" solo casa la Cmd IZQUIERDA,
+    nunca la derecha, así que ahí un modificador sin lado es simplemente
+    "left".
+
+    latch es el único que casa distinto: hotkey.py:421 usa
+    `name == self._latch_key or name.startswith(self._latch_key + "_")` — un
+    matcheo de PREFIJO. Ese prefijo solo ensancha el resultado cuando la
+    tecla configurada es uno de los cuatro modificadores SIN lado (porque
+    "shift_r" empieza por "shift_", pero nada empieza por "cmd_r_"): con el
+    shift de fábrica, "left" sería una mentira (el shift derecho también
+    fija), así que ahí toca decir "either side". Si latch se reasigna a una
+    tecla que YA tiene lado propio (p.ej. cmd_r), el prefijo no ensancha nada
+    y vuelve a ser side-specific igual que los otros tres atajos.
+    """
+    if len(names) != 1:
+        return ""
+    nombre = keys.canon(names[0])
+    if nombre in _MODIFICADORES_DERECHA:
+        return "right"
+    if nombre in _MODIFICADORES_SIN_LADO:
+        return "either side" if sid == "latch" else "left"
+    return ""
+
+
 def _firma(names: list[str]) -> frozenset[str]:
     """Conjunto canónico de un binding, para comparar dos atajos.
 

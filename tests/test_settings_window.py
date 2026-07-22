@@ -38,10 +38,33 @@ def test_key_label_de_una_lista_vacia_no_revienta():
 
 
 def test_side_label_distingue_izquierda_y_derecha():
-    assert settings_window.side_label("cmd_r") == "right"
-    assert settings_window.side_label("cmd_l") == "left"
-    assert settings_window.side_label("cmd") == "left"      # pynput colapsa la izquierda
-    assert settings_window.side_label("esc") == ""
+    # dictation y cancel casan por igualdad exacta en hotkey.py (líneas 397 y
+    # 432): un nombre con lado siempre casa solo ese lado. La decisión vive en
+    # shortcuts.side_hint; side_label es solo el envoltorio de presentación,
+    # por eso necesita saber a qué atajo (sid) pertenece la tecla.
+    assert settings_window.side_label("dictation", ["cmd_r"]) == "right"
+    assert settings_window.side_label("dictation", ["cmd_l"]) == "left"
+    assert settings_window.side_label("dictation", ["cmd"]) == "left"      # pynput colapsa la izquierda
+    assert settings_window.side_label("cancel", ["esc"]) == ""
+
+
+def test_side_label_pintado_dice_la_verdad_para_los_cuatro_atajos_por_defecto():
+    """Las pruebas anteriores solo comprobaban que las filas existían, nunca
+    el texto que de verdad se pintaba en pantalla — por eso hizo falta un
+    screenshot para pescar que "Cycle mode" y "Latch dictation" mostraban
+    "left" siendo mentira (un combo no tiene lado; el shift de latch casa las
+    dos manos). Esto lee stringValue() de la etiqueta ya renderizada."""
+    c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
+        ESTADO, lambda sid, fila: (True, ""))
+    esperado = {
+        "dictation": "right",     # cmd_r: igualdad exacta, solo la derecha
+        "cycle_mode": "",         # combo de tres teclas, sin lado
+        "latch": "either side",   # "shift" ensancha a shift_r en hotkey.py
+        "cancel": "",             # esc no tiene lado
+    }
+    for sid, texto in esperado.items():
+        assert c._sides[sid].stringValue() == texto, sid
+    c.close()
 
 
 def test_el_controlador_construye():
