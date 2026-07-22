@@ -152,8 +152,19 @@ class HotkeyManager:
 
         # tecla de dictado (modo hold: una sola tecla)
         self._toggle_key = _canon(toggle_keys[0]) if toggle_keys else None
-        # tecla de cancelar (una sola, Esc por defecto)
-        self._cancel_key = _canon(cancel_keys[0]) if cancel_keys else None
+        # tecla de cancelar: una sola tecla (Esc por defecto) o un combo como
+        # ctrl+shift+x. _cancel_key casa una tecla suelta; _cancel_combo casa
+        # el conjunto completo pulsado a la vez (como cycle_mode). Antes solo
+        # existía _cancel_key, así que un combo de cancel solo casaba la
+        # PRIMERA tecla y se disparaba mal o nunca (punto 1 del feedback).
+        self._cancel_key = (
+            _canon(cancel_keys[0]) if cancel_keys and len(cancel_keys) == 1
+            else None
+        )
+        self._cancel_combo = (
+            _combo_names(cancel_keys) if cancel_keys and len(cancel_keys) > 1
+            else None
+        )
         # tecla de latch (una sola; "shift" también casa shift_r)
         self._latch_key = _canon(latch_keys[0]) if latch_keys else None
         self._held = False
@@ -307,7 +318,14 @@ class HotkeyManager:
         elif sid == "latch":
             self._latch_key = canon[0]
         elif sid == "cancel":
-            self._cancel_key = canon[0]
+            # Combo vs tecla suelta (ver __init__): un combo de cancel casa el
+            # conjunto completo, no solo la primera tecla.
+            if len(canon) > 1:
+                self._cancel_combo = frozenset(canon)
+                self._cancel_key = None
+            else:
+                self._cancel_combo = None
+                self._cancel_key = canon[0]
         else:
             log.warning("rebind(%r): id desconocido.", sid)
             return False
@@ -378,7 +396,20 @@ class HotkeyManager:
         with self._pressed_lock:
             already = name in self._pressed
             self._pressed.add(name)
-            snapshot = frozenset(self._pressed)
+            raw = frozenset(self._pressed)
+
+        # Vista para casar combos: canonicaliza los nombres (unifica lados
+        # izquierdos: shift_l→shift, ctrl_l→ctrl) y, en MODO HOLD con tecla de
+        # dictado única, quita esa tecla. La tecla de dictado se mantiene
+        # pulsada durante TODO el dictado, así que sin quitarla el snapshot
+        # de un combo (p.ej. cancel=ctrl+shift) siempre llevaría cmd_r dentro
+        # y jamás casaría mientras se dicta — el texto se pegaba igual tras
+        # cancelar. Sólo en hold: en toggle, la tecla de dictado ES el combo
+        # (_toggle_combo) y quitarla rompería el disparo. combo_view es lo que
+        # usan cancel/toggle/cycle combos.
+        combo_view = frozenset(_canon(k) for k in raw)
+        if self._toggle_key and self.toggle_mode == "hold":
+            combo_view = combo_view - {self._toggle_key}
 
         # Cualquier tecla que no sea la de dictado cierra la ventana: el
         # usuario está haciendo un combo (⌘C), no dictando. Fuera de la
@@ -412,11 +443,20 @@ class HotkeyManager:
             return
 
         # --- latch: fijar la grabación mientras se mantiene la tecla de dictado ---
+        # Solo fija si la tecla de latch va SOLA con la de dictado: si hay otra
+        # tecla pulsada (p.ej. ctrl, porque estás armando ctrl+shift para
+        # cancelar), el combo va a cancel, no a latch. Sin este guardia, la
+        # segunda tecla del combo de cancel disparaba el latch y el cancel
+        # nunca llegaba a casar.
+        raw_without_toggle = (
+            raw - {self._toggle_key} if self._toggle_key else raw
+        )
         if (
             self.toggle_mode == "hold"
             and self._latch_key
             and self._started          # no se puede fijar lo que no ha empezado
             and not self._latched
+            and len(raw_without_toggle) == 1   # sólo la tecla de latch, sin extras
             and (name == self._latch_key or name.startswith(self._latch_key + "_"))
         ):
             self._latched = True
@@ -427,18 +467,29 @@ class HotkeyManager:
         if already:
             return  # autorepeat: no re-disparar combos ni el cancel
 
-        # --- cancelar dictado (Esc) ---
-        if self.on_cancel and name == self._cancel_key:
-            self._latched = False  # un dictado cancelado deja de estar fijado
-            self._started = False
-            threading.Thread(target=self.on_cancel, daemon=True).start()
-            return
+        # --- cancelar dictado (Esc o un combo como ctrl+shift+x) ---
+        # _cancel_combo casa el conjunto COMPLETO pulsado a la vez (vía
+        # combo_view, que quita la tecla de dictado en hold); _cancel_key casa
+        # una tecla suelta. Solo uno de los dos está activo por diseño (ver
+        # __init__/rebind), así que el orden entre las dos ramas no importa.
+        if self.on_cancel:
+            if self._cancel_combo is not None:
+                if combo_view == self._cancel_combo:
+                    self._latched = False  # un dictado cancelado deja de estar fijado
+                    self._started = False
+                    threading.Thread(target=self.on_cancel, daemon=True).start()
+                    return
+            elif name == self._cancel_key:
+                self._latched = False
+                self._started = False
+                threading.Thread(target=self.on_cancel, daemon=True).start()
+                return
 
         # --- combos (incluye toggle en modo toggle si es combo) ---
-        if self._toggle_combo and snapshot == self._toggle_combo:
+        if self._toggle_combo and combo_view == self._toggle_combo:
             threading.Thread(target=self.on_toggle, daemon=True).start()
             return
-        if self._cycle_combo and snapshot == self._cycle_combo:
+        if self._cycle_combo and combo_view == self._cycle_combo:
             threading.Thread(target=self.on_cycle, daemon=True).start()
             return
 

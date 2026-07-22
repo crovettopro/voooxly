@@ -46,6 +46,39 @@ def test_dictation_va_por_reconfigure_con_el_delay_en_segundos():
     assert abs(delay - 0.4) < 1e-9, "el hotkey espera SEGUNDOS, la ventana da ms"
 
 
+def test_delay_del_usuario_se_honra_incluso_en_tecla_sin_guarda_por_defecto():
+    """Punto 2 del feedback: con el ⌘ derecho, needs_guard es False, así que
+    antes el guard se apagaba y el delay del slíder se IGNORABA. Ahora un
+    delay>0 lo activa en cualquier tecla — el delay es elección del usuario."""
+    hk = _HotkeyFalso()
+    ok, _ = apply_shortcut(hk, "dictation", {"keys": ["cmd_r"], "style": "hold", "delay_ms": 400})
+    assert ok
+    tecla, modo, guarda, delay = hk.reconfigurado
+    assert tecla == "cmd_r"
+    assert guarda is True, "un delay>0 debe activar el guard aunque la tecla no lo necesite por diseño"
+    assert abs(delay - 0.4) < 1e-9
+
+
+def test_delay_cero_en_tecla_sin_guarda_deja_el_guard_apagado():
+    """El default de la tecla derecha sigue siendo sin guarda (instantáneo): el
+    usuario no pierde el tacto de siempre salvo que suba el slíder a mano."""
+    hk = _HotkeyFalso()
+    ok, _ = apply_shortcut(hk, "dictation", {"keys": ["cmd_r"], "style": "hold", "delay_ms": 0})
+    assert ok
+    _, _, guarda, _ = hk.reconfigurado
+    assert guarda is False
+
+
+def test_tecla_con_guarda_no_pierde_el_guard_aun_con_delay_cero():
+    """Una tecla izquierda (needs_guard True) sigue con guard aunque el delay
+    sea 0: no se puede quedar sin protección y dispararse en cada ⌘C."""
+    hk = _HotkeyFalso()
+    ok, _ = apply_shortcut(hk, "dictation", {"keys": ["cmd_l"], "style": "hold", "delay_ms": 0})
+    assert ok
+    _, _, guarda, _ = hk.reconfigurado
+    assert guarda is True
+
+
 def test_los_otros_atajos_van_por_rebind():
     hk = _HotkeyFalso()
     ok, _ = apply_shortcut(hk, "cancel", {"keys": ["f13"]})

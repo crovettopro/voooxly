@@ -112,25 +112,25 @@ def test_keyboard_rows_sin_teclas_huerfanas_devuelve_el_retrato_tal_cual():
 
 def test_toda_tecla_de_lit_keys_aparece_en_el_layout_dibujado():
     """Defecto 1 de la Task 9 (segunda ronda): KEYBOARD_ROWS retrata un
-    MacBook y no contiene toda tecla asignable -ctrl_r es la primera: la app
-    ya la ofrece hoy en su menú (keys.DICTATION_KEYS) y un prefs.json real
-    puede traerla tras shortcuts.migrate()-. Con la tecla encendida en la
-    lista y ausente del teclado, el usuario ve exactamente la contradicción
-    que este componente existe para impedir.
+    MacBook y no contiene toda tecla asignable -f14 es el ejemplo: la app la
+    acepta por config.yaml/prefs.json (keys._FUNCIONES) aunque el retrato
+    solo pinte f1..f13-. Con la tecla encendida en la lista y ausente del
+    teclado, el usuario ve exactamente la contradicción que este componente
+    existe para impedir.
 
-    Estructural y no una lista de casos: para varios estados -incluido uno
-    con ctrl_r y otro con una tecla claramente fuera del retrato (f14), y uno
-    con las dos huérfanas a la vez- toda clave de lit_keys() tiene que
-    aparecer entre los nombres de keyboard_rows(). Nada de comparar la fila
-    extra contra una lista clavada a mano.
+    Estructural y no una lista de casos: para varios estados -uno con una
+    tecla claramente fuera del retrato (f14) y otro con dos huérfanas a la
+    vez (f14 y f15)- toda clave de lit_keys() tiene que aparecer entre los
+    nombres de keyboard_rows(). Nada de comparar la fila extra contra una
+    lista clavada a mano.
     """
     estados = [
         ESTADO,
-        dict(ESTADO, dictation={"keys": ["ctrl_r"], "style": "hold", "delay_ms": 0}),
-        dict(ESTADO, latch={"keys": ["f14"]}),
+        dict(ESTADO, dictation={"keys": ["f14"], "style": "hold", "delay_ms": 0}),
+        dict(ESTADO, latch={"keys": ["f15"]}),
         dict(ESTADO,
-             dictation={"keys": ["ctrl_r"], "style": "hold", "delay_ms": 0},
-             latch={"keys": ["f14"]}),
+             dictation={"keys": ["f14"], "style": "hold", "delay_ms": 0},
+             latch={"keys": ["f15"]}),
     ]
     for estado in estados:
         filas = settings_window.keyboard_rows(estado)
@@ -144,12 +144,12 @@ def test_una_tecla_fuera_del_retrato_se_ve_de_verdad_en_la_ventana():
     _build_keyboard() tiene que usar esa fila de verdad para que la casilla
     exista en la ventana real, con su leyenda, o la ventana seguiría
     mostrando la misma contradicción que este defecto arregla."""
-    estado = dict(ESTADO, dictation={"keys": ["ctrl_r"], "style": "hold", "delay_ms": 0})
+    estado = dict(ESTADO, dictation={"keys": ["f14"], "style": "hold", "delay_ms": 0})
     c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
         estado, lambda sid, fila: (True, ""))
-    assert "ctrl_r" in c._keys
-    assert c._legends["ctrl_r"].stringValue() == settings_window.key_label(["ctrl_r"])
-    assert settings_window.lit_keys(estado)["ctrl_r"] == "dictation"
+    assert "f14" in c._keys
+    assert c._legends["f14"].stringValue() == settings_window.key_label(["f14"])
+    assert settings_window.lit_keys(estado)["f14"] == "dictation"
     c.close()
 
 
@@ -282,11 +282,11 @@ def test_la_casilla_huerfana_tiene_ancho_de_modificadora_no_de_fila():
     estructural entre anchos ya dibujados, nada de una constante de píxeles
     clavada.
     """
-    estado = dict(ESTADO, dictation={"keys": ["ctrl_r"], "style": "hold", "delay_ms": 0})
+    estado = dict(ESTADO, dictation={"keys": ["f14"], "style": "hold", "delay_ms": 0})
     c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
         estado, lambda sid, fila: (True, ""))
 
-    ancho_huerfana = c._keys["ctrl_r"].frame().size.width
+    ancho_huerfana = c._keys["f14"].frame().size.width
     ancho_cmd = c._keys["cmd"].frame().size.width
     ancho_fila = c._teclado_marco.frame().size.width
 
@@ -300,17 +300,17 @@ def test_la_casilla_huerfana_tiene_ancho_de_modificadora_no_de_fila():
 
 def test_la_casilla_huerfana_no_se_estira_con_varias_huerfanas_a_la_vez():
     """La misma garantía que el test anterior, pero con dos teclas huérfanas
-    en la fila a la vez (ctrl_r y f14): cada una sigue con el ancho de una
+    en la fila a la vez (f15 y f14): cada una sigue con el ancho de una
     modificadora normal, no el de la fila repartido entre dos.
     """
     estado = dict(ESTADO,
-                   dictation={"keys": ["ctrl_r"], "style": "hold", "delay_ms": 0},
+                   dictation={"keys": ["f15"], "style": "hold", "delay_ms": 0},
                    latch={"keys": ["f14"]})
     c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
         estado, lambda sid, fila: (True, ""))
 
     ancho_cmd = c._keys["cmd"].frame().size.width
-    for tecla in ("ctrl_r", "f14"):
+    for tecla in ("f15", "f14"):
         ancho = c._keys[tecla].frame().size.width
         assert abs(ancho - ancho_cmd) < 2.0, (tecla, ancho, ancho_cmd)
     c.close()
@@ -325,7 +325,7 @@ def test_el_resto_de_la_fila_huerfana_no_dibuja_ninguna_casilla():
     _build_keyboard() de verdad lo salta y no crea ninguna casilla ni
     leyenda para él.
     """
-    estado = dict(ESTADO, dictation={"keys": ["ctrl_r"], "style": "hold", "delay_ms": 0})
+    estado = dict(ESTADO, dictation={"keys": ["f14"], "style": "hold", "delay_ms": 0})
     fila_huerfana = settings_window.keyboard_rows(estado)[-1]
     huecos = [n for n, _ in fila_huerfana if n is None]
     assert huecos, "la fila huérfana debería reservar hueco vacío"
@@ -349,7 +349,7 @@ def test_la_fila_huerfana_explica_por_que_esa_tecla_esta_ahi():
     assert sin_huerfanas._nota_huerfana is None
     sin_huerfanas.close()
 
-    estado = dict(ESTADO, dictation={"keys": ["ctrl_r"], "style": "hold", "delay_ms": 0})
+    estado = dict(ESTADO, dictation={"keys": ["f14"], "style": "hold", "delay_ms": 0})
     con_huerfana = settings_window.ShortcutsController.alloc().initWithState_onChange_(
         estado, lambda sid, fila: (True, ""))
     assert con_huerfana._nota_huerfana is not None
@@ -367,7 +367,7 @@ def test_el_texto_de_la_fila_huerfana_no_se_recorta():
     fuera más angosto, el texto (correcto en stringValue()) se recortaría al
     dibujarse sin que este test lo notara igual que le pasó a la Task 8.
     """
-    estado = dict(ESTADO, dictation={"keys": ["ctrl_r"], "style": "hold", "delay_ms": 0})
+    estado = dict(ESTADO, dictation={"keys": ["f14"], "style": "hold", "delay_ms": 0})
     c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
         estado, lambda sid, fila: (True, ""))
     nota = c._nota_huerfana
