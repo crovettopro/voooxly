@@ -265,7 +265,7 @@ class OnboardingController(NSObject):
         content.addSubview_(hair); add(hair)
         nota = _label(NSMakeRect(PAD, _y(t + 16, 34), W - 2 * PAD, 34),
                       "Prefer another key? Change it whenever you like from the "
-                      "menu bar icon › Settings › Dictation key.",
+                      "menu bar icon › Settings › Shortcuts…",
                       _sf(12), INK_SOFT, align=NSTextAlignmentCenter, multiline=True)
         content.addSubview_(nota); add(nota)
 

@@ -227,8 +227,10 @@ def test_la_pagina_2_avisa_de_que_la_tecla_se_puede_cambiar(controller):
     # Sin este renglón, quien no puede usar la ⌘ derecha (teclado externo sin
     # ella, mano ocupada) cierra el onboarding creyendo que la app no le sirve,
     # en vez de abrir Settings y cambiarla. Es la única pantalla que ve seguro.
+    # El destino es "Shortcuts…" (Task 11): el viejo submenú "Dictation key"
+    # ya no existe, así que el aviso apunta a la ventana que lo sustituye.
     todo = " ".join(_textos_pagina2(controller)).lower()
-    assert "dictation key" in todo
+    assert "shortcuts" in todo
     assert "settings" in todo
 
 
