@@ -74,24 +74,27 @@ PROVIDERS: dict[str, Provider] = {
         key="openai",
         name="OpenAI",
         base_url="https://api.openai.com/v1",
-        # gpt-5-mini releva a gpt-4o-mini como default: mejor limpieza al
-        # mismo precio aprox. El 4o-mini se queda como alternativa para quien
-        # ya lo tenía en la cabeza.
-        default_model="gpt-5-mini",
+        # La familia vigente es GPT-5.6 (verificado en developers.openai.com,
+        # jul-2026): luna es el tier de alto volumen — el encaje natural para
+        # limpiar dictados —, terra el equilibrado. gpt-5.4-mini sigue en la
+        # API, y gpt-4.1-mini se queda como opción no-razonadora conocida.
+        default_model="gpt-5.6-luna",
         needs_key=True,
         kind="openai",
-        models=("gpt-5-mini", "gpt-4.1-mini", "gpt-4o-mini"),
+        models=("gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.4-mini", "gpt-4.1-mini"),
     ),
     "gemini": Provider(
         key="gemini",
         name="Google Gemini",
         # Endpoint OpenAI-compatible de Gemini: mismo camino que openai/groq.
         base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
-        # 2.5-flash releva a 2.0-flash: mejor y sigue siendo el tier rápido.
-        default_model="gemini-2.5-flash",
+        # Gemini 3 al frente (pedido de Eduardo; IDs verificados en
+        # ai.google.dev, jul-2026): 3.6-flash es el GA rápido de la casa y
+        # 3.5-flash-lite el tier barato. 2.5-flash se queda de red conocida.
+        default_model="gemini-3.6-flash",
         needs_key=True,
         kind="openai",
-        models=("gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"),
+        models=("gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-2.5-flash"),
     ),
     # Ollama (local) el último: la opción para quien corre modelos en su propia
     # máquina. Sin modelo por defecto (fijar uno presupone cuál tiene instalado):

@@ -81,8 +81,8 @@ def test_los_defaults_son_los_modelos_excelentes_de_la_v15():
     """Anti-regresión de la revisión de modelos (2026-07): un downgrade
     accidental del default degradaría todos los modos en silencio."""
     assert providers.get("claude").default_model == "claude-sonnet-5"
-    assert providers.get("openai").default_model == "gpt-5-mini"
-    assert providers.get("gemini").default_model == "gemini-2.5-flash"
+    assert providers.get("openai").default_model == "gpt-5.6-luna"
+    assert providers.get("gemini").default_model == "gemini-3.6-flash"
     assert providers.get("groq").default_model == "llama-3.3-70b-versatile"
 
 
