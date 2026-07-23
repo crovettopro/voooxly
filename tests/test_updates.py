@@ -179,3 +179,23 @@ def test_should_notify_false_si_no_hay_novedad():
 
 def test_check_interval_es_24_horas():
     assert updates.CHECK_INTERVAL == 24 * 3600
+
+
+# --- should_prompt: el pop-up sale UNA vez por versión, entre arranques ---
+
+def test_should_prompt_pregunta_para_version_nueva():
+    info = {"version": "1.5.0", "url": "u", "notes": ""}
+    assert updates.should_prompt(info, None) is True
+    assert updates.should_prompt(info, "1.4.0") is True
+
+
+def test_should_prompt_no_repite_la_version_ya_preguntada():
+    """El usuario eligió "Later": el siguiente arranque no puede volver a
+    interrumpirle con el mismo alert. prefs persiste la versión preguntada."""
+    info = {"version": "1.5.0", "url": "u", "notes": ""}
+    assert updates.should_prompt(info, "1.5.0") is False
+
+
+def test_should_prompt_false_sin_novedad():
+    assert updates.should_prompt(None, None) is False
+    assert updates.should_prompt(None, "1.5.0") is False

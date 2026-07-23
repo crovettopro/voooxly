@@ -161,8 +161,19 @@ def download(
 def should_notify(info: dict | None, already_notified: str | None) -> bool:
     """True si hay novedad Y no avisamos ya para esta versión.
 
-    El HUD del re-chequeo periódico sale una sola vez por versión: si la app
+    El aviso del re-chequeo periódico sale una sola vez por versión: si la app
     lleva abierta 5 días y la 1.3.0 sale el día 1, no se anuncia de nuevo cada
     24 h. Cuando suba a 1.4.0, sí.
     """
     return bool(info) and info["version"] != already_notified
+
+
+def should_prompt(info: dict | None, prompted_version: str | None) -> bool:
+    """True si hay novedad Y el pop-up de esa versión no se enseñó ya.
+
+    Misma aritmética que should_notify pero con otra vida: aquí
+    `prompted_version` viene de prefs.json, así que el alert de "Update
+    available" no se repite en cada arranque mientras el usuario decide
+    esperar. Cuando salga una versión más nueva, vuelve a preguntar.
+    """
+    return bool(info) and info["version"] != prompted_version
