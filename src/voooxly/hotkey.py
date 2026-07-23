@@ -59,6 +59,36 @@ _VK_DARWIN = {
     16: "y", 6: "z",
 }
 
+# kVK_Function: la tecla fn/🌐. pynput sí recibe su flagsChanged (por eso
+# basta el listener único de siempre) pero no la tiene en _MODIFIER_FLAGS,
+# así que su `is_press = flags & 0` sale 0 y entrega las DOS transiciones
+# como on_release. _norm la nombra y _on_release la endereza con _fn_down().
+_VK_FN = 0x3F
+
+
+def _fn_down() -> bool:
+    """¿Está la tecla fn físicamente pulsada AHORA, según el sistema?
+
+    CGEventSourceFlagsState lee el estado HID vivo, no el evento: es lo que
+    permite distinguir el press del release cuando pynput entrega los dos
+    iguales. Los tests la doblan (no hay tecla física en un test); si Quartz
+    no está (o cambia de API), False deja fn sin soporte en vez de tirar el
+    listener entero.
+    """
+    try:
+        from Quartz import (
+            CGEventSourceFlagsState,
+            kCGEventFlagMaskSecondaryFn,
+            kCGEventSourceStateHIDSystemState,
+        )
+
+        return bool(
+            CGEventSourceFlagsState(kCGEventSourceStateHIDSystemState)
+            & kCGEventFlagMaskSecondaryFn
+        )
+    except Exception:
+        return False
+
 
 def _norm(key) -> str:
     """Normaliza una tecla pynput a un nombre lowercase estable.
@@ -75,6 +105,8 @@ def _norm(key) -> str:
         if ch:
             return ch.lower()
         vk = getattr(key, "vk", None)
+        if vk == _VK_FN:
+            return "fn"
         return _VK_DARWIN.get(vk, "")
     name = getattr(key, "name", "").lower()
     # unificar cmd/cmd_l/cmd_r para combos pero conservar cmd_r para hold
@@ -496,6 +528,13 @@ class HotkeyManager:
     def _on_release(self, key):
         name = _norm(key)
         if not name:
+            return
+        # fn llega SIEMPRE como release (ver _VK_FN): si el sistema dice que
+        # el bit fn sigue bajado, esto es la pulsación disfrazada y se enruta
+        # al press. Va antes que el corte de captura para que la ventana de
+        # Shortcuts pueda capturar fn como cualquier otra tecla.
+        if name == "fn" and _fn_down():
+            self._on_press(key)
             return
         if self._capture_cb is not None:
             return

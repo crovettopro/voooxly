@@ -136,6 +136,15 @@ def test_alt_gr_se_acepta_y_no_lleva_guarda_porque_es_alt_r():
     assert keys.needs_guard("alt_gr") is False
 
 
+def test_fn_se_acepta_sin_guarda():
+    # La tecla estrella de Wispr Flow: dictar manteniendo fn/🌐. Sin guarda:
+    # nadie hace combos ⌘C con ella, así que el disparo es instantáneo, como
+    # las derechas.
+    ok, _ = keys.validate_custom("fn")
+    assert ok is True
+    assert keys.needs_guard("fn") is False
+
+
 def test_resolve_usa_prefs_por_encima_del_yaml():
     cfg = {"hotkeys.toggle": ["cmd_r"], "hotkeys.toggle_mode": "hold"}
     prefs = {"dictation_key": "alt_r", "dictation_mode": "toggle"}
