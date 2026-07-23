@@ -1436,12 +1436,36 @@ class VoooxlyApp(rumps.App):
             self._refresh_title()
         if path:
             subprocess.run(["open", str(path)], check=False)
-            self._alert(
-                "Update downloaded",
-                "Drag Voooxly into Applications to replace this version, then relaunch.",
-            )
+            self._offer_quit_to_install()
         else:
             subprocess.run(["open", self._update_url], check=False)
+
+    def _offer_quit_to_install(self):
+        """Tras abrir el DMG, ofrece cerrar Voooxly para dejarse reemplazar.
+
+        Finder no pisa una app en marcha ("el ítem está en uso"): la retienen
+        el propio proceso y el whisper-server que corre DENTRO del bundle.
+        _quit para ambos, así que aceptar aquí es lo que hace posible el
+        arrastre a Applications.
+        """
+
+        def ask():
+            try:
+                # rumps.alert: 1 = botón ok ("Quit now"), 0 = cancel.
+                if rumps.alert(
+                    title="Update downloaded",
+                    message="Drag Voooxly into Applications to replace this "
+                            "version, then open it again.\n\nVoooxly has to "
+                            "quit first — macOS won't let you replace an app "
+                            "that's running.",
+                    ok="Quit now", cancel="Not yet",
+                ) == 1:
+                    self._quit(None)
+            except Exception:
+                log.warning("No pude ofrecer el cierre para instalar", exc_info=True)
+
+        # NSAlert solo corre en el main thread; venimos del hilo de descarga.
+        self._on_main(ask)
 
     def _show_about(self, _sender):
         """Diálogo About: icono, versión y un botón para comprobar updates."""
