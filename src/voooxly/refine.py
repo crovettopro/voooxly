@@ -254,7 +254,7 @@ class Refiner:
     # --- OpenAI-compatible ---
     def _openai(self, system: str, user: str) -> str:
         base = self.cfg.get("llm.openai.base_url", "https://api.openai.com/v1")
-        model = self.cfg.get("llm.openai.model", "gpt-4o-mini")
+        model = self.cfg.get("llm.openai.model", "gpt-5-mini")
         env_key = self.cfg.get("llm.openai.api_key_env", "OPENAI_API_KEY")
         key = os.environ.get(env_key, "")
         temp = self.cfg.get("llm.openai.temperature", 0.3)

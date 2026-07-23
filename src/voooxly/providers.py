@@ -24,6 +24,13 @@ class Provider:
     needs_key: bool
     kind: str  # "ollama" | "claude" | "openai"
     note: str = ""  # "free" → se muestra en el menú; el resto, vacío
+    # Lista curada de modelos EXCELENTES para limpiar dictado, de mejor default
+    # a alternativas (el primero ES default_model). Al conectar, la app deja
+    # elegir uno (feedback v1.4: "seleccionar internamente un modelo específico
+    # cuando se elige una opción, como cloud"). Vacía en Ollama: sus modelos se
+    # le preguntan al servidor del usuario (list_ollama_models), no se
+    # presuponen.
+    models: tuple[str, ...] = ()
 
     @property
     def label(self) -> str:
@@ -48,6 +55,9 @@ PROVIDERS: dict[str, Provider] = {
         needs_key=True,
         kind="openai",
         note="free",
+        # llama-3.3-70b limpia dictado de sobra; el 8b es para quien quiere
+        # latencia mínima a costa de algo de calidad.
+        models=("llama-3.3-70b-versatile", "llama-3.1-8b-instant"),
     ),
     "claude": Provider(
         key="claude",
@@ -56,23 +66,32 @@ PROVIDERS: dict[str, Provider] = {
         default_model="claude-sonnet-5",
         needs_key=True,
         kind="claude",
+        # sonnet-5 es el equilibrio; haiku-4-5 la vía barata/rápida y
+        # opus-4-8 para quien quiere la mejor escritura cueste lo que cueste.
+        models=("claude-sonnet-5", "claude-haiku-4-5", "claude-opus-4-8"),
     ),
     "openai": Provider(
         key="openai",
         name="OpenAI",
         base_url="https://api.openai.com/v1",
-        default_model="gpt-4o-mini",
+        # gpt-5-mini releva a gpt-4o-mini como default: mejor limpieza al
+        # mismo precio aprox. El 4o-mini se queda como alternativa para quien
+        # ya lo tenía en la cabeza.
+        default_model="gpt-5-mini",
         needs_key=True,
         kind="openai",
+        models=("gpt-5-mini", "gpt-4.1-mini", "gpt-4o-mini"),
     ),
     "gemini": Provider(
         key="gemini",
         name="Google Gemini",
         # Endpoint OpenAI-compatible de Gemini: mismo camino que openai/groq.
         base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
-        default_model="gemini-2.0-flash",
+        # 2.5-flash releva a 2.0-flash: mejor y sigue siendo el tier rápido.
+        default_model="gemini-2.5-flash",
         needs_key=True,
         kind="openai",
+        models=("gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"),
     ),
     # Ollama (local) el último: la opción para quien corre modelos en su propia
     # máquina. Sin modelo por defecto (fijar uno presupone cuál tiene instalado):

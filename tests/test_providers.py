@@ -59,6 +59,33 @@ def test_ollama_es_el_ultimo_para_de_enfatizarlo_en_el_menu():
     assert orden[-1] == "ollama"
 
 
+# --- modelos curados por proveedor (feedback v1.4: elegir modelo al conectar) ---
+
+def test_cada_proveedor_cloud_trae_modelos_curados_y_el_default_es_el_primero():
+    for key in ("claude", "openai", "gemini", "groq"):
+        prov = providers.get(key)
+        assert len(prov.models) >= 2, key
+        assert prov.default_model == prov.models[0], key
+        assert len(prov.models) == len(set(prov.models)), key  # sin repetidos
+
+
+def test_ollama_no_presupone_modelos():
+    # Sus modelos se le preguntan a SU servidor (list_ollama_models), nunca a
+    # una lista fija: fijar una presupondría cuál tiene instalado el usuario.
+    prov = providers.get("ollama")
+    assert prov.models == ()
+    assert prov.default_model == ""
+
+
+def test_los_defaults_son_los_modelos_excelentes_de_la_v15():
+    """Anti-regresión de la revisión de modelos (2026-07): un downgrade
+    accidental del default degradaría todos los modos en silencio."""
+    assert providers.get("claude").default_model == "claude-sonnet-5"
+    assert providers.get("openai").default_model == "gpt-5-mini"
+    assert providers.get("gemini").default_model == "gemini-2.5-flash"
+    assert providers.get("groq").default_model == "llama-3.3-70b-versatile"
+
+
 def test_proveedor_desconocido_da_none():
     assert providers.get("no-existe") is None
 
