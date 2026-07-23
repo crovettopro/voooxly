@@ -1,2 +1,2 @@
 """Voooxly: dictado local pro tipo Wispr Flow."""
-__version__ = "1.6.0"
+__version__ = "1.6.1"
