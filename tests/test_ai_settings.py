@@ -1,6 +1,6 @@
 """Elección de proveedor persistida en prefs.json."""
 
-from voooxly import ai_settings
+from voooxly import ai_settings, providers
 
 
 def test_sin_eleccion_previa_devuelve_none():
@@ -37,7 +37,9 @@ def test_al_guardar_sin_url_ni_modelo_se_usan_los_del_preset():
     prefs = ai_settings.save({}, "openai", "", "")
     sel = ai_settings.load(prefs)
     assert sel.base_url == "https://api.openai.com/v1"
-    assert sel.model == "gpt-4o-mini"
+    # El default del preset, sea cual sea la revisión de modelos vigente: lo
+    # que este test vigila es la CAÍDA al preset, no un modelo concreto.
+    assert sel.model == providers.get("openai").default_model
 
 
 def test_proveedor_guardado_que_ya_no_existe_se_ignora():
