@@ -844,7 +844,15 @@ class ShortcutsController(NSObject):
         igual que una apagada. Tenerlo en la misma rama que
         setBackgroundColor_ es lo que impide que relleno y leyenda se
         desincronicen si mañana cambia uno de los dos colores.
+
+        Con una captura armada, el teclado cambia de pregunta: deja de contar
+        "qué hay asignado" y pasa a contar "qué puedes elegir" — ver
+        _paint_keyboard_captura. apply/cancel repintan al salir de la captura
+        y este método vuelve a la vista por asignaciones.
         """
+        if self._capturing:
+            self._paint_keyboard_captura(self._capturing)
+            return
         encendidas = lit_keys(self._estado)
         for nombre, casilla in self._keys.items():
             sid = encendidas.get(nombre)
@@ -865,6 +873,32 @@ class ShortcutsController(NSObject):
                 _apagar(casilla)
                 if leyenda is not None:
                     leyenda.setTextColor_(theme.INK_KEYCAP)
+
+    def _paint_keyboard_captura(self, sid):
+        """Verde = usable para este atajo; gris = no (feedback de POMI).
+
+        La verdad la pone shortcuts.validate — el mismo validador que luego
+        acepta o rechaza la captura, así que el color y el resultado no pueden
+        contarse historias distintas: una tecla que validate aceptaría como
+        atajo de UNA tecla se enciende en el teal claro de la marca (el
+        "verde"), y el resto se apaga con la leyenda en gris — letras,
+        reservadas (esc/shift), teclas de otros atajos y las decorativas
+        (⇪, fn, flechas). Los combos (ctrl+shift+m) se siguen capturando
+        aunque sus letras salgan grises: el color habla de la tecla SOLA.
+        DEBE correr en el hilo principal, como _paint_keyboard.
+        """
+        for nombre, casilla in self._keys.items():
+            leyenda = self._legends.get(nombre)
+            if shortcuts.validate(sid, [nombre], self._estado)[0]:
+                casilla.layer().setBackgroundColor_(theme.MODEL_BTN_BG.CGColor())
+                casilla.layer().setBorderWidth_(1.0)
+                casilla.layer().setBorderColor_(theme.MODEL_BTN_BORDER.CGColor())
+                if leyenda is not None:
+                    leyenda.setTextColor_(theme.INK_KEYCAP)
+            else:
+                _apagar(casilla)
+                if leyenda is not None:
+                    leyenda.setTextColor_(theme.INK_MUTED)
 
     # ---------- captura ----------
     def filaClicked_(self, sender):
@@ -908,6 +942,10 @@ class ShortcutsController(NSObject):
             # capturando y tiene que volver a mostrar su tecla de verdad.
             self._refresh_row(anterior)
         self._refresh_row(sid)
+        # El teclado pasa a la vista de captura: usables en verde, resto en
+        # gris (ver _paint_keyboard_captura). Cambiar de fila a mitad de
+        # captura también repinta — cada atajo tiene sus propias usables.
+        self._paint_keyboard()
         if self._hotkey is not None:
             self._hotkey.begin_capture(self._on_captured_)
 
@@ -921,6 +959,7 @@ class ShortcutsController(NSObject):
             self._hotkey.end_capture()
         if sid:
             self._refresh_row(sid)
+            self._paint_keyboard()  # vuelve la vista por asignaciones
 
     @objc.python_method
     def _on_captured_(self, names):

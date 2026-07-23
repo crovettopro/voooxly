@@ -392,3 +392,68 @@ def test_el_teclado_no_se_sale_del_contenido_de_la_ventana():
     assert marco.origin.y + marco.size.height <= settings_window.H
 
     c.close()
+
+
+# --- captura: verde = usable, gris = no usable (feedback de POMI) ---
+
+def _controller(estado=None):
+    return settings_window.ShortcutsController.alloc().initWithState_onChange_(
+        estado or ESTADO, lambda sid, fila: (True, ""))
+
+
+def test_durante_la_captura_las_letras_se_apagan_y_las_usables_se_encienden():
+    """Capturando Dictation: una letra inutilizaría el teclado entero
+    (validate la rechaza) → gris; una F o un modificador con lado → verde.
+    La verdad la pone shortcuts.validate, el MISMO validador que luego acepta
+    o rechaza la captura — el color no puede prometer lo que validate negará."""
+    c = _controller()
+    c.begin_capture_("dictation")
+
+    assert c._legends["a"].textColor().isEqual_(theme.INK_MUTED)     # letra: no
+    assert c._legends["esc"].textColor().isEqual_(theme.INK_MUTED)   # dueña de cancel
+    assert c._legends["shift"].textColor().isEqual_(theme.INK_MUTED) # dueña de latch
+    assert c._legends["f13"].textColor().isEqual_(theme.INK_KEYCAP)  # usable
+    assert c._legends["cmd_r"].textColor().isEqual_(theme.INK_KEYCAP)  # la suya: usable
+    c.close()
+
+
+def test_las_decorativas_nunca_se_encienden_en_captura():
+    """⇪, fn y el bloque de flechas tienen leyenda pero no son asignables:
+    en captura salen en gris, no como promesa de tecla elegible."""
+    c = _controller()
+    c.begin_capture_("dictation")
+    for nombre in ("caps_lock", "fn", "arrows", ";", ","):
+        assert c._legends[nombre].textColor().isEqual_(theme.INK_MUTED), nombre
+    c.close()
+
+
+def test_cada_atajo_tiene_sus_propias_usables():
+    """esc es gris capturando Dictation (pertenece a Cancel) pero verde
+    capturando Cancel (confirmar tu propia tecla nunca es conflicto)."""
+    c = _controller()
+    c.begin_capture_("cancel")
+    assert c._legends["esc"].textColor().isEqual_(theme.INK_KEYCAP)
+    assert c._legends["cmd_r"].textColor().isEqual_(theme.INK_MUTED)  # de Dictation
+    c.close()
+
+
+def test_al_salir_de_la_captura_vuelve_el_pintado_por_asignaciones():
+    c = _controller()
+    c.begin_capture_("dictation")
+    c.cancel_capture_()
+    # dictation vuelve a su teal sólido (leyenda en color papel) y la letra
+    # suelta recupera el gris oscuro normal de una tecla apagada.
+    assert c._legends["cmd_r"].textColor().isEqual_(theme.PAGE_BG)
+    assert c._legends["a"].textColor().isEqual_(theme.INK_KEYCAP)
+    c.close()
+
+
+def test_aplicar_una_captura_valida_tambien_restaura_el_teclado():
+    c = _controller()
+    c.begin_capture_("dictation")
+    c.apply_capture_(["f13"])
+    assert c._capturing is None
+    # f13 es ahora la tecla de dictado: teal sólido con leyenda en papel.
+    assert c._legends["f13"].textColor().isEqual_(theme.PAGE_BG)
+    assert c._legends["a"].textColor().isEqual_(theme.INK_KEYCAP)
+    c.close()
