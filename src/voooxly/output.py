@@ -16,6 +16,20 @@ import time
 log = logging.getLogger("voooxly.output")
 
 
+def html_flavor(html: str | None) -> str | None:
+    """El HTML tal como debe ir al pasteboard: con charset declarado.
+
+    NSPasteboard guarda el string, pero la app receptora lee BYTES del sabor
+    public.html: sin `<meta charset>` el estándar HTML manda decodificar como
+    Windows-1252 y cada tilde UTF-8 se rompe ("ó" → "Ã³"). Pasó de verdad con
+    un dictado en modo notas pegado en un editor web. markdown_to_html se queda
+    como generador de fragmentos puro; la declaración es cosa del portapapeles.
+    """
+    if not html or html.startswith('<meta charset="utf-8">'):
+        return html
+    return '<meta charset="utf-8">' + html
+
+
 def copy_to_clipboard(text: str, html: str | None = None) -> None:
     if not text:
         return
@@ -32,7 +46,7 @@ def copy_to_clipboard(text: str, html: str | None = None) -> None:
         pb.clearContents()
         pb.setString_forType_(text, NSPasteboardTypeString)
         if html:
-            pb.setString_forType_(html, "public.html")
+            pb.setString_forType_(html_flavor(html), "public.html")
     except Exception as e:
         log.error("NSPasteboard falló (%s); fallback a pbcopy", e)
         try:
