@@ -1312,25 +1312,32 @@ class VoooxlyApp(rumps.App):
                 return
             model = resp.text.strip()
 
+        # La key solo se pide si el llavero no la tiene: quien ya conectó una
+        # vez no tiene que volver a pegarla para cambiar de modelo (feedback
+        # de Eduardo: el diálogo salía siempre, con la key ya guardada).
         api_key = None
+        pedida = False
         if prov.needs_key:
             api_key = keychain.get_key(prov.key)
-            resp = rumps.Window(
-                message=f"API key for {prov.name}:",
-                title="Connect AI engine",
-                ok="Connect", cancel="Cancel",
-                dimensions=(320, 24), secure=True,
-            ).run()
-            if not resp.clicked:
-                return
-            if resp.text.strip():
-                api_key = resp.text.strip()
             if not api_key:
-                self._alert("No API key", f"{prov.name} needs a key to work.")
-                return
+                api_key = self._pedir_key(prov)
+                pedida = True
+                if api_key is None:
+                    return
+                if not api_key:
+                    self._alert("No API key", f"{prov.name} needs a key to work.")
+                    return
 
         sel = ai_settings.Selection(prov, base_url, model)
         ok, msg = refine.validate(sel, api_key)
+        if not ok and prov.needs_key and not pedida:
+            # La key guardada puede estar caducada o revocada: se pide una
+            # nueva UNA vez y se revalida — sin esto el usuario quedaría en
+            # un bucle donde el fallo se repite y no hay forma de cambiarla.
+            nueva = self._pedir_key(prov, reintento=True)
+            if nueva:
+                api_key = nueva
+                ok, msg = refine.validate(sel, api_key)
         if not ok:
             self._alert(f"Couldn't connect to {prov.name}", msg)
             return
@@ -1359,6 +1366,27 @@ class VoooxlyApp(rumps.App):
                 "to store it. You'll be asked for it again after restarting "
                 "Voooxly.",
             )
+
+    def _pedir_key(self, prov, reintento=False):
+        """Diálogo de API key. None = canceló; "" = pulsó Connect en blanco.
+
+        Solo se muestra si el llavero no tenía key para este proveedor — o,
+        con reintento=True, si la guardada acaba de fallar la validación y
+        hay que dar la oportunidad de pegar una nueva.
+        """
+        msg = (
+            f"The saved key for {prov.name} didn't work. Paste a new one:"
+            if reintento else f"API key for {prov.name}:"
+        )
+        resp = rumps.Window(
+            message=msg,
+            title="Connect AI engine",
+            ok="Connect", cancel="Cancel",
+            dimensions=(320, 24), secure=True,
+        ).run()
+        if not resp.clicked:
+            return None
+        return resp.text.strip()
 
     def _test_ai(self, _sender):
         from . import ai_settings, keychain
