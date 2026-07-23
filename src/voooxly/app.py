@@ -19,7 +19,7 @@ import time
 
 import rumps
 
-from . import audio, dictionary, history, keys, media, modes, output, providers, refine, richtext, setup_checks, shortcuts, stats, stt, updates
+from . import audio, dictionary, history, keys, media, modes, output, providers, recgate, refine, richtext, setup_checks, shortcuts, stats, stt, updates
 from .config import get_config, resolve_language
 from .hotkey import HotkeyManager
 from .overlay import Overlay
@@ -234,8 +234,10 @@ class VoooxlyApp(rumps.App):
         self.language = resolve_language(cfg.get("app.language", None))
         self.stt_model = cfg.get("stt.model")
         self.stt_lang = resolve_language(cfg.get("stt.language", None))
-        self._state = "IDLE"
-        self._lock = threading.Lock()
+        # Toda transición de la grabación va por el gate (ver recgate.py):
+        # start/stop/cancel llegan desde hilos del hotkey sin orden garantizado
+        # y un stop que adelanta al arranque no puede perderse.
+        self._gate = recgate.RecordingGate()
         # Esc durante grabación/procesado: descartar el dictado sin pegar nada.
         self._cancel = threading.Event()
         self._recorder: audio.Recorder | None = None
@@ -428,7 +430,7 @@ class VoooxlyApp(rumps.App):
     def _flash_mode(self):
         """Flash del HUD con el modo recién activado (nombre + posición + hint).
 
-        Sin esto, ciclar con Ctrl+Shift+M es a ciegas: 8 modos y ninguna pista
+        Sin esto, ciclar con Ctrl+Shift+M es a ciegas: 9 modos y ninguna pista
         de en cuál has caído. Se auto-oculta a los ~1.4s; ciclar rápido solo
         renueva el timer (el seq más nuevo manda) y un dictado en curso tiene
         prioridad sobre el flash.
@@ -439,9 +441,8 @@ class VoooxlyApp(rumps.App):
                 self._show_overlay, getattr(self._overlay, "_built", None),
             )
             return
-        with self._lock:
-            if self._state != "IDLE":
-                return  # el HUD está ocupado con un dictado
+        if self._gate.state != "IDLE":
+            return  # el HUD está ocupado con un dictado
         self._mode_flash_seq += 1
         seq = self._mode_flash_seq
 
@@ -452,9 +453,8 @@ class VoooxlyApp(rumps.App):
                 time.sleep(1.4)
                 if self._mode_flash_seq != seq:
                     return  # hubo otro cambio de modo: su flash manda
-                with self._lock:
-                    if self._state != "IDLE":
-                        return  # empezó un dictado: su flujo gestiona el HUD
+                if self._gate.state != "IDLE":
+                    return  # empezó un dictado: su flujo gestiona el HUD
                 self._overlay.hide()
             except Exception:
                 log.warning("Flash de modo falló", exc_info=True)
@@ -492,7 +492,7 @@ class VoooxlyApp(rumps.App):
 
     def _refresh_title(self):
         label = modes.MODES.get(self.mode, {}).get("label", "Voooxly")
-        state = self._state
+        state = self._gate.state
         # Barra de menú: glyph template en reposo; grabando = punto rojo +
         # cronómetro (lo lleva _rec_timer); procesando = glyph + "…".
         if state == "RECORDING" and self._rec_icon:
@@ -546,9 +546,8 @@ class VoooxlyApp(rumps.App):
 
         def run():
             while self._timer_seq == seq:
-                with self._lock:
-                    if self._state != "RECORDING":
-                        break
+                if self._gate.state != "RECORDING":
+                    break
                 s = int(time.monotonic() - t0)
                 txt = f" {s // 60}:{s % 60:02d}"
                 # Este hilo escribía self.title directo: AppKit desde hilo de
@@ -560,31 +559,51 @@ class VoooxlyApp(rumps.App):
 
     # ---------- grabación ----------
     def toggle_record(self):
-        with self._lock:
-            state = self._state
+        state = self._gate.state
         if state == "IDLE":
-            self._start_record(auto_stop=True)
+            self._begin_record(auto_stop=True)
         elif state == "RECORDING":
             self._stop_record(force=True)
+        elif state == "STARTING":
+            # Segundo tap mientras el arranque sigue en su hilo: queda anotado
+            # y _start_record lo aplica en cuanto el recorder esté abierto.
+            self._gate.request_stop()
 
     def start_record(self):
         """Push-to-talk: tecla pulsada -> empieza a grabar (si está IDLE)."""
-        with self._lock:
-            if self._state != "IDLE":
-                return
+        self._begin_record(auto_stop=False)
+
+    def _begin_record(self, auto_stop: bool):
+        # try_begin reserva IDLE→STARTING de forma atómica: dos press seguidos
+        # ya no pueden abrir dos recorders (el primero quedaba huérfano con el
+        # micro abierto — la mitad del bug de Jeff).
+        if not self._gate.try_begin():
+            return
         try:
-            self._start_record(auto_stop=False)
+            self._start_record(auto_stop=auto_stop)
         except Exception:
-            log.exception("Error en start_record (se resetea a IDLE)")
-            with self._lock:
-                self._state = "IDLE"
+            log.exception("Error arrancando la grabación (se resetea a IDLE)")
+            # Si el recorder llegó a abrir el stream antes de reventar, hay
+            # que cerrarlo: volver a IDLE con el micro abierto sería el mismo
+            # micro-encendido-para-siempre que este gate existe para evitar.
+            try:
+                if self._recorder:
+                    self._recorder.stop()
+            except Exception:
+                pass
+            self._gate.begin_failed()
             self._refresh_title()
 
     def stop_record(self):
-        """Push-to-talk: tecla soltada -> termina la grabación."""
-        with self._lock:
-            if self._state != "RECORDING":
-                return
+        """Push-to-talk: tecla soltada -> termina la grabación.
+
+        Si el release adelanta al arranque (tap rápido), el gate lo anota y
+        _start_record lo aplica al terminar: antes ese stop era un no-op y la
+        grabación quedaba huérfana hasta audio.max_duration — el micro
+        "encendido constantemente" (la otra mitad del bug de Jeff).
+        """
+        if self._gate.request_stop() != "stop":
+            return
         try:
             self._stop_record(force=True)
         except Exception:
@@ -596,23 +615,22 @@ class VoooxlyApp(rumps.App):
         Se dispara con CADA Esc del sistema, así que el no-op cuando está IDLE
         tiene que ser inmediato y sin efectos.
         """
-        with self._lock:
-            state = self._state
-            if state == "IDLE":
-                return
-            self._cancel.set()
+        state = self._gate.state
+        if state == "IDLE":
+            return
+        self._cancel.set()
         log.info("Dictado cancelado por el usuario (estado %s).", state)
-        if state == "RECORDING":
+        if self._gate.request_stop() == "stop":
             try:
                 self._stop_record(force=True)  # dispara _on_stop, que verá _cancel
             except Exception:
                 log.exception("Error cancelando la grabación")
+        # "deferred": _start_record cerrará al terminar el arranque y _on_stop
+        # verá _cancel. "no": está PROCESSING y _process ya consulta _cancel.
 
     def _start_record(self, auto_stop: bool = True):
+        """Arranca el recorder. Solo lo llama _begin_record, con el gate en STARTING."""
         self._cancel.clear()
-        with self._lock:
-            self._state = "RECORDING"
-        self._refresh_title()
         # Push-to-talk (auto_stop=False): el usuario controla el fin con la tecla,
         # desactivamos el auto-stop por silencio para que no cierre al pausar a pensar.
         # Menú/toggle (auto_stop=True): la grabación se cierra sola tras el silencio.
@@ -634,6 +652,14 @@ class VoooxlyApp(rumps.App):
         self._partial_thread = threading.Thread(target=self._partial_loop, daemon=True)
         self._partial_thread.start()
         self._recorder.start(on_stop=self._on_stop)
+        # Con el stream ya abierto somos RECORDING de verdad. Si durante el
+        # arranque llegó un stop o un Esc (tap rápido), se aplica AQUÍ mismo:
+        # antes ese evento caía en un no-op y la grabación quedaba huérfana.
+        if self._gate.begin_done():
+            log.info("El stop adelantó al arranque (tap rápido): se cierra ya.")
+            self._stop_record(force=True)
+            return
+        self._refresh_title()
         self._start_rec_timer()
         self._play_sound("Pop")     # "te escucho"
         # Pausar la música (Spotify/Music) mientras dictas. En hilo aparte:
@@ -649,9 +675,7 @@ class VoooxlyApp(rumps.App):
             self._paused_players = []
         # Pulsación ultracorta: si el dictado terminó mientras pausábamos,
         # _on_stop ya pasó y nadie más va a reanudar. Hazlo aquí.
-        with self._lock:
-            recording = self._state == "RECORDING"
-        if not recording:
+        if self._gate.state != "RECORDING":
             self._resume_media()
 
     def _resume_media(self):
@@ -703,8 +727,7 @@ class VoooxlyApp(rumps.App):
         rec = self._recorder
         had_speech = rec.had_speech if rec else False
         speech_ratio = rec.speech_ratio if rec else 0.0
-        with self._lock:
-            self._state = "PROCESSING"
+        self._gate.processing()
         self._refresh_title()
         self._overlay.show("Transcribing…", title="✦ Processing")
         threading.Thread(
@@ -764,16 +787,14 @@ class VoooxlyApp(rumps.App):
 
         def _do():
             try:
-                with self._lock:
-                    if self._state != "IDLE":
-                        return
+                if self._gate.state != "IDLE":
+                    return
                 self._overlay.show(msg, title=title)
                 time.sleep(secs)
                 if self._mode_flash_seq != seq:
                     return  # llegó un aviso más nuevo: manda el suyo
-                with self._lock:
-                    if self._state != "IDLE":
-                        return  # empezó un dictado
+                if self._gate.state != "IDLE":
+                    return  # empezó un dictado
                 self._overlay.hide()
             except Exception:
                 log.warning("Aviso en el HUD falló", exc_info=True)
@@ -935,8 +956,7 @@ class VoooxlyApp(rumps.App):
 
     def _reset_idle(self):
         self._overlay.hide()
-        with self._lock:
-            self._state = "IDLE"
+        self._gate.idle()
         self._refresh_title()
 
     # ---------- historial ----------
@@ -1212,6 +1232,36 @@ class VoooxlyApp(rumps.App):
             return
         self._connect_provider(keys[popup.indexOfSelectedItem()])
 
+    def _choose_model(self, prov, actual: str | None) -> str | None:
+        """Selector de modelo del proveedor: la lista curada de providers.py.
+
+        Feedback v1.4 ("seleccionar internamente un modelo específico cuando se
+        elige una opción, como cloud"): antes conectar un proveedor imponía su
+        default sin preguntar. El default va primero y preseleccionado (o el
+        modelo que el usuario ya tenía guardado, si sigue en la lista).
+        Devuelve el modelo elegido, o None si canceló.
+        """
+        from AppKit import NSAlert, NSPopUpButton
+        from Foundation import NSMakeRect
+
+        alert = NSAlert.alloc().init()
+        alert.setMessageText_(f"Choose the {prov.name} model")
+        alert.setInformativeText_(
+            "The first one is the recommended default. Lighter models answer "
+            "faster; bigger ones write better.")
+        popup = NSPopUpButton.alloc().initWithFrame_pullsDown_(
+            NSMakeRect(0, 0, 260, 26), False)
+        for m in prov.models:
+            popup.addItemWithTitle_(m)
+        if actual in prov.models:
+            popup.selectItemWithTitle_(actual)
+        alert.setAccessoryView_(popup)
+        alert.addButtonWithTitle_("Continue")
+        alert.addButtonWithTitle_("Cancel")
+        if alert.runModal() != 1000:  # NSAlertFirstButtonReturn = Continue
+            return None
+        return prov.models[popup.indexOfSelectedItem()]
+
     def _connect_provider(self, prov_key: str):
         """Pide lo que falte, valida contra el proveedor y guarda si funciona."""
         from . import ai_settings, keychain, providers
@@ -1220,6 +1270,17 @@ class VoooxlyApp(rumps.App):
         if prov is None:
             return
         base_url, model = prov.base_url, prov.default_model
+
+        if len(prov.models) > 1:
+            sel_previa = ai_settings.load(self._prefs)
+            actual = (
+                sel_previa.model
+                if sel_previa and sel_previa.provider.key == prov.key
+                else None
+            )
+            model = self._choose_model(prov, actual)
+            if model is None:
+                return
 
         if prov.kind == "ollama":
             # El modelo no se presupone: se le pregunta a SU Ollama (Task 5).
@@ -1329,6 +1390,36 @@ class VoooxlyApp(rumps.App):
         self._update_downloading = True
         threading.Thread(target=self._download_update, daemon=True).start()
 
+    def _maybe_prompt_update(self, info: dict) -> None:
+        """Pop-up "Update available" con Download now / Later.
+
+        Una sola vez por versión, persistido en prefs (should_prompt): quien
+        elige "Later" no vuelve a ver el alert en cada arranque — solo cuando
+        salga una versión más nueva. El ítem de menú queda siempre como vía
+        para instalar más tarde. Quien llama debe dejar antes _update_url y
+        _update_version puestos: "Download now" delega en _open_update.
+        """
+        if not updates.should_prompt(info, self._prefs.get("update_prompted_version")):
+            return
+        self._prefs["update_prompted_version"] = info["version"]
+        _save_prefs(self._prefs)
+        ver = info["version"]
+        notes = (info.get("notes") or "").strip()
+        body = f"Voooxly {ver} is ready to install." + (f"\n\n{notes}" if notes else "")
+
+        def ask():
+            try:
+                # rumps.alert: 1 = botón ok ("Download now"), 0 = cancel.
+                if rumps.alert(title="Update available", message=body,
+                               ok="Download now", cancel="Later") == 1:
+                    self._open_update(None)
+            except Exception:
+                log.warning("No pude mostrar el pop-up de update", exc_info=True)
+
+        # NSAlert solo puede correr en el main thread; esto llega desde
+        # _warmup o el timer periódico (hilos daemon).
+        self._on_main(ask)
+
     def _download_update(self):
         # Descarga el DMG a ~/Downloads y lo abre montado: al usuario solo le
         # queda arrastrar a Applications. Si la descarga falla, se abre la URL
@@ -1422,12 +1513,10 @@ class VoooxlyApp(rumps.App):
                 self._on_main(_show)
                 if updates.should_notify(info, self._notified_update_version):
                     self._notified_update_version = ver
-                    self._on_main(
-                        lambda: self._hud(
-                            "See the menu to install.",
-                            title=f"Voooxly {ver} is available",
-                        )
-                    )
+                    # Antes: HUD efímero que era fácil no ver. Ahora un pop-up
+                    # de verdad (feedback v1.4), con su propia gate por versión
+                    # persistida para no repetirse entre arranques.
+                    self._maybe_prompt_update(info)
         except Exception:
             log.debug("re-chequeo periódico falló (ignorado)", exc_info=True)
         finally:
@@ -1607,9 +1696,9 @@ class VoooxlyApp(rumps.App):
                 self._update_url = info["url"]
                 self._update_version = info["version"]
                 # Si ya hay novedad al arranque, la contamos como "avisada" para
-                # que el re-chequeo periódico no suelte el HUD 24 h después por la
-                # misma versión: el HUD es para versiones que aparecen NUEVAS
-                # mientras la app está abierta.
+                # que el re-chequeo periódico no repita el aviso 24 h después
+                # por la misma versión: ese aviso es para versiones que
+                # aparecen NUEVAS mientras la app está abierta.
                 self._notified_update_version = info["version"]
                 ver = info["version"]
 
@@ -1618,6 +1707,9 @@ class VoooxlyApp(rumps.App):
                     self.update_item._menuitem.setHidden_(False)
 
                 self._on_main(_show_update)
+                # Pop-up al detectar la novedad (feedback v1.4): antes el
+                # arranque solo mostraba el ítem de menú y nadie se enteraba.
+                self._maybe_prompt_update(info)
         except Exception:
             pass
         finally:
@@ -1652,9 +1744,7 @@ class VoooxlyApp(rumps.App):
         ping = np.zeros(int(0.4 * audio.SR), dtype=np.int16)
         while True:
             time.sleep(mins * 60)
-            with self._lock:
-                busy = self._state != "IDLE"
-            if busy:
+            if self._gate.state != "IDLE":
                 continue
             try:
                 stt.transcribe(ping, self.stt_model, "es")
