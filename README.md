@@ -146,8 +146,10 @@ which Whisper already punctuates well. You just do the cleanup yourself.
 - **Bring your own AI (or none)**: Groq, Claude, OpenAI, Gemini or a local
   Ollama model — one click in the menu, key stored in the Keychain. See
   [Then connect an AI](#then-connect-an-ai-this-is-the-part-that-matters).
-- **Your dictation key, not ours**: any of the six bottom-row modifiers, and
-  hold-to-talk or press-to-toggle. Every other shortcut is remappable too.
+- **Your dictation key, not ours**: the fn/🌐 key (Wispr style), any bottom-row
+  modifier or an F-key, and hold-to-talk or press-to-toggle. Every other
+  shortcut is remappable too — the Shortcuts keyboard lights up in green what
+  each one can use.
 - **Global hotkey + menu bar + live HUD**: a status HUD shows `● Listening`
   with your words appearing in real time, `✦ Processing` while it polishes and
   `✓ Pasted` when done; the menu bar turns into a red dot with a timer while
