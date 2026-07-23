@@ -90,6 +90,12 @@ def canon(name: str | None) -> str | None:
 # Las funciones llegan hasta f20 en pynput.
 _FUNCIONES = {f"f{i}" for i in range(1, 21)}
 
+# "fn" no es un nombre pynput: su flagsChanged (vk 63) lo endereza hotkey.py a
+# mano (pynput lo entrega siempre como release). Se acepta aquí porque es la
+# tecla de dictado estrella de Wispr Flow y no lleva guarda: nadie hace combos
+# ⌘C con fn, así que _es_modificador() ya le da False sin ayuda.
+_ESPECIALES = {"fn"}
+
 
 @dataclass(frozen=True)
 class DictationKey:
@@ -172,7 +178,7 @@ def validate_custom(name: str) -> tuple[bool, str]:
             f'"{name}" needs a side — use {name}_l for the left key '
             f"or {name}_r for the right key."
         )
-    if name in _MODIFICADORES_CON_LADO or name in _FUNCIONES:
+    if name in _MODIFICADORES_CON_LADO or name in _FUNCIONES or name in _ESPECIALES:
         return True, ""
     return False, (
         f'"{name}" isn\'t a key pynput knows, so it would never fire. '
