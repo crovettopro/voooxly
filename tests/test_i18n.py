@@ -1,0 +1,44 @@
+# tests/test_i18n.py
+"""t() traduce la UI sin tocar claves persistidas ni romper con idiomas raros."""
+from voooxly import i18n
+
+
+def test_resolve_lang_detecta_espanol():
+    assert i18n.resolve_lang(["es-ES", "en"]) == "es"
+    assert i18n.resolve_lang(["es-419"]) == "es"
+
+
+def test_resolve_lang_cae_a_ingles():
+    assert i18n.resolve_lang(["en-US"]) == "en"
+    assert i18n.resolve_lang(["fr-FR", "de"]) == "en"
+    assert i18n.resolve_lang([]) == "en"
+    assert i18n.resolve_lang(None) == "en"
+
+
+def test_t_es_identidad_en_ingles():
+    i18n.set_lang("en")
+    assert i18n.t("Quit Voooxly") == "Quit Voooxly"
+
+
+def test_t_traduce_en_espanol():
+    i18n.set_lang("es")
+    try:
+        assert i18n.t("Quit Voooxly") == "Salir de Voooxly"
+        assert i18n.t("Recent") == "Recientes"
+    finally:
+        i18n.set_lang("en")
+
+
+def test_t_devuelve_la_clave_si_no_hay_traduccion():
+    i18n.set_lang("es")
+    try:
+        assert i18n.t("String sin traducir 12345") == "String sin traducir 12345"
+    finally:
+        i18n.set_lang("en")
+
+
+def test_las_traducciones_cubren_el_menu_principal():
+    # Las cadenas del menú que el usuario ve SIEMPRE deben tener traducción:
+    # si alguien añade un ítem y olvida traducirlo, este test lo caza.
+    for s in i18n.MENU_STRINGS:
+        assert s in i18n.ES, f"Falta traducción de: {s!r}"
