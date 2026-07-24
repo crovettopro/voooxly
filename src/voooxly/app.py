@@ -539,7 +539,7 @@ class VoooxlyApp(rumps.App):
             state, None if self._has_icon else "🎙"
         )
         state_en = {"IDLE": "ready", "RECORDING": "recording", "PROCESSING": "processing"}
-        status = f"Mode: {label} · {state_en.get(state, state)}"
+        status = f"{i18n.t('Mode')}: {label} · {i18n.t(state_en.get(state, state))}"
 
         # AppKit desde el hilo de grabación mata la app con el menú abierto: se
         # marshala. El icono ya lo hacía (_swap_icon); los títulos NO — ese era
@@ -1060,7 +1060,7 @@ class VoooxlyApp(rumps.App):
         self._history.clear()
         for t in reversed(hits):
             self._history.appendleft(t)
-        self.recent_parent.title = f"Recent — “{query}”"
+        self.recent_parent.title = f"{i18n.t('Recent')} — “{query}”"
         self._refresh_recent()
         self._alert(
             f"{len(hits)} match(es)",
@@ -1648,7 +1648,7 @@ class VoooxlyApp(rumps.App):
                             "version, then open it again.\n\nVoooxly has to "
                             "quit first — macOS won't let you replace an app "
                             "that's running.",
-                    ok="Quit now", cancel="Not yet",
+                    ok=i18n.t("Quit now"), cancel=i18n.t("Not yet"),
                 ) == 1:
                     self._quit(None)
             except Exception:

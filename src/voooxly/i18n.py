@@ -40,6 +40,10 @@ MENU_STRINGS = [
     "Recent", "(empty)", "Settings", "Start at login", "Sounds",
     "Add to dictionary…", "Shortcuts", "Customize…", "Search history…",
     "How to use Voooxly…", "Correct last dictation…",
+    # --- estado de la barra de menú (_refresh_title) ---
+    "Mode", "ready", "recording", "processing",
+    # --- botones del diálogo de quit-to-install ---
+    "Quit now", "Not yet",
 ]
 
 ES = {
@@ -63,11 +67,18 @@ ES = {
     "Search history…": "Buscar en el historial…",
     "How to use Voooxly…": "Cómo usar Voooxly…",
     "Correct last dictation…": "Corregir el último dictado…",
+    # --- estado de la barra de menú (_refresh_title) ---
+    "Mode": "Modo",
+    "ready": "listo",
+    "recording": "grabando",
+    "processing": "procesando",
     # --- updates ---
     "Update downloaded": "Actualización descargada",
     "Install and relaunch": "Instalar y reabrir",
     "Later": "Más tarde",
     "Download now": "Descargar ahora",
+    "Quit now": "Salir ahora",
+    "Not yet": "Todavía no",
     "Correct last dictation": "Corregir el último dictado",
     "Learn & copy": "Aprender y copiar",
     "Cancel": "Cancelar",
