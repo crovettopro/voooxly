@@ -40,6 +40,8 @@ MENU_STRINGS = [
     "Recent", "(empty)", "Settings", "Start at login", "Sounds",
     "Add to dictionary…", "Shortcuts", "Customize…", "Search history…",
     "How to use Voooxly…", "Correct last dictation…",
+    # --- submenú de idioma de dictado (auto-lock de langlock) ---
+    "Dictation language", "Auto",
     # --- estado de la barra de menú (_refresh_title) ---
     "Mode", "ready", "recording", "processing",
     # --- botones del diálogo de quit-to-install ---
@@ -86,6 +88,9 @@ ES = {
     "Search history…": "Buscar en el historial…",
     "How to use Voooxly…": "Cómo usar Voooxly…",
     "Correct last dictation…": "Corregir el último dictado…",
+    # --- submenú de idioma de dictado ---
+    "Dictation language": "Idioma de dictado",
+    "Auto": "Automático",
     # --- estado de la barra de menú (_refresh_title) ---
     "Mode": "Modo",
     "ready": "listo",

@@ -19,7 +19,7 @@ import time
 
 import rumps
 
-from . import audio, dictionary, history, i18n, keys, media, modes, output, providers, recgate, refine, richtext, setup_checks, shortcuts, stats, stt, updates
+from . import audio, dictionary, history, i18n, keys, langlock, media, modes, output, providers, recgate, refine, richtext, setup_checks, shortcuts, stats, stt, updates
 from .config import get_config, resolve_language
 from .hotkey import HotkeyManager
 from .overlay import Overlay
@@ -426,6 +426,16 @@ class VoooxlyApp(rumps.App):
         self.shortcuts_item = rumps.MenuItem(i18n.t("Customize…"), callback=self._open_shortcuts)
         self.shortcuts_menu.add(self.shortcuts_item)
 
+        # Idioma de dictado: Auto (con lock aprendido visible), Español, English.
+        # Los nombres de idioma son endónimos: no se traducen.
+        self.lang_menu = rumps.MenuItem(i18n.t("Dictation language"))
+        self._lang_items = {}
+        for code, label in (("auto", i18n.t("Auto")), ("es", "Español"), ("en", "English")):
+            mi = rumps.MenuItem(label, callback=self._make_lang_cb(code))
+            self._lang_items[code] = mi
+            self.lang_menu.add(mi)
+        self._refresh_lang_menu()
+
         self.search_item = rumps.MenuItem(i18n.t("Search history…"), callback=self._search_history)
         # La guía de uso (feedback v1.6: muchas funciones, ninguna guía).
         self.guide_item = rumps.MenuItem(i18n.t("How to use Voooxly…"), callback=self._show_guide)
@@ -439,6 +449,7 @@ class VoooxlyApp(rumps.App):
             self.status,
             self.ai,
             self.shortcuts_menu,
+            self.lang_menu,
             self.stats_item,
             settings,
             rumps.separator,
@@ -456,6 +467,31 @@ class VoooxlyApp(rumps.App):
         def cb(_sender):
             self.set_mode(key)
         return cb
+
+    def _make_lang_cb(self, code: str):
+        def cb(_sender):
+            self._prefs["stt_language"] = code
+            if code == "auto":
+                # Volver a Auto reinicia el aprendizaje: racha y lock fuera.
+                self._prefs["lang_streak"] = []
+                self._prefs["stt_lang_lock"] = None
+            _save_prefs(self._prefs)
+            self._refresh_lang_menu()
+        return cb
+
+    def _refresh_lang_menu(self):
+        """Check en el idioma activo; el ítem Auto enseña el lock aprendido."""
+        try:
+            sel = self._prefs.get("stt_language", "auto")
+            lock = self._prefs.get("stt_lang_lock")
+            title = i18n.t("Auto")
+            if lock:
+                title += " (Español)" if lock == "es" else " (English)"
+            self._lang_items["auto"].title = title
+            for code, mi in self._lang_items.items():
+                mi.state = 1 if code == sel else 0
+        except Exception:
+            pass
 
     def set_mode(self, key: str):
         if key not in modes.MODES:
@@ -756,9 +792,18 @@ class VoooxlyApp(rumps.App):
         return float(self.cfg.get("audio.min_rms", 50))
 
     def _stt_language(self) -> str | None:
-        """Idioma efectivo para el STT: el modo puede forzar el suyo
-        (p.ej. Traducir EN→ES dicta en inglés)."""
-        return modes.MODES.get(self.mode, {}).get("stt_lang") or self.stt_lang
+        """Idioma efectivo para el STT: modo > menú > config > lock aprendido.
+
+        El modo puede forzar el suyo (p.ej. Traducir EN→ES dicta en inglés);
+        el lock lo aprende langlock tras 3 dictados consecutivos en el mismo
+        idioma y ahorra ~1,1s de auto-detección por dictado (medido)."""
+        mode_lang = modes.MODES.get(self.mode, {}).get("stt_lang")
+        if mode_lang:
+            return mode_lang
+        manual = self._prefs.get("stt_language", "auto")
+        if manual != "auto":
+            return manual
+        return self.stt_lang or self._prefs.get("stt_lang_lock") or None
 
     def _on_stop(self, audio_buf, duration: float):
         self._partial_running.clear()
@@ -909,6 +954,24 @@ class VoooxlyApp(rumps.App):
                 log.warning("Descartada como alucinación de Whisper: %r", transcript)
                 self._flash("(didn't catch that — say it again)", 1.5)
                 return
+            # Auto-lock de idioma: solo aprende mientras este dictado salió SIN
+            # idioma fijado (ni modo, ni menú, ni config, ni lock previo).
+            if self._stt_language() is None:
+                try:
+                    streak, lock = langlock.update_lock(
+                        self._prefs.get("lang_streak", []),
+                        langlock.detect_lang_es_en(transcript),
+                    )
+                    if (streak != self._prefs.get("lang_streak")
+                            or lock != self._prefs.get("stt_lang_lock")):
+                        self._prefs["lang_streak"] = streak
+                        self._prefs["stt_lang_lock"] = lock
+                        _save_prefs(self._prefs)
+                        if lock:
+                            log.info("Idioma de dictado fijado automáticamente: %s", lock)
+                            self._on_main(self._refresh_lang_menu)
+                except Exception:
+                    pass
             # Enseñar ya lo transcrito: la espera del refino (2-6s) se entiende
             # mejor viendo el texto que con un "Processing…" opaco.
             self._overlay.show(transcript, title="✦ Polishing")
