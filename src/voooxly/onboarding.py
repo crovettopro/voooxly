@@ -72,7 +72,7 @@ from AppKit import (
 )
 from Foundation import NSAttributedString, NSMakeRect, NSMakeSize, NSObject, NSTimer
 
-from . import setup_checks, stt
+from . import i18n, setup_checks, stt
 from .theme import (  # noqa: F401  (se re-exportan: los usan las páginas)
     BTN_BORDER, BTN_GHOST_TEXT, CTA_DISABLED_BG, CTA_DISABLED_TEXT, DIVIDER,
     HAIRLINE, INK, INK_KEYCAP, INK_MUTED, INK_SOFT, KEYCAP_BG, KEYCAP_BG2,
@@ -96,6 +96,17 @@ PAD = 40
 def _y(top, h):
     """Convierte una 'y desde arriba' (como en el diseño) al origen abajo-izquierda."""
     return H - top - h
+
+
+def cta_label() -> str:
+    """Texto del CTA principal ('Continue →'), ya traducido.
+
+    Única fuente para _build_page1 (lo pinta la primera vez) y _refresh
+    (lo repinta cada segundo vía NSTimer): antes _refresh usaba el literal
+    en inglés y pisaba la traducción puesta al construir la ventana. Pura,
+    sin AppKit, para poder testearla sin instanciar nada.
+    """
+    return i18n.t("Continue →")
 
 
 # key, título, explicación, texto del botón, estilo. El orden es el de check_all().
@@ -150,7 +161,7 @@ class OnboardingController(NSObject):
             NSBackingStoreBuffered,
             False,
         )
-        self._win.setTitle_("Welcome to Voooxly")
+        self._win.setTitle_(i18n.t("Welcome to Voooxly"))
         self._win.setReleasedWhenClosed_(False)
         self._win.setLevel_(NSFloatingWindowLevel)
         self._win.setDelegate_(self)
@@ -159,7 +170,7 @@ class OnboardingController(NSObject):
 
         # STEP label compartido (arriba a la derecha, ambas páginas).
         self._step_label = _label(NSMakeRect(W - PAD - 160, _y(38, 12), 160, 12),
-                                  "STEP 1 OF 2", _mono(10, 0.3), INK_MUTED,
+                                  i18n.t("STEP 1 OF 2"), _mono(10, 0.3), INK_MUTED,
                                   align=NSTextAlignmentRight)
         content.addSubview_(self._step_label)
 
@@ -180,17 +191,18 @@ class OnboardingController(NSObject):
         content.addSubview_(icon); add(icon)
 
         title = _label(NSMakeRect(PAD, _y(114, 34), W - 2 * PAD, 34),
-                       "Welcome to Voooxly", _serif(27, semibold=True), INK)
+                       i18n.t("Welcome to Voooxly"), _serif(27, semibold=True), INK)
         content.addSubview_(title); add(title)
         sub = _label(NSMakeRect(PAD, _y(154, 20), W - 2 * PAD, 20),
-                     "Dictate anywhere — Voooxly types what you say.", _sf(14.5), INK_SOFT)
+                     i18n.t("Dictate anywhere — Voooxly types what you say."),
+                     _sf(14.5), INK_SOFT)
         content.addSubview_(sub); add(sub)
 
         div = _rule(NSMakeRect(PAD, _y(196, 1), W - 2 * PAD, 1), DIVIDER)
         content.addSubview_(div); add(div)
 
         sec = _label(NSMakeRect(PAD, _y(215, 14), W - 2 * PAD, 14),
-                     "A COUPLE OF ONE-TIME STEPS", _sf(11, 0.3), INK_MUTED)
+                     i18n.t("A COUPLE OF ONE-TIME STEPS"), _sf(11, 0.3), INK_MUTED)
         content.addSubview_(sec); add(sec)
 
         rows_h = {"mic": 62, "accessibility": 62, "model": 72, "ai": 96}
@@ -208,12 +220,13 @@ class OnboardingController(NSObject):
             t += h
 
         foot = _label(NSMakeRect(PAD, 84, W - 2 * PAD, 32),
-                      "Takes about 2 minutes. You can change any of this later "
-                      "from the menu bar (🎙 icon).", _sf(12), INK_MUTED,
+                      i18n.t("Takes about 2 minutes. You can change any of "
+                             "this later from the menu bar (🎙 icon)."),
+                      _sf(12), INK_MUTED,
                       align=NSTextAlignmentCenter, multiline=True)
         content.addSubview_(foot); add(foot)
 
-        self._done = _cta_button(NSMakeRect(PAD, 26, W - 2 * PAD, 48), "Continue →", self, "continue:")
+        self._done = _cta_button(NSMakeRect(PAD, 26, W - 2 * PAD, 48), cta_label(), self, "continue:")
         content.addSubview_(self._done); add(self._done)
 
     # ---------------- página 2: cómo dictar ----------------
@@ -225,20 +238,21 @@ class OnboardingController(NSObject):
         content.addSubview_(hero); add(hero)
 
         title = _label(NSMakeRect(PAD, _y(232, 30), W - 2 * PAD, 30),
-                       "You're ready to dictate", _serif(22, semibold=True), INK,
+                       i18n.t("You're ready to dictate"), _serif(22, semibold=True), INK,
                        align=NSTextAlignmentCenter)
         content.addSubview_(title); add(title)
         sub = _label(NSMakeRect(PAD, _y(267, 20), W - 2 * PAD, 20),
-                     "Two keys are all you need.", _sf(14), INK_SOFT,
+                     i18n.t("Two keys are all you need."), _sf(14), INK_SOFT,
                      align=NSTextAlignmentCenter)
         content.addSubview_(sub); add(sub)
 
         cap = _label(NSMakeRect(PAD, _y(309, 20), W - 2 * PAD, 20),
-                     "Hold the RIGHT ⌘ key", _sf(14.5, 0.3), INK,
+                     i18n.t("Hold the RIGHT ⌘ key"), _sf(14.5, 0.3), INK,
                      align=NSTextAlignmentCenter)
         content.addSubview_(cap); add(cap)
         instr = _label(NSMakeRect((W - 420) / 2, _y(335, 34), 420, 34),
-                       "speak, then release — your words get typed where the cursor is.",
+                       i18n.t("speak, then release — your words get typed "
+                              "where the cursor is."),
                        _sf(13), INK_SOFT, align=NSTextAlignmentCenter, multiline=True)
         content.addSubview_(instr); add(instr)
 
@@ -250,9 +264,12 @@ class OnboardingController(NSObject):
         t = 387
         first = True
         for keys, ttl, desc in (
-            ("⌘ + Shift", "Hands-free", "Toggle dictation on/off without holding."),
-            ("⌃⇧M", "Change mode", f"Cycle {n_modos} modes (verbatim, email, code…)."),
-            ("Esc", "Cancel", "Throw away the dictation in progress."),
+            ("⌘ + Shift", i18n.t("Hands-free"),
+             i18n.t("Toggle dictation on/off without holding.")),
+            ("⌃⇧M", i18n.t("Change mode"),
+             i18n.t("Cycle {n} modes (verbatim, email, code…).").format(n=n_modos)),
+            ("Esc", i18n.t("Cancel"),
+             i18n.t("Throw away the dictation in progress.")),
         ):
             hair = _rule(NSMakeRect(PAD, _y(t, 1), W - 2 * PAD, 1), HAIRLINE)
             content.addSubview_(hair); add(hair)
@@ -269,12 +286,13 @@ class OnboardingController(NSObject):
         hair = _rule(NSMakeRect(PAD, _y(t, 1), W - 2 * PAD, 1), HAIRLINE)
         content.addSubview_(hair); add(hair)
         nota = _label(NSMakeRect(PAD, _y(t + 16, 34), W - 2 * PAD, 34),
-                      "Prefer another key? Change it whenever you like from the "
-                      "menu bar icon › Shortcuts › Customize…",
+                      i18n.t("Prefer another key? Change it whenever you like "
+                             "from the menu bar icon › Shortcuts › "
+                             "Customize…"),
                       _sf(12), INK_SOFT, align=NSTextAlignmentCenter, multiline=True)
         content.addSubview_(nota); add(nota)
 
-        self._start = _cta_button(NSMakeRect(PAD, 26, W - 2 * PAD, 48), "Start dictating", self, "finish:")
+        self._start = _cta_button(NSMakeRect(PAD, 26, W - 2 * PAD, 48), i18n.t("Start dictating"), self, "finish:")
         content.addSubview_(self._start); add(self._start)
 
     def _shortcut_row(self, frame, keys, title, desc):
@@ -297,25 +315,27 @@ class OnboardingController(NSObject):
                         align=NSTextAlignmentCenter)
         row.addSubview_(status)
 
-        row.addSubview_(_label(NSMakeRect(title_x, rh - 27, 200, 16), name, _sf(14, 0.3), INK))
+        row.addSubview_(_label(NSMakeRect(title_x, rh - 27, 200, 16), i18n.t(name), _sf(14, 0.3), INK))
         if key == "ai":  # etiqueta "Optional" en gris junto al título
-            row.addSubview_(_label(NSMakeRect(title_x + 78, rh - 26, 90, 15), "Optional",
+            row.addSubview_(_label(NSMakeRect(title_x + 78, rh - 26, 90, 15), i18n.t("Optional"),
                                    _sf(11.5), INK_MUTED))
 
         # Botón arriba, alineado con el título; la descripción va DEBAJO, a todo
-        # el ancho (así no la recorta el botón — el bug que había).
+        # el ancho (así no la recorta el botón — el bug que había). El ancho se
+        # calcula sobre `action` en inglés (clave estable de la tabla); solo el
+        # texto pintado pasa por t().
         btn_w = {"Allow": 70, "Open Settings": 116, "Download": 104, "Connect AI": 100}.get(action, 100)
-        btn = _row_button(NSMakeRect(rw - btn_w, rh - 31, btn_w, 24), action, style, self, f"{key}:")
+        btn = _row_button(NSMakeRect(rw - btn_w, rh - 31, btn_w, 24), i18n.t(action), style, self, f"{key}:")
         row.addSubview_(btn)
 
         full_w = rw - title_x - 8
         if key == "model":
-            desc_lbl = _label(NSMakeRect(title_x, 20, full_w, 18), desc, _sf(12), INK_SOFT)
+            desc_lbl = _label(NSMakeRect(title_x, 20, full_w, 18), i18n.t(desc), _sf(12), INK_SOFT)
         elif key == "ai":
-            desc_lbl = _label(NSMakeRect(title_x, 8, full_w, rh - 40), desc, _sf(12),
+            desc_lbl = _label(NSMakeRect(title_x, 8, full_w, rh - 40), i18n.t(desc), _sf(12),
                               INK_SOFT, multiline=True)
         else:
-            desc_lbl = _label(NSMakeRect(title_x, 8, full_w, 20), desc, _sf(12), INK_SOFT)
+            desc_lbl = _label(NSMakeRect(title_x, 8, full_w, 20), i18n.t(desc), _sf(12), INK_SOFT)
         row.addSubview_(desc_lbl)
 
         bar = None
@@ -379,7 +399,7 @@ class OnboardingController(NSObject):
         self._downloading = True
         row = self._rows["model"]
         row["button"].setEnabled_(False)
-        _set_button_title(row["button"], "Downloading…", TEAL_DARK)
+        _set_button_title(row["button"], i18n.t("Downloading…"), TEAL_DARK)
         row["bar"].setHidden_(False)
         if self._model_pct is not None:
             self._model_pct.setHidden_(False)
@@ -452,7 +472,7 @@ class OnboardingController(NSObject):
 
     def downloadFinished_(self, _arg):
         row = self._rows["model"]
-        _set_button_title(row["button"], "Download", TEAL_DARK)
+        _set_button_title(row["button"], i18n.t("Download"), TEAL_DARK)
         if self._model_pct is not None:
             self._model_pct.setHidden_(True)
         self._refresh()
@@ -490,7 +510,7 @@ class OnboardingController(NSObject):
                 row["bar"].setHidden_(True)
             if check.blocking and not check.ok:
                 ready = False
-        _style_cta(self._done, ready, "Continue →")
+        _style_cta(self._done, ready, cta_label())
 
         # Re-mostrar la ventana si la escondimos para ir a Ajustes del Sistema.
         if self._hidden_for_settings:
@@ -512,11 +532,11 @@ class OnboardingController(NSObject):
         for v in self._page2:
             v.setHidden_(n != 2)
         if n == 1:
-            self._step_label.setStringValue_("STEP 1 OF 2")
+            self._step_label.setStringValue_(i18n.t("STEP 1 OF 2"))
             self._done.setKeyEquivalent_("\r")
             self._start.setKeyEquivalent_("")
         else:
-            self._step_label.setStringValue_("STEP 2 OF 2")
+            self._step_label.setStringValue_(i18n.t("STEP 2 OF 2"))
             self._done.setKeyEquivalent_("")
             self._start.setKeyEquivalent_("\r")
 

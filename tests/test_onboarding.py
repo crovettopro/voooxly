@@ -89,6 +89,20 @@ def test_sin_ia_si_deja_continuar(controller):
         assert controller._rows["ai"]["button"].isEnabled()
 
 
+def test_cta_label_respeta_el_idioma():
+    """El CTA 'Continuar →' no debe volver al inglés cuando el NSTimer llama a
+    _refresh cada segundo (hallazgo de revisión #1): _build_page1 y _refresh
+    pintan cta_label(), una única fuente, así que no se pueden desincronizar.
+    Pura: no instancia nada de AppKit."""
+    from voooxly import i18n
+
+    i18n.set_lang("es")
+    try:
+        assert onboarding.cta_label() == "Continuar →"
+    finally:
+        i18n.set_lang("en")
+
+
 def test_finish_invoca_el_callback():
     llamado = []
     c = onboarding.OnboardingController.alloc().initWithFinish_(lambda: llamado.append(1))
