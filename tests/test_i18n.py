@@ -42,3 +42,26 @@ def test_las_traducciones_cubren_el_menu_principal():
     # si alguien añade un ítem y olvida traducirlo, este test lo caza.
     for s in i18n.MENU_STRINGS:
         assert s in i18n.ES, f"Falta traducción de: {s!r}"
+
+
+def test_traduce_estado_de_la_barra_de_menu():
+    # _refresh_title compone "Mode: <label> · <state>" — el prefijo y las
+    # palabras de estado deben pasar por t() (hallazgo de revisión #1).
+    i18n.set_lang("es")
+    try:
+        assert i18n.t("Mode") == "Modo"
+        assert i18n.t("ready") == "listo"
+        assert i18n.t("recording") == "grabando"
+        assert i18n.t("processing") == "procesando"
+    finally:
+        i18n.set_lang("en")
+
+
+def test_traduce_botones_de_quit_to_install():
+    # _offer_quit_to_install pasaba ok/cancel en crudo (hallazgo de revisión #3).
+    i18n.set_lang("es")
+    try:
+        assert i18n.t("Quit now") == "Salir ahora"
+        assert i18n.t("Not yet") == "Todavía no"
+    finally:
+        i18n.set_lang("en")
