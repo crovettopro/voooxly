@@ -359,6 +359,14 @@ class VoooxlyApp(rumps.App):
         # Los items se PRE-crean ocultos: añadir/quitar items de un NSMenu desde el
         # hilo de proceso sería inseguro; cambiar título/hidden funciona bien.
         self.recent_parent = rumps.MenuItem("Recent")
+        # "Corrige y aprende" (v1 del diccionario auto-aprendido, plan
+        # pre-lanzamiento): el usuario corrige el último dictado en un
+        # diálogo y las grafías cambiadas van al diccionario. La detección
+        # 100% automática (leer el campo de otra app) queda para H2.
+        self.correct_item = rumps.MenuItem(
+            "Correct last dictation…", callback=self._correct_last
+        )
+        self.recent_parent.add(self.correct_item)
         self._recent_empty = rumps.MenuItem("(empty)")
         self.recent_parent.add(self._recent_empty)
         self._recent_items: list[rumps.MenuItem] = []
@@ -1054,6 +1062,44 @@ class VoooxlyApp(rumps.App):
         except Exception:
             log.debug("No pude leer el diccionario personal", exc_info=True)
         return ", ".join(t for t in terms if t)[:600] or None
+
+    def _correct_last(self, _sender):
+        """Corrige el último dictado y aprende las grafías cambiadas.
+
+        rumps.Window es modal y va en el main thread (callback de menú, ya
+        estamos). El texto corregido se recopia al portapapeles: el motivo
+        nº1 para corregir es volver a pegarlo bien.
+        """
+        if not self._history:
+            self._alert("Nothing to correct", "Dictate something first.")
+            return
+        original = self._history[0]
+        resp = rumps.Window(
+            message="Fix any misheard words — Voooxly learns the right "
+                    "spelling for next time:",
+            title="Correct last dictation",
+            default_text=original,
+            ok="Learn & copy",
+            cancel="Cancel",
+            dimensions=(360, 120),
+        ).run()
+        corrected = (resp.text or "").strip() if resp.clicked else ""
+        if not corrected or corrected == original:
+            return
+        from . import learn
+
+        descs = learn.learn_from(original, corrected)
+        try:
+            self._history[0] = corrected
+            self._refresh_recent()
+            output.copy_to_clipboard(corrected)
+        except Exception:
+            log.debug("No pude recopiar la corrección", exc_info=True)
+        if descs:
+            self.stt_prompt = self._build_stt_prompt()  # sesga ya el siguiente
+            self._hud("\n".join(descs), title="✓ Learned")
+        else:
+            self._hud("Copied — no new spellings to learn.", title="✓ Corrected")
 
     def _add_to_dictionary(self, _sender):
         resp = rumps.Window(
