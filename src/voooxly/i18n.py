@@ -44,8 +44,27 @@ MENU_STRINGS = [
     "Mode", "ready", "recording", "processing",
     # --- botones del diálogo de quit-to-install ---
     "Quit now", "Not yet",
+    # --- diálogo de "Correct last dictation…" (_correct_last) ---
+    "Fix any misheard words — Voooxly learns the right spelling for next time:",
+    # --- ventana y alerts de "Search history…" (_search_history) ---
+    "Search history", "Find past dictations containing:", "Search",
+    "History is off", "Set app.save_history: true in config.yaml to keep dictations.",
+    "No matches", 'Nothing matches "{query}".', "{n} match(es)",
+    "They're in the Recent submenu — click one to copy it.",
+    # --- "Not added" (_add_to_dictionary) ---
+    "Not added",
+    # --- updates: check_now_message / About / ítem de menú dinámico ---
+    "Up to date", "Couldn't check", "Voooxly {ver} is available.",
+    "You're running the latest version (Voooxly {local}).",
+    "Couldn't reach the update server. Try again later.",
+    "Check for updates…", "Update to {ver} →",
 ]
 
+# Fuera de alcance a propósito en v1.8.0: los HUD/flashes de _correct_last y
+# _add_to_dictionary ("✓ Learned", "✓ Corrected", "✓ Added to dictionary" y
+# similares) quedan en inglés — traducirlos implica localizar también las
+# descripciones que arma dictionary.add (learn.learn_from / dictionary.add),
+# que viven fuera de este módulo. Se retoma en un fix dedicado.
 ES = {
     # --- menú ---
     "Ready": "Listo",
@@ -80,8 +99,36 @@ ES = {
     "Quit now": "Salir ahora",
     "Not yet": "Todavía no",
     "Correct last dictation": "Corregir el último dictado",
+    "Fix any misheard words — Voooxly learns the right spelling for next time:":
+        "Corrige lo que haya oído mal — Voooxly aprende la grafía correcta "
+        "para la próxima:",
     "Learn & copy": "Aprender y copiar",
     "Cancel": "Cancelar",
+    # --- "Search history…" (_search_history) ---
+    "Search history": "Buscar en el historial",
+    "Find past dictations containing:": "Busca dictados anteriores que contengan:",
+    "Search": "Buscar",
+    "History is off": "Historial desactivado",
+    "Set app.save_history: true in config.yaml to keep dictations.":
+        "Activa app.save_history: true en config.yaml para guardar los dictados.",
+    "No matches": "Sin resultados",
+    'Nothing matches "{query}".': 'Nada coincide con "{query}".',
+    "{n} match(es)": "{n} resultado(s)",
+    "They're in the Recent submenu — click one to copy it.":
+        "Están en el submenú Recientes — haz clic en uno para copiarlo.",
+    # --- "Add to dictionary…" (_add_to_dictionary) ---
+    "Not added": "No añadido",
+    # --- updates: check_now_message / About / ítem de menú dinámico ---
+    "Up to date": "Actualizado",
+    "Couldn't check": "No se pudo comprobar",
+    "Voooxly {ver} is available.": "Voooxly {ver} está disponible.",
+    "You're running the latest version (Voooxly {local}).":
+        "Tienes la última versión (Voooxly {local}).",
+    "Couldn't reach the update server. Try again later.":
+        "No se pudo contactar con el servidor de actualizaciones. "
+        "Inténtalo más tarde.",
+    "Check for updates…": "Comprobar actualizaciones…",
+    "Update to {ver} →": "Actualizar a {ver} →",
     # "What's new" en run(): prefijo del título, la versión va aparte.
     "What's new in Voooxly": "Novedades de Voooxly",
     # --- diálogos frecuentes ---

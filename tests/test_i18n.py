@@ -70,6 +70,62 @@ def test_traduce_botones_de_quit_to_install():
         i18n.set_lang("en")
 
 
+def test_traduce_dialogo_de_correct_last():
+    # _correct_last pasaba el cuerpo del diálogo en crudo (hallazgo de
+    # revisión final #2): el título ya se traducía, el mensaje no.
+    i18n.set_lang("es")
+    try:
+        assert i18n.t(
+            "Fix any misheard words — Voooxly learns the right "
+            "spelling for next time:"
+        ) == "Corrige lo que haya oído mal — Voooxly aprende la grafía correcta para la próxima:"
+    finally:
+        i18n.set_lang("en")
+
+
+def test_traduce_dialogos_de_search_history():
+    # _search_history mezclaba español (título del submenú) con inglés (la
+    # ventana y sus alerts) — hallazgo de revisión final #2.
+    i18n.set_lang("es")
+    try:
+        assert i18n.t("Search history") == "Buscar en el historial"
+        assert i18n.t("Find past dictations containing:") == "Busca dictados anteriores que contengan:"
+        assert i18n.t("Search") == "Buscar"
+        assert i18n.t("History is off") == "Historial desactivado"
+        assert i18n.t("Set app.save_history: true in config.yaml to keep dictations.") == (
+            "Activa app.save_history: true en config.yaml para guardar los dictados."
+        )
+        assert i18n.t("No matches") == "Sin resultados"
+        assert i18n.t('Nothing matches "{query}".').format(query="foo") == 'Nada coincide con "foo".'
+        assert i18n.t("{n} match(es)").format(n=3) == "3 resultado(s)"
+        assert i18n.t("They're in the Recent submenu — click one to copy it.") == (
+            "Están en el submenú Recientes — haz clic en uno para copiarlo."
+        )
+    finally:
+        i18n.set_lang("en")
+
+
+def test_traduce_not_added_y_updates():
+    # Hallazgo de revisión final #3: "Not added", check_now_message() y el
+    # ítem dinámico de menú "Update to {ver} →" quedaban en inglés.
+    i18n.set_lang("es")
+    try:
+        assert i18n.t("Not added") == "No añadido"
+        assert i18n.t("Up to date") == "Actualizado"
+        assert i18n.t("Couldn't check") == "No se pudo comprobar"
+        assert i18n.t("Voooxly {ver} is available.").format(ver="1.9.0") == "Voooxly 1.9.0 está disponible."
+        assert i18n.t("You're running the latest version (Voooxly {local}).").format(local="1.8.0") == (
+            "Tienes la última versión (Voooxly 1.8.0)."
+        )
+        assert i18n.t("Couldn't reach the update server. Try again later.") == (
+            "No se pudo contactar con el servidor de actualizaciones. Inténtalo más tarde."
+        )
+        assert i18n.t("Check for updates…") == "Comprobar actualizaciones…"
+        assert i18n.t("Update to {ver} →").format(ver="1.9.0") == "Actualizar a 1.9.0 →"
+    finally:
+        i18n.set_lang("en")
+
+
 def test_el_literal_de_ES_no_tiene_claves_duplicadas():
     # Una clave repetida en el dict literal no rompe en tiempo de ejecución
     # (la última asignación gana en silencio) pero esconde una traducción

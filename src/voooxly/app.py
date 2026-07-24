@@ -166,11 +166,17 @@ def check_now_message(status: str, info: dict | None, local: str) -> tuple[str, 
     if status == updates.UPDATE_AVAILABLE and info:
         ver = info["version"]
         notes = (info.get("notes") or "").strip()
-        body = f"Voooxly {ver} is available." + (f"\n\n{notes}" if notes else "")
-        return "Update available", body
+        body = i18n.t("Voooxly {ver} is available.").format(ver=ver) + (
+            f"\n\n{notes}" if notes else ""
+        )
+        return i18n.t("Update available"), body
     if status == updates.UP_TO_DATE:
-        return "Up to date", f"You're running the latest version (Voooxly {local})."
-    return "Couldn't check", "Couldn't reach the update server. Try again later."
+        return i18n.t("Up to date"), i18n.t(
+            "You're running the latest version (Voooxly {local})."
+        ).format(local=local)
+    return i18n.t("Couldn't check"), i18n.t(
+        "Couldn't reach the update server. Try again later."
+    )
 
 
 def apply_ai_selection(cfg, sel) -> None:
@@ -250,6 +256,11 @@ class VoooxlyApp(rumps.App):
         self._sounds = bool(self._prefs.get("sounds", cfg.get("app.sounds", True)))
         self._snd_cache: dict = {}   # NSSound vivos mientras suenan (si no, dealloc a mitad)
         self._history: collections.deque[str] = collections.deque(maxlen=HISTORY_SIZE)
+        # Separado de _history porque _search_history reemplaza el contenido
+        # de la deque con hits de búsqueda (self._history[0] deja de ser "lo
+        # último dictado"). _correct_last necesita el dictado real, no el hit
+        # más relevante de una búsqueda.
+        self._last_dictation: str | None = None
         # Diccionario (config + personal) → initial prompt de Whisper (sesga
         # hacia esas grafías). Whisper solo usa ~224 tokens: se recorta.
         self.stt_prompt = self._build_stt_prompt()
@@ -1008,6 +1019,7 @@ class VoooxlyApp(rumps.App):
 
     def _push_history(self, text: str):
         self._history.appendleft(text)
+        self._last_dictation = text
         # deshace un filtro de búsqueda previo. Se llama desde el hilo de
         # _process (fondo): el write del título del NSMenuItem va por el main.
         self._on_main(lambda: setattr(self.recent_parent, "title", i18n.t("Recent")))
@@ -1037,15 +1049,15 @@ class VoooxlyApp(rumps.App):
     def _search_history(self, _sender):
         if not self._save_history_on():
             self._alert(
-                "History is off",
-                "Set app.save_history: true in config.yaml to keep dictations.",
+                i18n.t("History is off"),
+                i18n.t("Set app.save_history: true in config.yaml to keep dictations."),
             )
             return
         resp = rumps.Window(
-            message="Find past dictations containing:",
-            title="Search history",
-            ok="Search",
-            cancel="Cancel",
+            message=i18n.t("Find past dictations containing:"),
+            title=i18n.t("Search history"),
+            ok=i18n.t("Search"),
+            cancel=i18n.t("Cancel"),
             dimensions=(300, 24),
         ).run()
         query = (resp.text or "").strip() if resp.clicked else ""
@@ -1053,7 +1065,10 @@ class VoooxlyApp(rumps.App):
             return
         hits = history.search(query, HISTORY_SIZE)
         if not hits:
-            self._alert("No matches", f'Nothing matches "{query}".')
+            self._alert(
+                i18n.t("No matches"),
+                i18n.t('Nothing matches "{query}".').format(query=query),
+            )
             return
         # Los resultados se sirven en el propio submenú Recent (clic = copiar);
         # el siguiente dictado lo devuelve a "Recent" normal.
@@ -1063,8 +1078,8 @@ class VoooxlyApp(rumps.App):
         self.recent_parent.title = f"{i18n.t('Recent')} — “{query}”"
         self._refresh_recent()
         self._alert(
-            f"{len(hits)} match(es)",
-            "They're in the Recent submenu — click one to copy it.",
+            i18n.t("{n} match(es)").format(n=len(hits)),
+            i18n.t("They're in the Recent submenu — click one to copy it."),
         )
 
     def _make_recent_cb(self, i: int):
@@ -1092,13 +1107,15 @@ class VoooxlyApp(rumps.App):
         estamos). El texto corregido se recopia al portapapeles: el motivo
         nº1 para corregir es volver a pegarlo bien.
         """
-        if not self._history:
+        if not self._last_dictation:
             self._alert(i18n.t("Nothing to correct"), i18n.t("Dictate something first."))
             return
-        original = self._history[0]
+        original = self._last_dictation
         resp = rumps.Window(
-            message="Fix any misheard words — Voooxly learns the right "
-                    "spelling for next time:",
+            message=i18n.t(
+                "Fix any misheard words — Voooxly learns the right "
+                "spelling for next time:"
+            ),
             title=i18n.t("Correct last dictation"),
             default_text=original,
             ok=i18n.t("Learn & copy"),
@@ -1112,8 +1129,12 @@ class VoooxlyApp(rumps.App):
 
         descs = learn.learn_from(original, corrected)
         try:
-            self._history[0] = corrected
-            self._refresh_recent()
+            self._last_dictation = corrected
+            # Si _history está en modo búsqueda (_search_history la rellenó
+            # con hits), [0] no es este dictado: no lo pisamos.
+            if self._history and self._history[0] == original:
+                self._history[0] = corrected
+                self._refresh_recent()
             output.copy_to_clipboard(corrected)
         except Exception:
             log.debug("No pude recopiar la corrección", exc_info=True)
@@ -1140,7 +1161,7 @@ class VoooxlyApp(rumps.App):
         try:
             desc = dictionary.add(entry)
         except ValueError as e:
-            self._alert("Not added", str(e))
+            self._alert(i18n.t("Not added"), str(e))
             return
         self.stt_prompt = self._build_stt_prompt()  # sesga ya el próximo dictado
         self._hud(desc, title="✓ Added to dictionary")
@@ -1673,7 +1694,7 @@ class VoooxlyApp(rumps.App):
         )
         alert.setIcon_(NSApp.applicationIconImage())
         alert.setAlertStyle_(NSAlertStyleInformational)
-        alert.addButtonWithTitle_("Check for updates…")
+        alert.addButtonWithTitle_(i18n.t("Check for updates…"))
         alert.addButtonWithTitle_("OK")
         if alert.runModal() == NSAlertFirstButtonReturn:
             self._check_now(None)
@@ -1689,7 +1710,7 @@ class VoooxlyApp(rumps.App):
                     ver = info["version"]
 
                     def _show():
-                        self.update_item.title = f"Update to {ver} →"
+                        self.update_item.title = i18n.t("Update to {ver} →").format(ver=ver)
                         self.update_item._menuitem.setHidden_(False)
 
                     self._on_main(_show)
@@ -1721,7 +1742,7 @@ class VoooxlyApp(rumps.App):
                 ver = info["version"]
 
                 def _show():
-                    self.update_item.title = f"Update to {ver} →"
+                    self.update_item.title = i18n.t("Update to {ver} →").format(ver=ver)
                     self.update_item._menuitem.setHidden_(False)
 
                 self._on_main(_show)
