@@ -98,6 +98,17 @@ def _y(top, h):
     return H - top - h
 
 
+def cta_label() -> str:
+    """Texto del CTA principal ('Continue →'), ya traducido.
+
+    Única fuente para _build_page1 (lo pinta la primera vez) y _refresh
+    (lo repinta cada segundo vía NSTimer): antes _refresh usaba el literal
+    en inglés y pisaba la traducción puesta al construir la ventana. Pura,
+    sin AppKit, para poder testearla sin instanciar nada.
+    """
+    return i18n.t("Continue →")
+
+
 # key, título, explicación, texto del botón, estilo. El orden es el de check_all().
 STEPS = [
     ("mic", "Microphone",
@@ -215,7 +226,7 @@ class OnboardingController(NSObject):
                       align=NSTextAlignmentCenter, multiline=True)
         content.addSubview_(foot); add(foot)
 
-        self._done = _cta_button(NSMakeRect(PAD, 26, W - 2 * PAD, 48), i18n.t("Continue →"), self, "continue:")
+        self._done = _cta_button(NSMakeRect(PAD, 26, W - 2 * PAD, 48), cta_label(), self, "continue:")
         content.addSubview_(self._done); add(self._done)
 
     # ---------------- página 2: cómo dictar ----------------
@@ -499,7 +510,7 @@ class OnboardingController(NSObject):
                 row["bar"].setHidden_(True)
             if check.blocking and not check.ok:
                 ready = False
-        _style_cta(self._done, ready, "Continue →")
+        _style_cta(self._done, ready, cta_label())
 
         # Re-mostrar la ventana si la escondimos para ir a Ajustes del Sistema.
         if self._hidden_for_settings:

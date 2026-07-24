@@ -68,3 +68,29 @@ def test_la_guia_sale_en_espanol_cuando_toca():
         assert "Dicta en cualquier sitio" in titulos
     finally:
         i18n.set_lang("en")
+
+
+def test_la_guia_sale_en_espanol_los_nueve_titulos():
+    """No solo el primer título (hallazgo de revisión #2): si un título nuevo
+    se cuela sin pasar por t(), o uno viejo pierde su traducción, esto lo
+    caza. '{n} modos' se construye igual que sections(): con el conteo
+    dinámico del registro, no un número congelado."""
+    from voooxly import i18n
+
+    i18n.set_lang("es")
+    try:
+        n = len(modes.modes_by_key())
+        titulos = [t for t, _ in guide.sections(None)]
+        assert titulos == [
+            "Dicta en cualquier sitio",
+            "Manos libres",
+            "Cancelar",
+            f"{n} modos",
+            "Motor de IA",
+            "Historial",
+            "Diccionario personal",
+            "Hazla tuya",
+            "Actualizaciones",
+        ]
+    finally:
+        i18n.set_lang("en")

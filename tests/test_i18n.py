@@ -1,5 +1,8 @@
 # tests/test_i18n.py
 """t() traduce la UI sin tocar claves persistidas ni romper con idiomas raros."""
+import ast
+from pathlib import Path
+
 from voooxly import i18n
 
 
@@ -65,3 +68,21 @@ def test_traduce_botones_de_quit_to_install():
         assert i18n.t("Not yet") == "Todavía no"
     finally:
         i18n.set_lang("en")
+
+
+def test_el_literal_de_ES_no_tiene_claves_duplicadas():
+    # Una clave repetida en el dict literal no rompe en tiempo de ejecución
+    # (la última asignación gana en silencio) pero esconde una traducción
+    # muerta o, peor, dos valores distintos donde solo uno se aplica
+    # (hallazgo de revisión #3). Se parsea el .py con ast en vez de leer
+    # i18n.ES en memoria porque el objeto ya deduplicado no puede delatarlo.
+    src = Path(i18n.__file__).read_text()
+    tree = ast.parse(src)
+    es_dict = next(
+        node.value for node in ast.walk(tree)
+        if isinstance(node, ast.Assign)
+        and any(getattr(target, "id", None) == "ES" for target in node.targets)
+    )
+    keys = [k.value for k in es_dict.keys if isinstance(k, ast.Constant)]
+    dupes = {k for k in keys if keys.count(k) > 1}
+    assert not dupes, f"claves duplicadas en ES: {dupes}"
