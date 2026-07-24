@@ -7,7 +7,7 @@ El sesgo es deliberado: PRECISIÓN sobre exhaustividad. Un reemplazo
 aprendido de más corrompe todos los dictados futuros (dictionary.apply es
 global y case-insensitive); uno aprendido de menos solo cuesta repetir la
 corrección a mano. Por eso solo se aprende de sustituciones cortas
-(1 palabra mal → 1-3 bien) y nunca de borrados, inserciones o reescrituras.
+(1 palabra mal → 1-2 bien) y nunca de borrados, inserciones o reescrituras.
 """
 from __future__ import annotations
 
@@ -15,9 +15,9 @@ import difflib
 import re
 
 # Máx. palabras a cada lado de una sustitución para considerarla "grafía
-# corregida" y no "frase reescrita". 1→3 cubre "wisperflow" → "Wispr Flow".
+# corregida" y no "frase reescrita". 1→2 cubre "wisperflow" → "Wispr Flow".
 _MAX_WRONG = 1
-_MAX_RIGHT = 3
+_MAX_RIGHT = 2
 
 
 def _words(text: str) -> list[str]:
@@ -41,11 +41,11 @@ def corrections(original: str, corrected: str) -> list[tuple[str, str]]:
     for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, a, b).get_opcodes():
         if tag != "replace":
             continue
-        if (i2 - i1) > _MAX_WRONG or (j2 - j1) >= _MAX_RIGHT:
+        if (i2 - i1) > _MAX_WRONG or (j2 - j1) > _MAX_RIGHT:
             continue
         wrong = _strip_punct(" ".join(a[i1:i2]))
         right = _strip_punct(" ".join(b[j1:j2]))
-        if not wrong or not right or wrong.lower() == right.lower() == "":
+        if not wrong or not right:
             continue
         # Cambio solo de puntuación: tras recortar bordes quedan iguales.
         if wrong == right:
