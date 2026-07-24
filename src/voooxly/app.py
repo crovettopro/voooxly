@@ -858,9 +858,11 @@ class VoooxlyApp(rumps.App):
                 self._flash("(no speech detected)", 1.2)
                 return
             # 1) transcripción final
+            stt_t0 = time.monotonic()
             transcript = stt.transcribe(
                 audio_buf, self.stt_model, self._stt_language(), self.stt_prompt
             )
+            stt_t1 = time.monotonic()
             log.info(
                 "Transcripción (%.1fs, RMS=%.0f, voz=%.0f%%): %s",
                 duration, level, speech_ratio * 100, transcript,
@@ -919,6 +921,13 @@ class VoooxlyApp(rumps.App):
                     # el usuario tiene que enterarse igual que con last_fallback.
                     refine_crashed = True
             final = final or transcript
+            ref_t1 = time.monotonic()
+            log.info(
+                "⏱ stt=%dms refine=%dms total=%dms",
+                int((stt_t1 - stt_t0) * 1000),
+                int((ref_t1 - stt_t1) * 1000),
+                int((ref_t1 - stt_t0) * 1000),
+            )
             # Reemplazos del diccionario personal: corrección determinista de
             # las grafías que Whisper sigue fallando aunque estén en el prompt.
             try:
