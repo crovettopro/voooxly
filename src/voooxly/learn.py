@@ -52,3 +52,20 @@ def corrections(original: str, corrected: str) -> list[tuple[str, str]]:
             continue
         fuera.append((wrong, right))
     return fuera
+
+
+def learn_from(original: str, corrected: str, path=None) -> list[str]:
+    """Aprende las correcciones y devuelve descripciones para el HUD.
+
+    Best-effort como todo lo que rodea al dictado: una entrada que no se
+    pueda guardar se salta, jamás se propaga una excepción al menú.
+    """
+    from . import dictionary
+
+    descs: list[str] = []
+    for wrong, right in corrections(original, corrected):
+        try:
+            descs.append(dictionary.add(f"{wrong} -> {right}", path=path))
+        except Exception:
+            continue
+    return descs
