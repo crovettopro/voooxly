@@ -55,6 +55,26 @@ _TRANSCRIBE_TIMEOUT_FLOOR = 30.0
 # se desvía: un server colgado no puede dejar la app esperando sin fin.
 _TRANSCRIBE_TIMEOUT_CEILING = 180.0
 
+# El encoder de Whisper procesa SIEMPRE una ventana de 30s (1500 frames, 50/s),
+# dure lo que dure el audio real. `audio_ctx` por petición recorta esa ventana:
+# -51% de latencia medida en dictados cortos con CERO divergencia de texto
+# (scratchpad/latency-experiments.md). El margen 1.5x (75 frames/s) y el corte
+# a 18s existen porque un contexto menor que el audio corrompe el final en
+# bucle de alucinación — reproducido en el experimento con 19s de audio.
+_AUDIO_CTX_FRAMES_PER_S = 75
+_AUDIO_CTX_MAX_S = 18.0
+_AUDIO_CTX_FLOOR = 256
+_AUDIO_CTX_CEILING = 1500
+
+
+def audio_ctx_for(duration_s: float) -> int | None:
+    """Frames de contexto para el encoder, o None (= contexto completo)."""
+    import math
+
+    if duration_s <= 0 or duration_s > _AUDIO_CTX_MAX_S:
+        return None
+    return min(_AUDIO_CTX_CEILING, max(_AUDIO_CTX_FLOOR, math.ceil(duration_s * _AUDIO_CTX_FRAMES_PER_S)))
+
 
 def _transcribe_timeout(audio: np.ndarray) -> float:
     """Timeout de /inference proporcional al audio, no fijo.
@@ -326,6 +346,9 @@ def transcribe(
     try:
         _audio_to_wav(audio, wav_path)
         data = {"temperature": "0.0", "response_format": "json"}
+        ctx = audio_ctx_for(len(audio) / SR)
+        if ctx is not None:
+            data["audio_ctx"] = str(ctx)
         if language and language != "auto":
             data["language"] = language
         if prompt:
