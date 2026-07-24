@@ -107,7 +107,6 @@ ES = {
     "as long as you like; tap {dic} to finish.":
         "Mientras dictas, toca {latch} para bloquear la grabación y "
         "soltar. Habla todo lo que quieras; toca {dic} para terminar.",
-    "Cancel": "Cancelar",
     "Press {key} while dictating to throw it away — nothing gets pasted.":
         "Pulsa {key} mientras dictas para descartarlo — no se pega nada.",
     "{n} modes": "{n} modos",
@@ -116,7 +115,6 @@ ES = {
         "Un modo decide cómo se reescribe lo que dices antes de "
         "escribirlo. Pulsa {key} para cambiar de modo, o elige uno "
         "arriba del todo del menú:",
-    "AI engine": "Motor de IA",
     "Connect Claude, ChatGPT, Gemini or a local Ollama (menu › AI engine) "
     "and Voooxly cleans up, formats and rewrites what you say. Without AI "
     "you still get accurate word-for-word dictation.":
