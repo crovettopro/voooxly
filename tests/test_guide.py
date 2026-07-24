@@ -57,3 +57,40 @@ def test_los_atajos_de_la_guia_pasan_por_la_tabla_unica():
     cambia con él — nunca dos formas de escribir la misma tecla."""
     estado = {"cancel": {"keys": ["esc"]}}
     assert shortcuts.key_label(["esc"]) in _cuerpo(guide.sections(estado), "Cancel")
+
+
+def test_la_guia_sale_en_espanol_cuando_toca():
+    from voooxly import i18n
+
+    i18n.set_lang("es")
+    try:
+        titulos = [t for t, _ in guide.sections(None)]
+        assert "Dicta en cualquier sitio" in titulos
+    finally:
+        i18n.set_lang("en")
+
+
+def test_la_guia_sale_en_espanol_los_nueve_titulos():
+    """No solo el primer título (hallazgo de revisión #2): si un título nuevo
+    se cuela sin pasar por t(), o uno viejo pierde su traducción, esto lo
+    caza. '{n} modos' se construye igual que sections(): con el conteo
+    dinámico del registro, no un número congelado."""
+    from voooxly import i18n
+
+    i18n.set_lang("es")
+    try:
+        n = len(modes.modes_by_key())
+        titulos = [t for t, _ in guide.sections(None)]
+        assert titulos == [
+            "Dicta en cualquier sitio",
+            "Manos libres",
+            "Cancelar",
+            f"{n} modos",
+            "Motor de IA",
+            "Historial",
+            "Diccionario personal",
+            "Hazla tuya",
+            "Actualizaciones",
+        ]
+    finally:
+        i18n.set_lang("en")

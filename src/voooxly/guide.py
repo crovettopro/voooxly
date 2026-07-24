@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 
 from . import modes, shortcuts
+from .i18n import t
 
 log = logging.getLogger("voooxly.guide")
 
@@ -45,12 +46,15 @@ def sections(state: dict | None = None) -> list[tuple[str, str]]:
     fila_dic = state.get("dictation") or {}
     estilo = fila_dic.get("style", shortcuts.DEFAULT_STYLE) if isinstance(fila_dic, dict) else shortcuts.DEFAULT_STYLE
     if estilo == "hold":
-        dictar = (f"Hold {dic}, speak, then release — your words get typed "
-                  "right where the cursor is, in any app.")
+        dictar = t("Hold {key}, speak, then release — your words get typed "
+                   "right where the cursor is, in any app.").format(key=dic)
     else:
-        dictar = (f"Press {dic} to start, speak, then press it again — your "
-                  "words get typed right where the cursor is, in any app.")
+        dictar = t("Press {key} to start, speak, then press it again — your "
+                   "words get typed right where the cursor is, in any app."
+                   ).format(key=dic)
 
+    # Nombres y descripciones de modos están congelados (registro/ids): no
+    # pasan por t(), igual que en el menú.
     lista_modos = "\n".join(
         f"    {info['label']} — {info['hint']}"
         for info in modes.modes_by_key().values()
@@ -58,35 +62,37 @@ def sections(state: dict | None = None) -> list[tuple[str, str]]:
     n_modos = len(modes.modes_by_key())
 
     return [
-        ("Dictate anywhere", dictar),
-        ("Hands-free",
-         f"While dictating, tap {_binding(state, 'latch')} to lock the "
-         f"recording and let go. Talk as long as you like; tap {dic} to "
-         "finish."),
-        ("Cancel",
-         f"Press {_binding(state, 'cancel')} while dictating to throw it "
-         "away — nothing gets pasted."),
-        (f"{n_modos} modes",
-         "A mode decides how your speech is rewritten before it's typed. "
-         f"Press {_binding(state, 'cycle_mode')} to cycle modes, or pick one "
-         "at the top of the menu:\n" + lista_modos),
-        ("AI engine",
-         "Connect Claude, ChatGPT, Gemini or a local Ollama (menu › AI "
-         "engine) and Voooxly cleans up, formats and rewrites what you say. "
-         "Without AI you still get accurate word-for-word dictation."),
-        ("History",
-         "Recent keeps your last dictations — click one to copy it again. "
-         "Search history… finds anything you ever dictated."),
-        ("Personal dictionary",
-         "Add names, brands or jargon (menu › Settings › Add to "
-         "dictionary…) and Voooxly learns to spell them your way."),
-        ("Make it yours",
-         "Every shortcut above can be changed: menu › Shortcuts › "
-         "Customize…. Start at login, sounds and the rest live under "
-         "Settings."),
-        ("Updates",
-         "Voooxly checks for updates daily and installs them itself — after "
-         "each one, a What's new note tells you what changed."),
+        (t("Dictate anywhere"), dictar),
+        (t("Hands-free"),
+         t("While dictating, tap {latch} to lock the recording and let go. "
+           "Talk as long as you like; tap {dic} to finish.").format(
+               latch=_binding(state, 'latch'), dic=dic)),
+        (t("Cancel"),
+         t("Press {key} while dictating to throw it away — nothing gets "
+           "pasted.").format(key=_binding(state, 'cancel'))),
+        (t("{n} modes").format(n=n_modos),
+         t("A mode decides how your speech is rewritten before it's typed. "
+           "Press {key} to cycle modes, or pick one at the top of the "
+           "menu:").format(key=_binding(state, 'cycle_mode'))
+         + "\n" + lista_modos),
+        (t("AI engine"),
+         t("Connect Claude, ChatGPT, Gemini or a local Ollama (menu › AI "
+           "engine) and Voooxly cleans up, formats and rewrites what you "
+           "say. Without AI you still get accurate word-for-word "
+           "dictation.")),
+        (t("History"),
+         t("Recent keeps your last dictations — click one to copy it "
+           "again. Search history… finds anything you ever dictated.")),
+        (t("Personal dictionary"),
+         t("Add names, brands or jargon (menu › Settings › Add to "
+           "dictionary…) and Voooxly learns to spell them your way.")),
+        (t("Make it yours"),
+         t("Every shortcut above can be changed: menu › Shortcuts › "
+           "Customize…. Start at login, sounds and the rest live under "
+           "Settings.")),
+        (t("Updates"),
+         t("Voooxly checks for updates daily and installs them itself — "
+           "after each one, a What's new note tells you what changed.")),
     ]
 
 
@@ -138,9 +144,9 @@ def _attributed(state: dict):
                     NSParagraphStyleAttributeName: p,
                 }))
 
-    add("How to use Voooxly", theme.serif(24, semibold=True), theme.INK,
+    add(t("How to use Voooxly"), theme.serif(24, semibold=True), theme.INK,
         despues=2.0)
-    add("Everything the menu bar mic can do.", theme.sf(13), theme.INK_MUTED,
+    add(t("Everything the menu bar mic can do."), theme.sf(13), theme.INK_MUTED,
         despues=6.0)
     for titulo, cuerpo in sections(state):
         add(titulo, theme.serif(16, semibold=True), theme.INK, antes=16.0,
@@ -186,7 +192,7 @@ try:
                 NSBackingStoreBuffered,
                 False,
             )
-            self._win.setTitle_("How to use Voooxly")
+            self._win.setTitle_(t("How to use Voooxly"))
             self._win.setReleasedWhenClosed_(False)
             self._win.setLevel_(NSFloatingWindowLevel)
             self._win.setBackgroundColor_(theme.PAGE_BG)
