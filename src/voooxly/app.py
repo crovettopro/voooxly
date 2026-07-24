@@ -19,7 +19,7 @@ import time
 
 import rumps
 
-from . import audio, dictionary, history, keys, media, modes, output, providers, recgate, refine, richtext, setup_checks, shortcuts, stats, stt, updates
+from . import audio, dictionary, history, i18n, keys, media, modes, output, providers, recgate, refine, richtext, setup_checks, shortcuts, stats, stt, updates
 from .config import get_config, resolve_language
 from .hotkey import HotkeyManager
 from .overlay import Overlay
@@ -276,6 +276,19 @@ class VoooxlyApp(rumps.App):
         tecla, modo = dic["keys"][0], dic["style"]
         self._toggle_mode = modo
         self._dictation_key = tecla
+        # Idioma de la UI (menú y diálogos): override manual en config.yaml o,
+        # por defecto, el primer idioma preferido del sistema. i18n.py no toca
+        # AppKit a nivel de módulo, así que resolvemos NSLocale aquí y le
+        # pasamos ya la cadena resuelta.
+        ui_lang = cfg.get("app.ui_language", None)
+        if not ui_lang:
+            try:
+                from Foundation import NSLocale
+
+                ui_lang = i18n.resolve_lang(list(NSLocale.preferredLanguages()))
+            except Exception:
+                ui_lang = "en"
+        i18n.set_lang(ui_lang)
         self._build_menu()
         self._apply_login_default()
         self._hotkey = HotkeyManager(
@@ -328,23 +341,23 @@ class VoooxlyApp(rumps.App):
             items.append(mi)
         self.mode_items = {key: mi for (key, _), mi in zip(modes.modes_by_key().items(), items)}
 
-        self.status = rumps.MenuItem("Ready", callback=None)
-        self.ai = rumps.MenuItem("AI engine")
+        self.status = rumps.MenuItem(i18n.t("Ready"), callback=None)
+        self.ai = rumps.MenuItem(i18n.t("AI engine"))
         self._ai_items = {}
         for prov_key, (etiqueta, _) in zip(providers.PROVIDERS, ai_menu_labels(None)):
             mi = rumps.MenuItem(etiqueta, callback=self._make_provider_cb(prov_key))
             self.ai.add(mi)
             self._ai_items[prov_key] = mi
         self.ai.add(rumps.separator)
-        self.ai_auto_item = rumps.MenuItem("Detect automatically", callback=self._reset_to_auto)
+        self.ai_auto_item = rumps.MenuItem(i18n.t("Detect automatically"), callback=self._reset_to_auto)
         self.ai.add(self.ai_auto_item)
-        self.ai_test_item = rumps.MenuItem("Test connection", callback=self._test_ai)
+        self.ai_test_item = rumps.MenuItem(i18n.t("Test connection"), callback=self._test_ai)
         self.ai.add(self.ai_test_item)
-        self.stats_item = rumps.MenuItem("Usage stats…", callback=self._show_stats)
-        self.quit = rumps.MenuItem("Quit Voooxly", callback=self._quit)
+        self.stats_item = rumps.MenuItem(i18n.t("Usage stats…"), callback=self._show_stats)
+        self.quit = rumps.MenuItem(i18n.t("Quit Voooxly"), callback=self._quit)
         # Oculto hasta que el comprobador encuentre una versión nueva (ver _warmup).
-        self.update_item = rumps.MenuItem("Update available", callback=self._open_update)
-        self.about_item = rumps.MenuItem("About Voooxly", callback=self._show_about)
+        self.update_item = rumps.MenuItem(i18n.t("Update available"), callback=self._open_update)
+        self.about_item = rumps.MenuItem(i18n.t("About Voooxly"), callback=self._show_about)
         self._update_url = ""
         self._update_version = ""
         self._update_downloading = False
@@ -358,16 +371,16 @@ class VoooxlyApp(rumps.App):
         # Recent: los últimos dictados, clic = volver a copiarlos al portapapeles.
         # Los items se PRE-crean ocultos: añadir/quitar items de un NSMenu desde el
         # hilo de proceso sería inseguro; cambiar título/hidden funciona bien.
-        self.recent_parent = rumps.MenuItem("Recent")
+        self.recent_parent = rumps.MenuItem(i18n.t("Recent"))
         # "Corrige y aprende" (v1 del diccionario auto-aprendido, plan
         # pre-lanzamiento): el usuario corrige el último dictado en un
         # diálogo y las grafías cambiadas van al diccionario. La detección
         # 100% automática (leer el campo de otra app) queda para H2.
         self.correct_item = rumps.MenuItem(
-            "Correct last dictation…", callback=self._correct_last
+            i18n.t("Correct last dictation…"), callback=self._correct_last
         )
         self.recent_parent.add(self.correct_item)
-        self._recent_empty = rumps.MenuItem("(empty)")
+        self._recent_empty = rumps.MenuItem(i18n.t("(empty)"))
         self.recent_parent.add(self._recent_empty)
         self._recent_items: list[rumps.MenuItem] = []
         for i in range(HISTORY_SIZE):
@@ -376,12 +389,12 @@ class VoooxlyApp(rumps.App):
             mi._menuitem.setHidden_(True)
             self._recent_items.append(mi)
 
-        settings = rumps.MenuItem("Settings")
-        self.login_item = rumps.MenuItem("Start at login", callback=self._toggle_login)
+        settings = rumps.MenuItem(i18n.t("Settings"))
+        self.login_item = rumps.MenuItem(i18n.t("Start at login"), callback=self._toggle_login)
         self.login_item.state = 1 if os.path.exists(LAUNCH_AGENT) else 0
-        self.sounds_item = rumps.MenuItem("Sounds", callback=self._toggle_sounds)
+        self.sounds_item = rumps.MenuItem(i18n.t("Sounds"), callback=self._toggle_sounds)
         self.sounds_item.state = 1 if self._sounds else 0
-        self.dict_item = rumps.MenuItem("Add to dictionary…", callback=self._add_to_dictionary)
+        self.dict_item = rumps.MenuItem(i18n.t("Add to dictionary…"), callback=self._add_to_dictionary)
         settings.add(self.login_item)
         settings.add(self.sounds_item)
         settings.add(self.dict_item)
@@ -392,19 +405,19 @@ class VoooxlyApp(rumps.App):
         # cualquiera abre la ventana — y "Customize…" al final. Los títulos
         # los decide shortcuts.menu_summary (puro, probado) y se refrescan al
         # aplicar un cambio desde la ventana (_apply_shortcut).
-        self.shortcuts_menu = rumps.MenuItem("Shortcuts")
+        self.shortcuts_menu = rumps.MenuItem(i18n.t("Shortcuts"))
         self._shortcut_rows: dict[str, rumps.MenuItem] = {}
         for sid, texto in shortcuts.menu_summary(self._shortcuts):
             mi = rumps.MenuItem(texto, callback=self._open_shortcuts)
             self.shortcuts_menu.add(mi)
             self._shortcut_rows[sid] = mi
         self.shortcuts_menu.add(rumps.separator)
-        self.shortcuts_item = rumps.MenuItem("Customize…", callback=self._open_shortcuts)
+        self.shortcuts_item = rumps.MenuItem(i18n.t("Customize…"), callback=self._open_shortcuts)
         self.shortcuts_menu.add(self.shortcuts_item)
 
-        self.search_item = rumps.MenuItem("Search history…", callback=self._search_history)
+        self.search_item = rumps.MenuItem(i18n.t("Search history…"), callback=self._search_history)
         # La guía de uso (feedback v1.6: muchas funciones, ninguna guía).
-        self.guide_item = rumps.MenuItem("How to use Voooxly…", callback=self._show_guide)
+        self.guide_item = rumps.MenuItem(i18n.t("How to use Voooxly…"), callback=self._show_guide)
 
         self.menu = [
             *items,
@@ -997,7 +1010,7 @@ class VoooxlyApp(rumps.App):
         self._history.appendleft(text)
         # deshace un filtro de búsqueda previo. Se llama desde el hilo de
         # _process (fondo): el write del título del NSMenuItem va por el main.
-        self._on_main(lambda: setattr(self.recent_parent, "title", "Recent"))
+        self._on_main(lambda: setattr(self.recent_parent, "title", i18n.t("Recent")))
         self._refresh_recent()
         if self._save_history_on():
             history.append(text, self.mode)
@@ -1080,16 +1093,16 @@ class VoooxlyApp(rumps.App):
         nº1 para corregir es volver a pegarlo bien.
         """
         if not self._history:
-            self._alert("Nothing to correct", "Dictate something first.")
+            self._alert(i18n.t("Nothing to correct"), i18n.t("Dictate something first."))
             return
         original = self._history[0]
         resp = rumps.Window(
             message="Fix any misheard words — Voooxly learns the right "
                     "spelling for next time:",
-            title="Correct last dictation",
+            title=i18n.t("Correct last dictation"),
             default_text=original,
-            ok="Learn & copy",
-            cancel="Cancel",
+            ok=i18n.t("Learn & copy"),
+            cancel=i18n.t("Cancel"),
             dimensions=(360, 120),
         ).run()
         corrected = (resp.text or "").strip() if resp.clicked else ""
@@ -1116,9 +1129,9 @@ class VoooxlyApp(rumps.App):
                 "A word Whisper misspells (e.g. Ucademy), or a fix:\n"
                 "wrong spelling -> right spelling"
             ),
-            title="Add to dictionary",
-            ok="Add",
-            cancel="Cancel",
+            title=i18n.t("Add to dictionary"),
+            ok=i18n.t("Add"),
+            cancel=i18n.t("Cancel"),
             dimensions=(300, 24),
         ).run()
         entry = (resp.text or "").strip() if resp.clicked else ""
@@ -1524,8 +1537,8 @@ class VoooxlyApp(rumps.App):
         def ask():
             try:
                 # rumps.alert: 1 = botón ok ("Download now"), 0 = cancel.
-                if rumps.alert(title="Update available", message=body,
-                               ok="Download now", cancel="Later") == 1:
+                if rumps.alert(title=i18n.t("Update available"), message=body,
+                               ok=i18n.t("Download now"), cancel=i18n.t("Later")) == 1:
                     self._open_update(None)
             except Exception:
                 log.warning("No pude mostrar el pop-up de update", exc_info=True)
@@ -1565,10 +1578,10 @@ class VoooxlyApp(rumps.App):
             try:
                 # rumps.alert: 1 = botón ok ("Install and relaunch"), 0 = cancel.
                 if rumps.alert(
-                    title="Update downloaded",
+                    title=i18n.t("Update downloaded"),
                     message=f"Voooxly {ver} is ready. Install it and relaunch "
                             "now? Voooxly restarts by itself in a few seconds.",
-                    ok="Install and relaunch", cancel="Later",
+                    ok=i18n.t("Install and relaunch"), cancel=i18n.t("Later"),
                 ) == 1:
                     self._install_update(dmg_path)
             except Exception:
@@ -1630,7 +1643,7 @@ class VoooxlyApp(rumps.App):
             try:
                 # rumps.alert: 1 = botón ok ("Quit now"), 0 = cancel.
                 if rumps.alert(
-                    title="Update downloaded",
+                    title=i18n.t("Update downloaded"),
                     message="Drag Voooxly into Applications to replace this "
                             "version, then open it again.\n\nVoooxly has to "
                             "quit first — macOS won't let you replace an app "
@@ -1809,8 +1822,9 @@ class VoooxlyApp(rumps.App):
         try:
             cur = updates.current_version()
             if not needs_setup and updates.should_show_whats_new(self._prefs, cur):
+                whats_new_title = i18n.t("What's new in Voooxly") + f" {cur}"
                 t = threading.Timer(
-                    1.5, lambda: self._alert(f"What's new in Voooxly {cur}",
+                    1.5, lambda: self._alert(whats_new_title,
                                              updates.WHATS_NEW))
                 t.daemon = True
                 t.start()
