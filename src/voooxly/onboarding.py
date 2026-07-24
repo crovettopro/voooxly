@@ -242,11 +242,16 @@ class OnboardingController(NSObject):
                        _sf(13), INK_SOFT, align=NSTextAlignmentCenter, multiline=True)
         content.addSubview_(instr); add(instr)
 
+        # El contador de modos sale del registro real: "8 modes" se quedó
+        # viejo en silencio cuando llegó el noveno.
+        from . import modes as _modes
+
+        n_modos = len(_modes.modes_by_key())
         t = 387
         first = True
         for keys, ttl, desc in (
             ("⌘ + Shift", "Hands-free", "Toggle dictation on/off without holding."),
-            ("⌃⇧M", "Change mode", "Cycle 8 modes (verbatim, email, code…)."),
+            ("⌃⇧M", "Change mode", f"Cycle {n_modos} modes (verbatim, email, code…)."),
             ("Esc", "Cancel", "Throw away the dictation in progress."),
         ):
             hair = _rule(NSMakeRect(PAD, _y(t, 1), W - 2 * PAD, 1), HAIRLINE)
@@ -265,7 +270,7 @@ class OnboardingController(NSObject):
         content.addSubview_(hair); add(hair)
         nota = _label(NSMakeRect(PAD, _y(t + 16, 34), W - 2 * PAD, 34),
                       "Prefer another key? Change it whenever you like from the "
-                      "menu bar icon › Settings › Shortcuts…",
+                      "menu bar icon › Shortcuts › Customize…",
                       _sf(12), INK_SOFT, align=NSTextAlignmentCenter, multiline=True)
         content.addSubview_(nota); add(nota)
 

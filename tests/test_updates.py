@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from voooxly import updates
@@ -199,3 +200,161 @@ def test_should_prompt_no_repite_la_version_ya_preguntada():
 def test_should_prompt_false_sin_novedad():
     assert updates.should_prompt(None, None) is False
     assert updates.should_prompt(None, "1.5.0") is False
+
+
+# --- instalación automática: el DMG se instala solo (feedback v1.6) ---
+
+def test_mount_point_parsea_el_plist_de_hdiutil():
+    import plistlib
+
+    plist = plistlib.dumps({"system-entities": [
+        {"content-hint": "EFI"},                      # partición sin montar
+        {"mount-point": "/Volumes/Voooxly"},
+    ]})
+    assert updates._mount_point(plist) == Path("/Volumes/Voooxly")
+
+
+def test_mount_point_none_con_basura():
+    assert updates._mount_point(b"esto no es un plist") is None
+    assert updates._mount_point(b"") is None
+
+
+def test_find_app_localiza_el_bundle(tmp_path):
+    (tmp_path / "Voooxly.app").mkdir()
+    (tmp_path / ".background").mkdir()               # decorado típico de un DMG
+    assert updates.find_app(tmp_path) == tmp_path / "Voooxly.app"
+
+
+def test_find_app_none_sin_bundle(tmp_path):
+    assert updates.find_app(tmp_path) is None
+
+
+def test_installer_script_cita_rutas_con_espacios():
+    txt = updates.installer_script(
+        Path("/Volumes/Voooxly 1.7/Voooxly.app"),
+        Path("/Applications/Voooxly.app"),
+        Path("/Volumes/Voooxly 1.7"),
+        Path("/Users/x/Downloads/Voooxly-1.7.0.dmg"),
+        1234,
+        Path("/tmp/instalar.sh"),
+    )
+    assert "'/Volumes/Voooxly 1.7/Voooxly.app'" in txt
+    assert "kill -0 1234" in txt
+    assert "ditto" in txt
+    assert "hdiutil detach" in txt
+
+
+def _correr_instalador(tmp_path, src_existe: bool):
+    """Ejecuta el script del instalador de verdad sobre carpetas de mentira.
+
+    Devuelve (target, dmg, script) ya ejecutado. El pid es el de un proceso
+    que YA murió (el instalador no debe esperar 30 s) y open_cmd es
+    /usr/bin/true para no abrir nada."""
+    import subprocess
+
+    mount = tmp_path / "mount"
+    mount.mkdir()
+    src = mount / "Voooxly.app"
+    if src_existe:
+        src.mkdir()
+        (src / "nuevo.txt").write_text("v2")
+    target = tmp_path / "Applications" / "Voooxly.app"
+    target.parent.mkdir()
+    target.mkdir()
+    (target / "viejo.txt").write_text("v1")
+    dmg = tmp_path / "Voooxly.dmg"
+    dmg.write_text("dmg")
+    script = tmp_path / "instalar.sh"
+
+    p = subprocess.Popen(["/usr/bin/true"])
+    p.wait()   # pid muerto: el bucle de espera del script sale a la primera
+
+    script.write_text(updates.installer_script(
+        src, target, mount, dmg, p.pid, script, open_cmd="/usr/bin/true"))
+    subprocess.run(["/bin/bash", str(script)], capture_output=True, timeout=60)
+    return target, dmg, script
+
+
+def test_el_instalador_reemplaza_el_app_y_limpia(tmp_path):
+    target, dmg, script = _correr_instalador(tmp_path, src_existe=True)
+    assert (target / "nuevo.txt").exists()           # el bundle nuevo está
+    assert not (target / "viejo.txt").exists()       # el viejo se fue entero
+    assert not dmg.exists()                          # DMG borrado tras el éxito
+    assert not script.exists()                       # el script se recoge solo
+
+
+def test_el_instalador_restaura_el_backup_si_la_copia_falla(tmp_path):
+    """Si ditto falla (aquí: el src no existe), el usuario NUNCA se queda sin
+    app: el backup vuelve a su sitio y el DMG se conserva como plan B."""
+    target, dmg, script = _correr_instalador(tmp_path, src_existe=False)
+    assert (target / "viejo.txt").exists()           # la app de antes, intacta
+    assert dmg.exists()                              # el DMG sigue en Downloads
+
+
+def test_stage_install_devuelve_none_fuera_de_un_bundle(tmp_path):
+    """En dev (python -m, sin .app) no hay nada que reemplazar: None y el que
+    llama cae al flujo manual. No debe ni intentar montar."""
+    with patch("voooxly.updates.mount_dmg", side_effect=AssertionError("no montar")):
+        assert updates.stage_install(tmp_path / "x.dmg", None, 1) is None
+
+
+def test_stage_install_devuelve_none_si_el_montaje_falla(tmp_path):
+    with patch("voooxly.updates.mount_dmg", return_value=None):
+        got = updates.stage_install(
+            tmp_path / "x.dmg", Path("/Applications/Voooxly.app"), 1)
+    assert got is None
+
+
+def test_stage_install_desmonta_si_el_dmg_no_trae_app(tmp_path):
+    mount = tmp_path / "mount"
+    mount.mkdir()
+    with patch("voooxly.updates.mount_dmg", return_value=mount), \
+         patch("voooxly.updates.subprocess.run") as run:
+        got = updates.stage_install(
+            tmp_path / "x.dmg", Path("/Applications/Voooxly.app"), 1)
+    assert got is None
+    assert any("detach" in str(c) for c in run.call_args_list)
+
+
+def test_stage_install_escribe_el_script_con_todo_dentro(tmp_path):
+    mount = tmp_path / "mount"
+    mount.mkdir()
+    (mount / "Voooxly.app").mkdir()
+    with patch("voooxly.updates.mount_dmg", return_value=mount):
+        script = updates.stage_install(
+            tmp_path / "x.dmg", Path("/Applications/Voooxly.app"), 42)
+    assert script is not None and script.exists()
+    txt = script.read_text()
+    assert "/Applications/Voooxly.app" in txt
+    assert "kill -0 42" in txt
+    script.unlink()
+
+
+# --- "What's new": el pop-up post-update (feedback v1.6) ---
+
+def test_whats_new_no_sale_en_instalacion_fresca():
+    """Prefs vacío = primer arranque de la vida: el onboarding ya presenta la
+    app y este pop-up solo estorbaría."""
+    assert updates.should_show_whats_new({}, "1.7.0") is False
+    assert updates.should_show_whats_new(None, "1.7.0") is False
+
+
+def test_whats_new_sale_al_estrenar_version():
+    prefs = {"last_run_version": "1.6.1", "sounds": True}
+    assert updates.should_show_whats_new(prefs, "1.7.0") is True
+
+
+def test_whats_new_sale_al_venir_de_una_version_sin_la_feature():
+    """Quien actualiza desde 1.6.x no tiene last_run_version pero sí otras
+    prefs: su primer arranque nuevo también debe contar qué cambió."""
+    prefs = {"sounds": True, "update_prompted_version": "1.7.0"}
+    assert updates.should_show_whats_new(prefs, "1.7.0") is True
+
+
+def test_whats_new_no_se_repite_en_cada_arranque():
+    prefs = {"last_run_version": "1.7.0"}
+    assert updates.should_show_whats_new(prefs, "1.7.0") is False
+
+
+def test_whats_new_tiene_notas_que_ensenar():
+    assert updates.WHATS_NEW.strip()

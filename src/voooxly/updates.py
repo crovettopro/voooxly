@@ -1,9 +1,13 @@
-"""Actualizaciones: consulta un appcast.json, compara versiones y descarga el DMG.
+"""Actualizaciones: consulta un appcast.json, compara versiones, descarga el DMG
+y lo instala solo.
 
-Si hay versión nueva, la app muestra un ítem de menú; el clic descarga el DMG a
-~/Downloads y lo abre montado — al usuario solo le queda arrastrar a
-Applications. Sin auto-reemplazo silencioso: Sparkle sobre un bundle PyInstaller
-da más problemas que valor, y Gatekeeper ya verifica el DMG notarizado.
+Si hay versión nueva, la app avisa; al aceptar se descarga el DMG a ~/Downloads,
+se monta con hdiutil y un script FUERA del bundle espera a que la app muera,
+reemplaza el .app (con backup y vuelta atrás si ditto falla a medias) y relanza.
+El usuario ya no arrastra nada a Applications (feedback v1.6 de Jeff). No es
+Sparkle: son ~30 líneas de bash sobre un DMG que Gatekeeper ya verificó
+(notarizado y descargado por HTTPS). Si cualquier paso del montaje falla, se
+cae al flujo antiguo — abrir el DMG montado y que el usuario arrastre.
 
 Cualquier fallo (sin red, JSON roto, campos ausentes) es silencioso salvo en el
 log: un comprobador de updates roto jamás debe estorbar al dictado.
@@ -11,8 +15,12 @@ log: un comprobador de updates roto jamás debe estorbar al dictado.
 from __future__ import annotations
 
 import logging
+import os
 import plistlib
+import shlex
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import requests
@@ -23,7 +31,7 @@ log = logging.getLogger("voooxly.updates")
 # de producción es voooxly.com (proyecto "voooxly" de crovettopro).
 APPCAST_URL = "https://voooxly.com/appcast.json"
 # Fuera del .app (ejecutando desde el repo) no hay Info.plist del que leer.
-FALLBACK_VERSION = "1.6.1"
+FALLBACK_VERSION = "1.7.0"
 
 # Re-chequeo periódico: la app vuelve a consultar cada CHECK_INTERVAL segundos
 # mientras esté abierta (además del check al arranque). 24 h cubre a quien la
@@ -156,6 +164,165 @@ def download(
         except Exception:
             pass
         return None
+
+
+# ---------- instalación automática ----------
+
+def _mount_point(plist_bytes: bytes) -> Path | None:
+    """Punto de montaje del plist de `hdiutil attach -plist`. None si no hay.
+
+    Un DMG puede listar varias system-entities (particiones EFI, etc.); solo
+    una trae mount-point y esa es la que Finder enseñaría.
+    """
+    try:
+        data = plistlib.loads(plist_bytes)
+        for ent in data.get("system-entities", []):
+            mp = ent.get("mount-point")
+            if mp:
+                return Path(mp)
+    except Exception as e:
+        log.warning("No pude parsear la salida de hdiutil: %s", e)
+    return None
+
+
+def mount_dmg(dmg: Path) -> Path | None:
+    """Monta el DMG sin abrir ventana de Finder. Punto de montaje o None."""
+    try:
+        r = subprocess.run(
+            ["hdiutil", "attach", str(dmg), "-nobrowse", "-plist"],
+            capture_output=True, timeout=120,
+        )
+        if r.returncode != 0:
+            log.warning("hdiutil attach falló (%s): %s", r.returncode,
+                        r.stderr.decode(errors="replace")[:300])
+            return None
+        return _mount_point(r.stdout)
+    except Exception as e:
+        log.warning("No pude montar %s: %s", dmg, e)
+        return None
+
+
+def find_app(mount: Path) -> Path | None:
+    """El .app dentro del DMG montado (en la raíz, junto al alias a /Applications)."""
+    try:
+        for child in sorted(Path(mount).iterdir()):
+            if child.suffix == ".app" and child.is_dir():
+                return child
+    except Exception as e:
+        log.warning("No pude listar %s: %s", mount, e)
+    return None
+
+
+def installer_script(src_app: Path, target_app: Path, mount: Path, dmg: Path,
+                     pid: int, script_path: Path,
+                     open_cmd: str = "/usr/bin/open") -> str:
+    """El bash que hace el swap. Función pura (texto) para poder testearla.
+
+    Corre como proceso PROPIO, fuera del bundle: el bundle es justo lo que se
+    borra. Espera a que muera la app (que se cierra sola tras lanzarlo),
+    reemplaza el .app con backup — si ditto falla a medias el backup vuelve y
+    el usuario nunca se queda sin app — y relanza. El DMG solo se borra si la
+    copia salió bien: si algo falló, sigue en ~/Downloads como plan B.
+
+    `open_cmd` existe para los tests, que EJECUTAN este script sobre carpetas
+    de mentira y no quieren que /usr/bin/open intente abrir de verdad un .app
+    que no lo es.
+    """
+    q = shlex.quote
+    src, target = q(str(src_app)), q(str(target_app))
+    mnt, dmg_q = q(str(mount)), q(str(dmg))
+    opn = q(open_cmd)
+    pid = int(pid)
+    return f"""#!/bin/bash
+# Instalador de Voooxly — generado por updates.installer_script().
+set -u
+for _ in $(seq 1 150); do
+  kill -0 {pid} 2>/dev/null || break
+  sleep 0.2
+done
+if kill -0 {pid} 2>/dev/null; then
+  # La app no llegó a cerrarse: imposible reemplazarla en caliente. Se enseña
+  # el DMG montado para instalar a mano, como toda la vida.
+  {opn} {mnt}
+  exit 1
+fi
+BACKUP="$(/usr/bin/mktemp -d)/previous.app"
+if [ -e {target} ]; then
+  /bin/mv {target} "$BACKUP" || exit 1
+fi
+if /usr/bin/ditto {src} {target}; then
+  /bin/rm -rf "$BACKUP"
+  OK=1
+else
+  /bin/rm -rf {target}
+  [ -e "$BACKUP" ] && /bin/mv "$BACKUP" {target}
+  OK=0
+fi
+/usr/bin/hdiutil detach {mnt} -force >/dev/null 2>&1
+if [ "$OK" = "1" ]; then
+  /bin/rm -f {dmg_q}
+fi
+{opn} {target}
+/bin/rm -f {q(str(script_path))}
+"""
+
+
+def stage_install(dmg: Path, target_app: Path | None, pid: int) -> Path | None:
+    """Monta el DMG y deja escrito el script de swap. Su ruta, o None.
+
+    None significa "no se pudo preparar" y el que llama cae al flujo manual
+    (abrir el DMG y arrastrar). target_app es el bundle ACTUAL — en dev
+    (python -m, sin .app) no hay nada que reemplazar y se devuelve None.
+    """
+    if not target_app or not str(target_app).endswith(".app"):
+        return None
+    mount = mount_dmg(dmg)
+    if not mount:
+        return None
+    src = find_app(mount)
+    if not src:
+        # DMG raro (sin .app en la raíz): se desmonta y que decida el humano.
+        subprocess.run(["hdiutil", "detach", str(mount), "-force"],
+                       capture_output=True, check=False)
+        return None
+    try:
+        fd, tmp = tempfile.mkstemp(prefix="voooxly-install-", suffix=".sh")
+        path = Path(tmp)
+        with os.fdopen(fd, "w") as f:
+            f.write(installer_script(src, Path(target_app), mount, dmg, pid, path))
+        log.info("Instalador preparado: %s (app: %s)", path, src)
+        return path
+    except Exception as e:
+        log.warning("No pude escribir el script de instalación: %s", e)
+        subprocess.run(["hdiutil", "detach", str(mount), "-force"],
+                       capture_output=True, check=False)
+        return None
+
+
+# ---------- "What's new" tras actualizar ----------
+
+# Lo que cuenta el pop-up post-update. Se refresca EN CADA RELEASE junto a
+# FALLBACK_VERSION (mismo commit): describe la versión que el usuario acaba
+# de estrenar, no la que viene.
+WHATS_NEW = """\
+• Updates now install themselves — no more dragging to Applications.
+• This "What's new" note appears after every update.
+• New guide: menu bar icon › How to use Voooxly.
+• Your shortcuts are now visible right in the menu bar."""
+
+
+def should_show_whats_new(prefs: dict | None, current: str) -> bool:
+    """True si este arranque estrena versión Y no es una instalación fresca.
+
+    La marca es last_run_version en prefs.json (la escribe app.run() después
+    de consultar esto). Un prefs vacío = primer arranque de la vida: ahí el
+    onboarding ya presenta la app y el pop-up solo estorbaría. Quien viene de
+    una versión sin esta feature no tiene la clave pero sí otras prefs, así
+    que el primer update tras estrenarla también enseña sus notas.
+    """
+    if not isinstance(prefs, dict) or not prefs:
+        return False
+    return prefs.get("last_run_version") != current
 
 
 def should_notify(info: dict | None, already_notified: str | None) -> bool:

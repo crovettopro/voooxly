@@ -38,48 +38,16 @@ W, H = 560, 620
 PAD = 28
 ROW_H = 46
 
-# Nombre pynput → símbolo de macOS. Lo que el usuario ve en un teclado.
-_SIMBOLO = {
-    "cmd": "⌘", "cmd_l": "⌘", "cmd_r": "⌘",
-    "alt": "⌥", "alt_l": "⌥", "alt_r": "⌥", "alt_gr": "⌥",
-    "ctrl": "⌃", "ctrl_l": "⌃", "ctrl_r": "⌃",
-    "shift": "⇧", "shift_l": "⇧", "shift_r": "⇧",
-    "space": "␣", "enter": "⏎", "tab": "⇥", "backspace": "⌫",
-    "caps_lock": "⇪",
-    # "arrows" no es un nombre de tecla pynput (keys.validate_custom lo
-    # rechaza): es el nombre sintético de la casilla de relleno que
-    # representa el bloque de flechas del teclado visual (Task 9, Defecto
-    # 4 — un rectángulo vacío ahí se leía como tecla rota). Vive en esta
-    # tabla y no como caso especial en _build_keyboard() por la misma
-    # razón que ⇪ y fn: una segunda tabla de símbolos en el sitio de
-    # dibujado es justo el bug que este módulo lleva evitando toda la tarde.
-    "arrows": "◀▼▶",
-}
-
 def y_(top, h):
     """'y desde arriba' (como en el diseño) → origen abajo-izquierda."""
     return H - top - h
 
 
-def key_label(names: list[str]) -> str:
-    """['ctrl','shift','m'] → '⌃⇧M'. Lo que se pinta en el keycap.
-
-    También es la única tabla de símbolos del módulo: las casillas de
-    relleno del teclado visual (Task 9, Defecto 2 — ⇪ y fn no tienen tecla
-    asignable pero sí necesitan leyenda) pasan por aquí igual que los
-    keycaps de las cuatro filas, para que no exista una segunda tabla
-    paralela que se pueda desincronizar de esta.
-    """
-    fuera = []
-    for n in names or []:
-        low = n.lower()
-        if low in _SIMBOLO:
-            fuera.append(_SIMBOLO[low])
-        elif low in ("esc", "fn"):
-            fuera.append(low)
-        else:
-            fuera.append(low.upper())
-    return "".join(fuera)
+# La tabla de símbolos y key_label viven ahora en shortcuts.py (las comparte
+# el submenú Shortcuts de la barra, feedback v1.6). Sigue habiendo UNA sola
+# tabla — solo que en el módulo puro; este alias mantiene a los keycaps, los
+# chips y las casillas de relleno (⇪, fn, "arrows") pasando por ella.
+key_label = shortcuts.key_label
 
 
 # Los cuatro valores que shortcuts.side_hint puede devolver (ver su
