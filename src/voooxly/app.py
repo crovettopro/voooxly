@@ -1981,6 +1981,7 @@ class VoooxlyApp(rumps.App):
                 for t in reversed(history.load(HISTORY_SIZE)):
                     self._history.appendleft(t)
                 if self._history:
+                    self._last_dictation = self._history[0]
                     self._refresh_recent()
         except Exception:
             pass
