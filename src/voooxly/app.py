@@ -378,14 +378,25 @@ class VoooxlyApp(rumps.App):
         settings.add(self.sounds_item)
         settings.add(self.dict_item)
 
-        # Un solo sitio para los cuatro atajos (tecla de dictado, estilo,
-        # cycle_mode, latch, cancel): la ventana de Shortcuts. Sustituye a
-        # los dos submenús de arriba, que solo cubrían dos de los cuatro y
-        # duplicaban estado con prefs.json.
-        self.shortcuts_item = rumps.MenuItem("Shortcuts…", callback=self._open_shortcuts)
-        settings.add(self.shortcuts_item)
+        # Submenú "Shortcuts" en el PRIMER nivel (feedback v1.6 de Jeff: los
+        # atajos son lo más importante de la app y estaban enterrados en
+        # Settings): una fila por atajo con su binding real — clic en
+        # cualquiera abre la ventana — y "Customize…" al final. Los títulos
+        # los decide shortcuts.menu_summary (puro, probado) y se refrescan al
+        # aplicar un cambio desde la ventana (_apply_shortcut).
+        self.shortcuts_menu = rumps.MenuItem("Shortcuts")
+        self._shortcut_rows: dict[str, rumps.MenuItem] = {}
+        for sid, texto in shortcuts.menu_summary(self._shortcuts):
+            mi = rumps.MenuItem(texto, callback=self._open_shortcuts)
+            self.shortcuts_menu.add(mi)
+            self._shortcut_rows[sid] = mi
+        self.shortcuts_menu.add(rumps.separator)
+        self.shortcuts_item = rumps.MenuItem("Customize…", callback=self._open_shortcuts)
+        self.shortcuts_menu.add(self.shortcuts_item)
 
         self.search_item = rumps.MenuItem("Search history…", callback=self._search_history)
+        # La guía de uso (feedback v1.6: muchas funciones, ninguna guía).
+        self.guide_item = rumps.MenuItem("How to use Voooxly…", callback=self._show_guide)
 
         self.menu = [
             *items,
@@ -395,9 +406,11 @@ class VoooxlyApp(rumps.App):
             rumps.separator,
             self.status,
             self.ai,
+            self.shortcuts_menu,
             self.stats_item,
             settings,
             rumps.separator,
+            self.guide_item,
             self.about_item,
             self.update_item,
             self.quit,
@@ -1146,7 +1159,25 @@ class VoooxlyApp(rumps.App):
             self._toggle_mode = fila.get("style", "hold")
         self._prefs.setdefault("shortcuts", {})[sid] = fila
         _save_prefs(self._prefs)
+        self._refresh_shortcut_rows()
         return True, ""
+
+    def _refresh_shortcut_rows(self):
+        """Re-pinta los bindings del submenú Shortcuts de la barra. Los títulos
+        de NSMenuItem son AppKit: por el hilo principal, como todo repintado."""
+        def apply():
+            for sid, texto in shortcuts.menu_summary(self._shortcuts):
+                mi = self._shortcut_rows.get(sid)
+                if mi is not None:
+                    mi.title = texto
+        self._on_main(apply)
+
+    def _show_guide(self, _sender):
+        """Abre la guía de uso. Callback de menú de rumps → hilo principal,
+        el único donde guide.py puede crear su NSWindow."""
+        from . import guide
+
+        guide.show_guide(self._shortcuts)
 
     def _play_sound(self, name: str):
         if not self._sounds:
@@ -1449,9 +1480,10 @@ class VoooxlyApp(rumps.App):
         self._on_main(ask)
 
     def _download_update(self):
-        # Descarga el DMG a ~/Downloads y lo abre montado: al usuario solo le
-        # queda arrastrar a Applications. Si la descarga falla, se abre la URL
-        # en el navegador (el comportamiento antiguo) para no dejarle tirado.
+        # Descarga el DMG a ~/Downloads y ofrece instalarlo solo (feedback
+        # v1.6: nada de arrastrar a Applications). Si la descarga falla, se
+        # abre la URL en el navegador (el comportamiento de siempre) para no
+        # dejar al usuario tirado.
         version = self._update_version or "latest"
         self._hud("The menu bar icon shows progress.", title=f"⏬ Downloading Voooxly {version}")
         try:
@@ -1463,10 +1495,72 @@ class VoooxlyApp(rumps.App):
             self._update_downloading = False
             self._refresh_title()
         if path:
-            subprocess.run(["open", str(path)], check=False)
-            self._offer_quit_to_install()
+            self._offer_install(path)
         else:
             subprocess.run(["open", self._update_url], check=False)
+
+    def _offer_install(self, dmg_path):
+        """Tras la descarga: instalar y relanzar en un clic.
+
+        Quien elige "Later" conserva el DMG en ~/Downloads y el ítem de menú
+        sigue ahí como vía de vuelta."""
+        ver = self._update_version or "latest"
+
+        def ask():
+            try:
+                # rumps.alert: 1 = botón ok ("Install and relaunch"), 0 = cancel.
+                if rumps.alert(
+                    title="Update downloaded",
+                    message=f"Voooxly {ver} is ready. Install it and relaunch "
+                            "now? Voooxly restarts by itself in a few seconds.",
+                    ok="Install and relaunch", cancel="Later",
+                ) == 1:
+                    self._install_update(dmg_path)
+            except Exception:
+                log.warning("No pude ofrecer la instalación", exc_info=True)
+
+        # NSAlert solo corre en el main thread; venimos del hilo de descarga.
+        self._on_main(ask)
+
+    def _install_update(self, dmg_path):
+        """Monta el DMG, deja el script de swap corriendo FUERA del bundle y
+        se quita de en medio: el script espera a que muramos, reemplaza el
+        .app (con backup) y relanza. Si no se puede preparar (dev sin bundle,
+        DMG raro, hdiutil caído), se cae al flujo manual de siempre: abrir el
+        DMG y ofrecer cerrar la app para el arrastre."""
+
+        def work():
+            script = None
+            try:
+                script = updates.stage_install(
+                    dmg_path, self._bundle_path(), os.getpid())
+            except Exception:
+                log.warning("No pude preparar la instalación", exc_info=True)
+            if script:
+                subprocess.Popen(["/bin/bash", str(script)],
+                                 start_new_session=True)
+                self._on_main(lambda: self._quit(None))
+            else:
+                subprocess.run(["open", str(dmg_path)], check=False)
+                self._offer_quit_to_install()
+
+        # hdiutil tarda segundos: fuera del main thread para no congelar el menú.
+        threading.Thread(target=work, daemon=True).start()
+
+    @staticmethod
+    def _bundle_path():
+        """Ruta del .app instalado, o None fuera de un bundle (dev)."""
+        try:
+            from AppKit import NSBundle
+
+            p = str(NSBundle.mainBundle().bundlePath())
+            if p.endswith(".app"):
+                from pathlib import Path
+
+                return Path(p)
+        except Exception:
+            log.debug("No pude resolver el bundle", exc_info=True)
+        return None
 
     def _offer_quit_to_install(self):
         """Tras abrir el DMG, ofrece cerrar Voooxly para dejarse reemplazar.
@@ -1651,6 +1745,25 @@ class VoooxlyApp(rumps.App):
 
             maybe_clean_up(self._prefs, _save_prefs,
                            str(NSBundle.mainBundle().bundlePath()))
+        # "What's new": el primer arranque de una versión recién estrenada
+        # cuenta qué cambió (feedback v1.6 de Jeff: se actualizaba y no se
+        # sabía qué era nuevo). El Timer da 1.5 s de aire para no solaparse
+        # con el arranque; _alert ya sabe encolar al main thread. La marca
+        # last_run_version se persiste también en instalaciones frescas para
+        # que la PRÓXIMA versión sí enseñe sus notas.
+        try:
+            cur = updates.current_version()
+            if not needs_setup and updates.should_show_whats_new(self._prefs, cur):
+                t = threading.Timer(
+                    1.5, lambda: self._alert(f"What's new in Voooxly {cur}",
+                                             updates.WHATS_NEW))
+                t.daemon = True
+                t.start()
+            if self._prefs.get("last_run_version") != cur:
+                self._prefs["last_run_version"] = cur
+                _save_prefs(self._prefs)
+        except Exception:
+            log.warning("No pude preparar el What's new", exc_info=True)
         # arranca whisper-server en background para que el primer dictado no pague el coste
         threading.Thread(target=self._warmup, daemon=True).start()
         self._hotkey.start()

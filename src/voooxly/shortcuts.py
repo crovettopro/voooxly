@@ -172,6 +172,75 @@ def migrate(prefs: dict) -> bool:
     return True
 
 
+# Nombre pynput → símbolo de macOS. Lo que el usuario ve en un teclado. Vivía
+# en settings_window.py, pero la subió aquí el submenú "Shortcuts" de la barra
+# (feedback v1.6: los atajos tienen que verse sin abrir ninguna ventana): la
+# barra necesita las mismas leyendas y este módulo es el único sin AppKit que
+# pueden compartir la ventana, el menú y los tests. Sigue siendo LA tabla
+# única — una segunda copia en el sitio de dibujado es el bug que
+# settings_window lleva evitando desde la Task 9.
+SIMBOLO = {
+    "cmd": "⌘", "cmd_l": "⌘", "cmd_r": "⌘",
+    "alt": "⌥", "alt_l": "⌥", "alt_r": "⌥", "alt_gr": "⌥",
+    "ctrl": "⌃", "ctrl_l": "⌃", "ctrl_r": "⌃",
+    "shift": "⇧", "shift_l": "⇧", "shift_r": "⇧",
+    "space": "␣", "enter": "⏎", "tab": "⇥", "backspace": "⌫",
+    "caps_lock": "⇪",
+    # "arrows" no es un nombre de tecla pynput (keys.validate_custom lo
+    # rechaza): es el nombre sintético de la casilla de relleno que
+    # representa el bloque de flechas del teclado visual de settings_window
+    # (Task 9, Defecto 4 — un rectángulo vacío ahí se leía como tecla rota).
+    "arrows": "◀▼▶",
+}
+
+
+def key_label(names: list[str]) -> str:
+    """['ctrl','shift','m'] → '⌃⇧M'. La leyenda de un binding en cualquier UI.
+
+    La usan los keycaps y chips de settings_window, el submenú Shortcuts de la
+    barra y la guía: todos escriben la misma tecla de la misma forma porque
+    todos pasan por aquí.
+    """
+    fuera = []
+    for n in names or []:
+        low = n.lower()
+        if low in SIMBOLO:
+            fuera.append(SIMBOLO[low])
+        elif low in ("esc", "fn"):
+            fuera.append(low)
+        else:
+            fuera.append(low.upper())
+    return "".join(fuera)
+
+
+def menu_summary(state: dict[str, dict]) -> list[tuple[str, str]]:
+    """[(sid, "Dictation:  ⌘  (right, hold)"), …] para el submenú de la barra.
+
+    Una fila por atajo con su binding REAL (feedback v1.6: los atajos son lo
+    más importante de la app y estaban enterrados en una ventana). El lado
+    sale de side_hint — la misma verdad que la ventana — y dictation añade su
+    estilo (hold/toggle), que un ⌘ solo no cuenta.
+    """
+    fuera = []
+    for sid, sc in SHORTCUTS.items():
+        fila = state.get(sid) if isinstance(state, dict) else None
+        if not isinstance(fila, dict):
+            fila = {}
+        names = list(fila.get("keys") or sc.default)
+        matices = []
+        lado = side_hint(sid, names)
+        if lado:
+            matices.append(lado)
+        if sid == "dictation":
+            estilo = fila.get("style", DEFAULT_STYLE)
+            matices.append("hold" if estilo == "hold" else "toggle")
+        texto = f"{sc.label}:  {key_label(names)}"
+        if matices:
+            texto += f"  ({', '.join(matices)})"
+        fuera.append((sid, texto))
+    return fuera
+
+
 # Nombres pynput SIN lado: son la IZQUIERDA (pynput colapsa cmd_l/alt_l/
 # ctrl_l/shift_l en el nombre plano, ver keys._ALIAS_IZQUIERDA) — pero en el
 # atajo latch también ensanchan a la derecha, porque hotkey.py:421 casa por
