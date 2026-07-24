@@ -13,11 +13,12 @@ Your voice never leaves your Mac.
 | Price | **Free** | Free | $25–49 | $8.49/mo | $12–15/mo |
 | Open source | ✅ MIT | ✅ MIT | GPL (paid binary) | ❌ | ❌ |
 | 100% local option | ✅ | ✅ | ✅ | ✅ | ❌ cloud-only |
-| AI cleanup & modes | ✅ 9 modes | ⚠️ basic | ✅ | ✅ (paid) | ✅ |
-| Learns your words | ✅ | ❌ | ✅ | ⚠️ manual | ✅ |
+| AI cleanup & modes | ✅ 9 modes | ⚠️ 1 custom prompt (BYO LLM) | ✅ | ✅ (3 modes free) | ✅ |
+| Learns your words | ✅ | ⚠️ manual list | ⚠️ manual list | ⚠️ manual | ✅ |
 | Auto-updates | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 *(Honest table — each of these is a great tool. Pick what fits.)*
+*"Learns your words": ✅ = learns from your corrections automatically · ⚠️ = manual word list.*
 
 ## Features
 
@@ -30,15 +31,19 @@ Your voice never leaves your Mac.
 
 Download the [latest DMG](https://github.com/crovettopro/voooxly/releases/latest/download/Voooxly.dmg), open, drag to Applications. Updates install themselves.
 
+First launch asks for two permissions: **Microphone** (to hear you) and **Accessibility** (to paste where your cursor is). Both are required.
+
 ## En español
 
 Voooxly habla tu idioma: interfaz en español automática, modos de traducción ES↔EN
-y un diccionario que aprende tus nombres y marcas. [Más en voooxly.com/es](https://voooxly.com).
+y un diccionario que aprende tus nombres y marcas. [Más en voooxly.com](https://voooxly.com).
 
 ## Privacy
 
 Transcription runs on-device (whisper.cpp). Audio is never uploaded. The optional
 AI polish step uses the backend YOU configure — local Ollama by default.
+
+No account. No subscription. No telemetry.
 
 ## Contributing
 
