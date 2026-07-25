@@ -116,7 +116,8 @@ STEPS = [
     ("mic", "Microphone",
      "So Voooxly can hear you. Your voice never leaves this Mac.", "Allow", "ghost"),
     ("accessibility", "Accessibility",
-     "Lets Voooxly type into any app and use the dictation hotkey.", "Open Settings", "ghost"),
+     "Lets Voooxly type into any app, use the dictation hotkey, and read the "
+     "word you fix to learn it.", "Open Settings", "ghost"),
     ("model", "Speech model",
      "One-time 547 MB download. Runs fully offline after that.", "Download", "tint"),
     ("ai", "AI engine",

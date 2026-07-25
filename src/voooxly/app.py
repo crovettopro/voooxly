@@ -19,7 +19,7 @@ import time
 
 import rumps
 
-from . import audio, dictionary, history, i18n, keys, langlock, media, modes, output, providers, recgate, refine, richtext, setup_checks, shortcuts, stats, stt, updates
+from . import audio, axfield, dictionary, history, i18n, keys, langlock, learn, media, modes, output, providers, recgate, refine, richtext, setup_checks, shortcuts, stats, stt, updates
 from .config import get_config, resolve_language
 from .hotkey import HotkeyManager
 from .overlay import Overlay
@@ -231,6 +231,121 @@ def _record_token_usage(refiner, prefs) -> None:
         log.debug("Couldn't count tokens after pasting", exc_info=True)
 
 
+# --- Auto-learn glue -------------------------------------------------------
+# At module level for the same reason as _record_token_usage: these are the
+# only two decisions of the feature that can corrupt state, and they have to
+# be testable without building the AppKit menus.
+
+
+class LearnState:
+    """Shared state of auto-learn, behind its own lock.
+
+    Several daemon threads can touch it at once: the post-paste window of the
+    dictation just delivered, the window of the previous one (they overlap —
+    with a 1.2s silence cutoff the pastes are ~5s apart and the window lasts
+    15s), and the next-dictation fallback. Generations are what tell them
+    apart: a window may only disarm the fallback of ITS OWN paste, never that
+    of a newer one.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._gen = 0
+        self._stop: threading.Event | None = None
+        self._pending: str | None = None
+        self._note: str | None = None
+
+    def start(self, pasted: str) -> tuple[int, threading.Event]:
+        """A new paste: supersedes the running window and arms the fallback."""
+        with self._lock:
+            if self._stop is not None:
+                self._stop.set()
+            self._stop = threading.Event()
+            self._gen += 1
+            self._pending = pasted
+            return self._gen, self._stop
+
+    def take_pending(self) -> str | None:
+        """What the next dictation should compare against, once."""
+        with self._lock:
+            pending, self._pending = self._pending, None
+            return pending
+
+    def done(self, gen: int, note: str | None) -> None:
+        """A window finished. Only the current generation disarms the fallback."""
+        with self._lock:
+            if not note:
+                return  # nothing learned: the next dictation still has a go
+            self._note = "\n".join(x for x in (self._note, note) if x)
+            if gen == self._gen:
+                self._pending = None
+
+    def park_note(self, note: str) -> None:
+        with self._lock:
+            self._note = "\n".join(x for x in (note, self._note) if x)
+
+    def take_note(self) -> str | None:
+        with self._lock:
+            note, self._note = self._note, None
+            return note
+
+
+def _drain_learned_note(state: LearnState, idle: bool, prefs: dict, show) -> bool:
+    """Paints the "✨ Learned" notice if the HUD is free; keeps it if not.
+
+    The first-run "you can turn this off" line — and the pref that spends it —
+    are decided HERE, when the notice is actually painted, not where the pairs
+    are learned. The window learns while the gate is IDLE, seconds after
+    _process already drained its own note: deciding it there would burn the
+    one-time disclosure on a notice nobody ever saw.
+    """
+    note = state.take_note()
+    if not note:
+        return False
+    if not idle:
+        state.park_note(note)  # a dictation owns the HUD: wait for its turn
+        return False
+    if not prefs.get("auto_learn_seen"):
+        prefs["auto_learn_seen"] = True
+        _save_prefs(prefs)
+        note += "\n" + i18n.t("Turn off in Settings if you prefer.")
+    try:
+        show(note)
+    except Exception:
+        # The pairs are already in the dictionary; a notice that cannot be
+        # painted is a debug line, never a traceback out of a daemon thread.
+        log.debug("auto-learn: couldn't paint the notice", exc_info=True)
+        return False
+    return True
+
+
+def _watch_and_learn(cfg, state: LearnState, pasted: str, gen: int, stop, read=None, **kw) -> list[str]:
+    """Body of the post-paste window thread. Best-effort: it never raises.
+
+    `read` and the clock/sleep in **kw are injected so the whole thing can be
+    driven by a script in the tests. The defaults live here and not only in
+    config.yaml because a user's ~/.voooxly/config.yaml shadows the bundled
+    file wholesale (no merge): without them, an existing install gets None.
+    """
+    learned: list[str] = []
+    try:
+        field = learn.watch_field(
+            pasted,
+            read or axfield.app_locked_reader(),
+            window_s=cfg.get("learn.window_seconds", 15.0),
+            poll_s=cfg.get("learn.poll_interval", 2.0),
+            stable_s=cfg.get("learn.stable_seconds", 3.0),
+            acquire_s=cfg.get("learn.acquire_seconds", 4.0),
+            stop=stop,
+            **kw,
+        )
+        learned = learn.auto_learn_from(pasted, field or "")
+    except Exception:
+        log.debug("auto-learn (window) silent", exc_info=True)
+    state.done(gen, "\n".join(learned) if learned else None)
+    return learned
+
+
 class VoooxlyApp(rumps.App):
     def __init__(self):
         cfg = get_config()
@@ -261,10 +376,10 @@ class VoooxlyApp(rumps.App):
         # last dictation"). _correct_last needs the real dictation, not the
         # most relevant hit of a search.
         self._last_dictation: str | None = None
-        # Auto-learn: the last text pasted (to compare on the NEXT dictation) and
-        # the "✨ Learned" note pending display for when the HUD becomes free.
-        self._pending_learn: str | None = None
-        self._learned_note: str | None = None
+        # Auto-learn: the last text pasted (watched right after the paste, and
+        # compared again on the next dictation as a fallback) plus the
+        # "✨ Learned" note waiting for the HUD to be free.
+        self._learn = LearnState()
         # Dictionary (config + personal) → Whisper initial prompt (biases it
         # toward those spellings). Whisper only uses ~224 tokens: it gets trimmed.
         self.stt_prompt = self._build_stt_prompt()
@@ -728,10 +843,12 @@ class VoooxlyApp(rumps.App):
     def _start_record(self, auto_stop: bool = True):
         """Starts the recorder. Only called by _begin_record, with the gate in STARTING."""
         self._cancel.clear()
-        # Auto-learn: it's NOW (the user dictates again) that the field we
-        # pasted into gets read exactly once, on a separate thread that never
-        # delays the recording. One attempt per paste: pending is emptied now.
-        pending, self._pending_learn = self._pending_learn, None
+        # Auto-learn, FALLBACK path: the post-paste window (see
+        # _auto_learn_watch) already had its go and disarmed this if it
+        # learned. What is left here are the corrections made after the window
+        # closed but before this dictation — one read, on a separate thread
+        # that never delays the recording.
+        pending = self._learn.take_pending()
         if pending and self._prefs.get("auto_learn", True):
             try:
                 threading.Thread(target=self._auto_learn_check, args=(pending,), daemon=True).start()
@@ -1068,14 +1185,28 @@ class VoooxlyApp(rumps.App):
                 except Exception:
                     log.debug("markdown_to_html failed; pasting plain text only", exc_info=True)
             status = output.deliver(final, auto_paste=auto_paste, copy=copy, html=html)
-            # Auto-learn will compare THIS text with whatever is left in the
-            # field when the user dictates again (see _start_record).
-            self._pending_learn = final
             # Remote LLM tokens, if any — ALWAYS after delivering:
             # nothing on this path may prevent or precede the paste (see
             # _record_token_usage). getattr because in fast-lane refiner is
             # None — the same pattern as the last_fallback notice below.
             _record_token_usage(refiner, self._prefs)
+            # Auto-learn: watch the field we just pasted into for a few seconds.
+            # The correction the user makes right now, in a field they are
+            # about to leave (send the message, close the tab, switch app), is
+            # exactly the one the next-dictation read used to lose. Spawned
+            # AFTER the token accounting and wrapped like _start_record's
+            # thread: nothing here may pre-empt the notices below, which are
+            # what rescue a paste that failed.
+            if self._prefs.get("auto_learn", True):
+                try:
+                    gen, stop = self._learn.start(final)
+                    threading.Thread(
+                        target=self._auto_learn_watch,
+                        args=(final, gen, stop),
+                        daemon=True,
+                    ).start()
+                except Exception:
+                    log.debug("auto-learn: couldn't spawn the window", exc_info=True)
             # The text is already pasted (refined or not): this notice only says
             # the AI didn't act and the raw transcription was pasted due to a
             # failure (network down, broken provider..., or the catch-all above
@@ -1099,35 +1230,47 @@ class VoooxlyApp(rumps.App):
             log.exception("Error processing dictation")
         finally:
             self._reset_idle()
-        # With the gate already IDLE, the notice of what was learned during THIS
-        # dictation (see _auto_learn_check) can finally paint without _hud eating it.
-        note, self._learned_note = self._learned_note, None
-        if note:
-            self._hud(note, title=i18n.t("✨ Learned"))
+        # With the gate already IDLE, whatever the fallback learned while this
+        # dictation was recording can finally paint without _hud eating it.
+        self._drain_learn_note()
+
+    def _drain_learn_note(self) -> None:
+        """Shows the "✨ Learned" notice, or keeps it until the HUD is free."""
+        _drain_learned_note(
+            self._learn,
+            self._gate.state == "IDLE",
+            self._prefs,
+            lambda note: self._hud(note, title=i18n.t("✨ Learned")),
+        )
+
+    def _auto_learn_watch(self, pasted: str, gen: int, stop) -> None:
+        """Post-paste window: watches the field just pasted into and learns.
+
+        Runs on a daemon thread spawned at delivery time. It reads the focused
+        field a handful of times over a few seconds — the same scope as the
+        fallback read, several times — and only learns from a state it saw
+        settle. Neither the text nor anything derived from it is logged or
+        persisted: only the learned pairs reach the dictionary.
+        """
+        if _watch_and_learn(self.cfg, self._learn, pasted, gen, stop):
+            self._drain_learn_note()  # the gate is IDLE: it paints right now
 
     def _auto_learn_check(self, pasted: str) -> None:
-        """Compares what was pasted with what's left in the field and learns. Fully best-effort.
+        """Fallback: one read at the start of the NEXT dictation. Best-effort.
 
-        Runs on a daemon thread launched when the next dictation starts; the
-        field's text is neither persisted nor logged — only the learned pairs
-        go into the dictionary. The notice is deferred to _learned_note because
+        The post-paste window covers the field while the user is still in it;
+        this catches what they corrected afterwards — and it is the only path
+        left when the window found nothing (an app whose AXValue only settles
+        late, a correction made minutes later). The notice is parked because
         at this moment the gate is recording and _hud would discard it.
         """
         try:
-            from . import axfield, learn
-
             field = axfield.read_focused_text()
             if not field:
                 return
             learned = learn.auto_learn_from(pasted, field)
-            if not learned:
-                return
-            note = "\n".join(learned)
-            if not self._prefs.get("auto_learn_seen"):
-                self._prefs["auto_learn_seen"] = True
-                _save_prefs(self._prefs)
-                note += "\n" + i18n.t("Turn off in Settings if you prefer.")
-            self._learned_note = note
+            if learned:
+                self._learn.park_note("\n".join(learned))
         except Exception:
             log.debug("auto-learn silencioso", exc_info=True)
 

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import difflib
 import re
+import time
 
 # Max words on each side of a substitution to consider it a "corrected
 # spelling" and not a "rewritten phrase". 1→2 covers "wisperflow" → "Wispr Flow".
@@ -130,6 +131,102 @@ def auto_corrections(pasted: str, field_text: str) -> list[tuple[str, str]]:
             continue  # a common word as a global replacement is a bomb
         fuera.append((wrong, right))
     return fuera
+
+
+# --- Post-paste window ----------------------------------------------------
+# Reading once, when the next dictation starts, loses every correction made in
+# a field the user then leaves (they send the Slack message, close the tab,
+# switch app). Watching the field for a few seconds right after the paste
+# catches it — at the price of seeing the text WHILE it is being typed, which
+# the single read never did. Hence the rule below: a state is only learnable
+# once it has been read identical twice in a row. A half-typed correction
+# ("Wispr Flo") is a perfect phonetic match and would be persisted as a global
+# replacement that can never be undone, because dictionary.apply() rewrites
+# the dictation before it is pasted and the misspelling never comes back.
+_MIN_POLL_S = 0.5      # floor: poll_interval: 0 in config must not busy-loop
+_MISS_TOLERANCE = 1    # one blind poll is a focus blink, not a departure
+
+
+def _seconds(value, fallback: float) -> float:
+    """Config values are user-editable YAML: coerce, never trust, never raise."""
+    try:
+        out = float(value)
+    except (TypeError, ValueError):
+        return fallback
+    return out if out >= 0 else fallback
+
+
+def watch_field(
+    pasted: str,
+    read,
+    *,
+    window_s: float = 15.0,
+    poll_s: float = 2.0,
+    stable_s: float = 3.0,
+    acquire_s: float = 4.0,
+    stop=None,
+    clock=time.monotonic,
+    sleep=time.sleep,
+) -> str | None:
+    """Watches the field just pasted into; returns the text to learn from, or None.
+
+    `read` is injected (axfield in production, a script in the tests) and so
+    are `clock`/`sleep`, which is what keeps this module pure and the tests
+    instant. Best-effort like the rest of the module: a read that blows up
+    counts as an unreadable field, never as an exception.
+
+    Three ways out, and only one of them is generous:
+      - the region settled while still in front of us → learn from it;
+      - the field went away → learn from the last state confirmed quiet;
+      - the window expired → same.
+    Never from the last raw read: that is the one that can be half-typed.
+
+    Known limitation, unchanged from the single-read path: matching is by text,
+    so a *different* field holding nearly the same words is indistinguishable
+    from the one we pasted into. The caller narrows this by refusing to read
+    once focus leaves the app that received the paste (axfield.app_locked_reader).
+    """
+    window_s = _seconds(window_s, 15.0)
+    poll_s = max(_seconds(poll_s, 2.0), _MIN_POLL_S)
+    stable_s = _seconds(stable_s, 3.0)
+    acquire_s = min(_seconds(acquire_s, 4.0), window_s)
+    deadline = clock() + window_s
+    acquire_deadline = clock() + acquire_s
+    polls_left = int(window_s / poll_s) + 2  # hard cap: a frozen clock can't spin
+    last_good = last_region = last_stable = None
+    last_change = clock()
+    misses = 0
+    while polls_left > 0 and clock() < deadline:
+        if stop is not None and stop.is_set():
+            return last_stable  # a newer paste took over: hand in what we confirmed
+        polls_left -= 1
+        try:
+            field = read() or ""
+        except Exception:
+            field = ""
+        region = locate_pasted(pasted, field) if field else None
+        if region is None:
+            if last_good is None:
+                # The ⌘V is posted asynchronously: at t=0 the text is usually
+                # not in the field yet. "Not there YET" is not "gone".
+                if clock() >= acquire_deadline:
+                    return None  # unreadable for real (a terminal), or pasted elsewhere
+            else:
+                misses += 1
+                if misses > _MISS_TOLERANCE:
+                    return last_stable
+            sleep(poll_s)
+            continue
+        misses = 0
+        if last_region is None or region != last_region:
+            last_change = clock()  # still correcting
+        else:
+            last_stable = field  # read identical twice: confirmed quiet
+        last_good, last_region = field, region
+        if last_stable is not None and (clock() - last_change) >= stable_s:
+            return field
+        sleep(poll_s)
+    return last_stable
 
 
 def _persist(pairs: list[tuple[str, str]], path=None) -> list[str]:

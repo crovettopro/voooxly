@@ -194,6 +194,17 @@ ES = {
     "and Voooxly learns to spell them your way.":
         "Añade nombres, marcas o jerga (menú › Ajustes › Añadir al "
         "diccionario…) y Voooxly aprende a escribirlos como tú quieres.",
+    "Learns from your corrections": "Aprende de tus correcciones",
+    "Fix a misheard name right after it's pasted and Voooxly saves that "
+    "spelling by itself. To do it, it reads the text field you pasted into "
+    "for a few seconds — on this Mac, never password fields, and nothing is "
+    "stored except the correction. Turn it off in Settings › Learn from my "
+    "corrections.":
+        "Corrige un nombre mal oído justo después de que se pegue y Voooxly "
+        "guarda esa grafía sola. Para eso lee el campo de texto donde ha "
+        "pegado durante unos segundos — en este Mac, nunca campos de "
+        "contraseña, y no se guarda nada salvo la corrección. Desactívalo en "
+        "Ajustes › Aprender de mis correcciones.",
     "Make it yours": "Hazla tuya",
     "Every shortcut above can be changed: menu › Shortcuts › Customize…. "
     "Start at login, sounds and the rest live under Settings.":
@@ -216,9 +227,10 @@ ES = {
         "Para que Voooxly pueda oírte. Tu voz nunca sale de este Mac.",
     "Allow": "Permitir",
     "Accessibility": "Accesibilidad",
-    "Lets Voooxly type into any app and use the dictation hotkey.":
-        "Deja que Voooxly escriba en cualquier app y use el atajo de "
-        "dictado.",
+    "Lets Voooxly type into any app, use the dictation hotkey, and read the "
+    "word you fix to learn it.":
+        "Deja que Voooxly escriba en cualquier app, use el atajo de dictado y "
+        "lea la palabra que corriges para aprenderla.",
     "Open Settings": "Abrir Ajustes",
     "Speech model": "Modelo de voz",
     "One-time 547 MB download. Runs fully offline after that.":

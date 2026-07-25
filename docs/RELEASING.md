@@ -131,6 +131,22 @@ apps check it on startup and show "Update to 1.0.0 →" in the menu.
 cd web && vercel --prod
 ```
 
+> **Gate for the release that ships the post-paste learning window.** The site
+> copy for it is already written (the "Learns your words by itself" card and the
+> "What does it read from my screen, and when?" FAQ) and **must not go live
+> before that build does** — until then it would describe reading that the
+> installed app does not do. Deploy them in the same pass as the DMG, and make
+> the release notes say what changed about reading, not just that learning got
+> faster. The `notes` string for that appcast bump:
+>
+> ```
+> Corrections are now learned on the spot: fix a word right after pasting and
+> Voooxly saves the spelling within seconds, instead of waiting for your next
+> dictation. To do that it reads the field it pasted into for a few seconds
+> (on-device, never password fields, nothing stored but the correction) — and
+> Settings › "Learn from my corrections" still turns it off completely.
+> ```
+
 ---
 
 ## Why the project is set up this way

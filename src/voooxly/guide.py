@@ -86,6 +86,12 @@ def sections(state: dict | None = None) -> list[tuple[str, str]]:
         (t("Personal dictionary"),
          t("Add names, brands or jargon (menu › Settings › Add to "
            "dictionary…) and Voooxly learns to spell them your way.")),
+        (t("Learns from your corrections"),
+         t("Fix a misheard name right after it's pasted and Voooxly saves "
+           "that spelling by itself. To do it, it reads the text field you "
+           "pasted into for a few seconds — on this Mac, never password "
+           "fields, and nothing is stored except the correction. Turn it off "
+           "in Settings › Learn from my corrections.")),
         (t("Make it yours"),
          t("Every shortcut above can be changed: menu › Shortcuts › "
            "Customize…. Start at login, sounds and the rest live under "

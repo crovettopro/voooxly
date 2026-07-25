@@ -25,7 +25,7 @@
 2. **whisper.cpp transcribes** — fully on-device on Apple Silicon. Audio is never uploaded.
 3. **The active mode cleans it up** — a local Ollama by default, or your own Claude / OpenAI / Gemini key. The LLM shapes your words; it never invents.
 4. **Polished text pastes** at your cursor — Markdown renders where the app supports it, plain text everywhere else.
-5. **It learns** — fix a word in the pasted text and Voooxly picks up the right spelling on your next dictation. On-device, opt-out in Settings.
+5. **It learns** — fix a word in the pasted text and Voooxly picks up the right spelling within seconds, before you even leave the field. On-device, opt-out in Settings.
 
 ### Writing modes
 
@@ -45,7 +45,7 @@
 
 - **9 writing modes** — see the table above.
 - **100% local by design** — whisper.cpp on Apple Silicon. Optional AI polish via a local Ollama, or bring your own Claude/OpenAI/Gemini key. Audio is never uploaded, in any configuration.
-- **Learns your words by itself** — fix a word in the pasted text and Voooxly picks up the right spelling on your next dictation. No word lists to maintain. It reads only the field it just pasted into, once, on-device — no screenshots, no tracking.
+- **Learns your words by itself** — fix a word in the pasted text and Voooxly picks up the right spelling, usually before you have left the field. No word lists to maintain. It reads the focused text field for a few seconds after pasting, on-device — no screenshots, no tracking, and one switch turns it off. Details under [Privacy](#privacy).
 - **Fast** — sub-second transcription for typical sentences on Apple Silicon (p50 ~0.6 s in our benchmark; reproduce it with `scripts/bench_latency.sh`).
 - **Everything else you'd expect** — live preview, hands-free latch, personal dictionary with "Correct last dictation", history search, and updates that install themselves.
 
@@ -55,7 +55,7 @@ Download the [latest DMG](https://github.com/crovettopro/voooxly/releases/latest
 
 **Requires a Mac with Apple Silicon (M1 or later) on macOS 13 or later.** Intel Macs aren't supported yet — other platforms are planned.
 
-First launch asks for two permissions: **Microphone** (to hear you) and **Accessibility** (to paste where your cursor is). Both are required.
+First launch asks for two permissions: **Microphone** (to hear you) and **Accessibility** (to paste where your cursor is, and to read the word you fix so it can learn it — see [Privacy](#privacy)). Both are required.
 
 ## En español
 
@@ -68,6 +68,16 @@ traducción ES↔EN y un diccionario que aprende tus nombres y marcas.
 Transcription runs on-device (whisper.cpp). Audio is never uploaded. The optional
 AI polish step uses the backend YOU configure — local Ollama by default; with a
 cloud backend, only transcribed text is sent, never your voice.
+
+**Learning from your corrections** is the one feature that reads outside Voooxly,
+so here is exactly what it does. After pasting, it reads the text of the focused
+field through Accessibility — a handful of times over ~15 seconds, then it stops —
+to see whether you fixed a word. It compares that against what it just pasted and
+saves only the corrected spellings. It stops reading as soon as you leave the app
+it pasted into, it never reads password fields, and the text itself is never
+written to disk, logged, or sent anywhere: only the pairs you corrected end up in
+`~/.voooxly/dictionary.json`, which you can open and edit. No screenshots, ever.
+Turn it off in Settings → "Learn from my corrections" and it reads nothing at all.
 
 No account. No subscription. No telemetry.
 

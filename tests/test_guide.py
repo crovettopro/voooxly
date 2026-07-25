@@ -70,6 +70,21 @@ def test_guide_shows_in_spanish_when_appropriate():
         i18n.set_lang("en")
 
 
+def test_the_guide_explains_that_corrections_are_read_and_learned():
+    """The window reads the focused field for seconds after pasting. The guide
+    is where the user finds out, in their own language, without opening the
+    README — and where the opt-out is named."""
+    from voooxly import i18n
+
+    i18n.set_lang("es")
+    try:
+        cuerpos = {t: c for t, c in guide.sections(None)}
+        cuerpo = cuerpos["Aprende de tus correcciones"]
+        assert "Ajustes" in cuerpo
+    finally:
+        i18n.set_lang("en")
+
+
 def test_la_guia_sale_en_espanol_los_nueve_titulos():
     """Not just the first title (review finding #2): if a new title sneaks
     in without going through t(), or an old one loses its translation, this
@@ -89,6 +104,7 @@ def test_la_guia_sale_en_espanol_los_nueve_titulos():
             "Motor de IA",
             "Historial",
             "Diccionario personal",
+            "Aprende de tus correcciones",
             "Hazla tuya",
             "Actualizaciones",
         ]

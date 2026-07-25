@@ -84,6 +84,22 @@ output:
   auto_paste: true        # true = simulate Cmd+V in the active app; false = clipboard only
   copy_to_clipboard: true
 
+# --- Learning from your corrections ---
+# The master switch is NOT here: it is the "Learn from my corrections" toggle
+# in Settings (prefs.json), on by default. These only shape the window that
+# watches the field right after pasting, so a correction made in a message you
+# then send is not lost. Every key also has a default in the code: your
+# ~/.voooxly/config.yaml replaces this file wholesale, it is not merged.
+learn:
+  window_seconds: 15      # how long the just-pasted field is watched, at most
+  poll_interval: 2.0      # seconds between reads (floor 0.5: 0 would busy-loop)
+  stable_seconds: 3.0     # quiet time before a correction counts as finished.
+                          # Nothing is ever learned from a state read only once:
+                          # a half-typed word ("Wispr Flo") sounds just as right
+                          # as the finished one and would be saved forever.
+  acquire_seconds: 4.0    # grace for the paste to land: Cmd+V is delivered
+                          # asynchronously and the field is still empty at first
+
 # --- LLM refinement ---
 llm:
   # Backend: "auto" | "ollama" | "claude" | "openai" | "none"
