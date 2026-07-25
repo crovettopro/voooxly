@@ -306,13 +306,17 @@ def stage_install(dmg: Path, target_app: Path | None, pid: int) -> Path | None:
 # What the post-update pop-up tells. Refreshed ON EVERY RELEASE together with
 # FALLBACK_VERSION (same commit): it describes the version the user just
 # started using, not the one to come.
+# Refresh this in the SAME commit that bumps the version: it is the pop-up
+# shown right after installing, and describing the previous version's
+# behaviour is worse than saying nothing. test_updates pins the one claim
+# this release retired.
 WHATS_NEW = """\
-• Voooxly now learns by itself: fix a word in the pasted text and it's
-  learned on your next dictation. Turn off in Settings if you prefer.
-• Much faster: transcription is now ~5x quicker on typical sentences.
-• Correct last dictation… in the menu teaches spellings on demand.
-• Habla español: full Spanish interface, guide and onboarding (automatic).
-• New: Dictation language menu — Voooxly locks onto your language by itself."""
+• Corrections are learned on the spot: fix a word right after pasting and
+  Voooxly saves the spelling within seconds, with no second dictation.
+• A correction you make in a message you then send is no longer lost.
+• To do it, Voooxly reads the field it pasted into for a few seconds, on
+  your Mac — never password fields, nothing kept but the correction.
+• Off any time in Settings › Learn from my corrections."""
 
 
 def should_show_whats_new(prefs: dict | None, current: str) -> bool:

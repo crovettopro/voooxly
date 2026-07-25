@@ -358,3 +358,32 @@ def test_whats_new_does_not_repeat_on_every_start():
 
 def test_whats_new_tiene_notas_que_ensenar():
     assert updates.WHATS_NEW.strip()
+
+
+def test_whats_new_describes_this_version_not_the_superseded_behaviour():
+    """The pop-up every user sees right after installing must not describe the
+    behaviour this version replaced.
+
+    It drifted once already: 1.9.0 was about to ship telling people their
+    corrections are "learned on your next dictation", which is exactly what
+    stopped being true. Nothing caught it — the only assertion here was that
+    the string was non-empty.
+    """
+    texto = updates.WHATS_NEW.lower()
+
+    assert "next dictation" not in texto
+    assert "learn" in texto  # sigue siendo la cabecera de la versión
+
+
+def test_whats_new_is_shown_in_spanish_too():
+    """The full Spanish interface is a headline claim; this pop-up is the first
+    thing a Spanish user sees after updating."""
+    from voooxly import i18n
+
+    i18n.set_lang("es")
+    try:
+        traducido = i18n.t(updates.WHATS_NEW)
+        assert traducido != updates.WHATS_NEW
+        assert "dictado" in traducido.lower()
+    finally:
+        i18n.set_lang("en")

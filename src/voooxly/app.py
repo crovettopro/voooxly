@@ -2131,9 +2131,10 @@ class VoooxlyApp(rumps.App):
             cur = updates.current_version()
             if not needs_setup and updates.should_show_whats_new(self._prefs, cur):
                 whats_new_title = i18n.t("What's new in Voooxly") + f" {cur}"
+                whats_new_body = i18n.t(updates.WHATS_NEW)
                 t = threading.Timer(
                     1.5, lambda: self._alert(whats_new_title,
-                                             updates.WHATS_NEW))
+                                             whats_new_body))
                 t.daemon = True
                 t.start()
             if self._prefs.get("last_run_version") != cur:
