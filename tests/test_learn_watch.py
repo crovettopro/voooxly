@@ -214,6 +214,31 @@ def test_being_superseded_midway_keeps_what_was_already_confirmed():
     assert out == FIX
 
 
+# --- diagnosis: which boundary failed -------------------------------------
+
+
+def test_the_trace_records_one_entry_per_poll_without_the_text():
+    """When nothing is learned there is no way to tell "the app exposes no
+    text" from "it does and our matching failed" — and those need opposite
+    fixes. The trace carries counts only, never what the field said."""
+    campo = PEGADO + " y algo más"
+    traza = []
+    _watch(lecturas(None, campo), trace=traza)
+
+    assert len(traza) >= 2
+    assert traza[0] == (0, False)  # ilegible: ni un carácter
+    assert traza[1] == (len(campo), True)  # legible y el pegado localizado
+    assert all(isinstance(c, int) for c, _ in traza)
+
+
+def test_the_trace_marks_a_field_that_is_readable_but_not_ours():
+    otro = "esto es otro documento distinto que no contiene lo pegado"
+    traza = []
+    _watch(lecturas(otro), trace=traza)
+
+    assert traza[0] == (len(otro), False)  # se leyó, pero el pegado no está
+
+
 # --- never spin, never raise, never wait for real -------------------------
 
 

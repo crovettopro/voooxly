@@ -165,6 +165,7 @@ def watch_field(
     stable_s: float = 3.0,
     acquire_s: float = 4.0,
     stop=None,
+    trace=None,
     clock=time.monotonic,
     sleep=time.sleep,
 ) -> str | None:
@@ -205,6 +206,11 @@ def watch_field(
         except Exception:
             field = ""
         region = locate_pasted(pasted, field) if field else None
+        if trace is not None:
+            # Counts only, never the text: enough to tell "the app exposes
+            # nothing" from "it does and we failed to find our paste in it",
+            # which are opposite problems with opposite fixes.
+            trace.append((len(field), region is not None))
         if region is None:
             if last_good is None:
                 # The ⌘V is posted asynchronously: at t=0 the text is usually

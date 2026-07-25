@@ -91,6 +91,33 @@ def focused_pid() -> int | None:
         return None
 
 
+def describe_focused() -> str:
+    """One line about the focused element, for diagnostics. Never its text.
+
+    When auto-learn stays quiet, this is what tells a user's bug report apart:
+    an app that exposes no text at all, versus one that does and where the
+    matching failed.
+    """
+    if not _AX_OK:
+        return "Accessibility unavailable in this build"
+    try:
+        err, el = AXUIElementCopyAttributeValue(
+            AXUIElementCreateSystemWide(), "AXFocusedUIElement", None
+        )
+        if err or el is None:
+            return "no focused element"
+        err, role = AXUIElementCopyAttributeValue(el, "AXRole", None)
+        role = role if not err and isinstance(role, str) else "?"
+        err, val = AXUIElementCopyAttributeValue(el, "AXValue", None)
+        if err:
+            return f"role={role}, exposes no AXValue"
+        if not isinstance(val, str):
+            return f"role={role}, AXValue is {type(val).__name__}, not text"
+        return f"role={role}, {len(val)} chars readable"
+    except Exception:
+        return "the read raised"
+
+
 def app_locked_reader(read=None, pid=None):
     """A read() that goes blind once focus leaves the app it first saw.
 

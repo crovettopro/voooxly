@@ -328,6 +328,7 @@ def _watch_and_learn(cfg, state: LearnState, pasted: str, gen: int, stop, read=N
     file wholesale (no merge): without them, an existing install gets None.
     """
     learned: list[str] = []
+    traza: list[tuple[int, bool]] = []
     window_s = cfg.get("learn.window_seconds", 15.0)
     # Counts only, never the field: what the user has written around our paste
     # is theirs. But SOMETHING has to be said — most of the manual gate is
@@ -343,6 +344,7 @@ def _watch_and_learn(cfg, state: LearnState, pasted: str, gen: int, stop, read=N
             stable_s=cfg.get("learn.stable_seconds", 3.0),
             acquire_s=cfg.get("learn.acquire_seconds", 4.0),
             stop=stop,
+            trace=traza,
             **kw,
         )
         learned = learn.auto_learn_from(pasted, field or "")
@@ -351,7 +353,16 @@ def _watch_and_learn(cfg, state: LearnState, pasted: str, gen: int, stop, read=N
     if learned:
         log.info("Auto-learn: learned %d correction(s).", len(learned))
     else:
-        log.info("Auto-learn: nothing learned.")
+        # Counts, never the text. Which of the three numbers is zero says
+        # which boundary failed: 0 readable = the app exposes nothing;
+        # readable but 0 located = it does and we failed to find our paste.
+        log.info(
+            "Auto-learn: nothing learned (%d polls, %d readable, %d located; %s).",
+            len(traza),
+            sum(1 for chars, _ in traza if chars),
+            sum(1 for _, ok in traza if ok),
+            axfield.describe_focused(),
+        )
     state.done(gen, "\n".join(learned) if learned else None)
     return learned
 
