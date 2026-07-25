@@ -180,7 +180,9 @@ corrección manual. Implementación contenida: 1 función nueva en `learn.py`,
 > `_drain_learned_note`, bloque `learn:` de `config.yaml`, y el lock + escritura
 > atómica de `dictionary.py`. Tests en `tests/test_learn_watch.py`,
 > `tests/test_app_auto_learn.py`, `tests/test_axfield.py`, `tests/test_dictionary.py`.
-> Falta el gate manual: `docs/superpowers/launch/gate-ventana-post-paste.md`.
+> **La §9 tal cual seguía sin aprender nada en uso real: ver §10** (la salida por
+> sosiego se disparaba sobre el pegado intacto). Gate manual pendiente en
+> `docs/superpowers/launch/gate-ventana-post-paste.md`.
 
 El diagnóstico de §1-§2 es correcto y el enfoque es el bueno. **El pseudocódigo
 de §4 no lo es**: ejecutado contra las funciones reales de `learn.py`, corrompe el
@@ -491,3 +493,61 @@ en PH/HN/Reddit el 28-30, esa es la decisión que va primero.
   `guide.py`, `onboarding.py` y `settings_window.py`.
 - Pares contradictorios entre watchers concurrentes: no ocurre, `locate_pasted`
   aísla cada pegado. El daño de la concurrencia es el fichero (B2), no los pares.
+---
+
+# 10. Lo que encontró la primera prueba real (25 jul 2026, tarde)
+
+La §9 se implementó entera y con 650 tests en verde, y **aun así la ventana no
+aprendía nada** en uso real. Ocho dictados seguidos en Word y en Notes dieron
+siempre lo mismo:
+
+```
+Auto-learn: watching the pasted field for up to 15.0s.
+Auto-learn: nothing learned (3 polls, 3 readable, 3 located; role=AXTextArea, 62 chars readable).
+```
+
+## 10.1 Diagnóstico
+
+Las trazas descartaron de entrada la hipótesis fácil: `3 readable, 3 located`
+significa que Word **sí** expone el texto por AX y que `locate_pasted` encontró
+el pegado. La sospecha de §5 de que Word no fuese legible era falsa.
+
+La causa está en la salida por sosiego de `watch_field`. La condición era
+«llevamos `stable_s` sin cambios» — y **el texto recién pegado siempre está
+quieto**, porque la persona todavía no ha empezado a corregir. Con
+`acquire_s=4`, `poll_s=2` y `stable_s=3` la ventana cumplía la condición a los
+4 s y se marchaba con el pegado intacto, antes de que nadie hubiera hecho doble
+clic en la palabra. Por eso toda corrección seguía cayendo en el fallback del
+dictado siguiente, que es justo lo que esta ventana venía a sustituir.
+
+## 10.2 El arreglo
+
+`base_region` guarda el pegado tal como aterrizó, y la salida por sosiego exige
+`region != base_region`: **quieto tiene que significar quieto DESPUÉS de una
+corrección**, no quieto porque nadie ha tocado nada. Un campo que nadie toca ya
+no sale a los 4 s: se vigila hasta agotar la ventana y no enseña nada, que es lo
+correcto.
+
+## 10.3 Por qué los tests no lo cazaron
+
+Todos los tests de `watch_field` daban un campo **ya corregido** en la segunda
+lectura. Ninguno modelaba a una persona tardando ocho segundos en localizar la
+palabra. Los dos tests que faltaban, y que fallan sin el arreglo con la firma
+exacta de producción (`assert 4.0 >= 15.0`):
+
+- `test_waits_for_the_correction_instead_of_settling_on_the_untouched_paste`
+  — cuatro lecturas idénticas del pegado y la corrección en la quinta.
+- `test_a_field_nobody_touches_is_watched_to_the_end_and_teaches_nothing`
+  — nadie toca nada: se agota la ventana y no se aprende.
+
+Lección para el resto del módulo: los fixtures de dos pasos («estado inicial →
+estado final») no modelan latencia humana, y esta feature vive entera en esa
+latencia.
+
+## 10.4 Verificado en uso real
+
+Con el arreglo instalado, el HUD "✨ Aprendido" sale a los pocos segundos de
+terminar de corregir, sin dictar nada más. Queda por medir si 15 s bastan: una
+corrección que termine pasado t≈12 todavía cae en el fallback. No se ha subido
+`window_seconds` a ojo — la señal para hacerlo es ver en el log la línea de
+resultado ~15 s después de `watching…` mientras la persona seguía corrigiendo.

@@ -53,7 +53,7 @@ audio:
 # --- Hotkeys (pynput key strings) ---
 hotkeys:
   # Dictation button mode:
-  #   "hold"   = push-to-talk: hold to speak, release to finish (Wispr style)
+  #   "hold"   = push-to-talk: hold to speak, release to finish
   #   "toggle" = press to start, press again/go silent to finish
   toggle_mode: "hold"
   # Dictation key. In "hold" mode it must be ONE key (e.g. "cmd_r", "alt_r", "f6").
@@ -95,7 +95,7 @@ learn:
   poll_interval: 2.0      # seconds between reads (floor 0.5: 0 would busy-loop)
   stable_seconds: 3.0     # quiet time before a correction counts as finished.
                           # Nothing is ever learned from a state read only once:
-                          # a half-typed word ("Wispr Flo") sounds just as right
+                          # a half-typed word ("Voooxl") sounds just as right
                           # as the finished one and would be saved forever.
   acquire_seconds: 4.0    # grace for the paste to land: Cmd+V is delivered
                           # asynchronously and the field is still empty at first
