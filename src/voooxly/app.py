@@ -261,6 +261,10 @@ class VoooxlyApp(rumps.App):
         # último dictado"). _correct_last necesita el dictado real, no el hit
         # más relevante de una búsqueda.
         self._last_dictation: str | None = None
+        # Auto-learn: lo último pegado (para comparar al PRÓXIMO dictado) y la
+        # nota "✨ Aprendido" pendiente de mostrar cuando el HUD quede libre.
+        self._pending_learn: str | None = None
+        self._learned_note: str | None = None
         # Diccionario (config + personal) → initial prompt de Whisper (sesga
         # hacia esas grafías). Whisper solo usa ~224 tokens: se recorta.
         self.stt_prompt = self._build_stt_prompt()
@@ -406,9 +410,15 @@ class VoooxlyApp(rumps.App):
         self.sounds_item = rumps.MenuItem(i18n.t("Sounds"), callback=self._toggle_sounds)
         self.sounds_item.state = 1 if self._sounds else 0
         self.dict_item = rumps.MenuItem(i18n.t("Add to dictionary…"), callback=self._add_to_dictionary)
+        # Auto-learn: aprender de las correcciones hechas sobre el texto pegado.
+        self.auto_learn_item = rumps.MenuItem(
+            i18n.t("Learn from my corrections"), callback=self._toggle_auto_learn
+        )
+        self.auto_learn_item.state = 1 if self._prefs.get("auto_learn", True) else 0
         settings.add(self.login_item)
         settings.add(self.sounds_item)
         settings.add(self.dict_item)
+        settings.add(self.auto_learn_item)
 
         # Submenú "Shortcuts" en el PRIMER nivel (feedback v1.6 de Jeff: los
         # atajos son lo más importante de la app y estaban enterrados en
@@ -467,6 +477,12 @@ class VoooxlyApp(rumps.App):
         def cb(_sender):
             self.set_mode(key)
         return cb
+
+    def _toggle_auto_learn(self, sender):
+        on = not self._prefs.get("auto_learn", True)
+        self._prefs["auto_learn"] = on
+        _save_prefs(self._prefs)
+        sender.state = 1 if on else 0
 
     def _make_lang_cb(self, code: str):
         def cb(_sender):
@@ -712,6 +728,16 @@ class VoooxlyApp(rumps.App):
     def _start_record(self, auto_stop: bool = True):
         """Arranca el recorder. Solo lo llama _begin_record, con el gate en STARTING."""
         self._cancel.clear()
+        # Auto-learn: es AHORA (el usuario vuelve a dictar) cuando se lee una
+        # única vez el campo donde pegamos, en un hilo aparte que jamás
+        # retrasa la grabación. Un solo intento por pegado: pending se vacía ya.
+        pending, self._pending_learn = self._pending_learn, None
+        if pending and self._prefs.get("auto_learn", True):
+            try:
+                threading.Thread(target=self._auto_learn_check, args=(pending,), daemon=True).start()
+            except Exception:
+                # Ni el caso imposible (no poder crear el hilo) puede tocar la grabación.
+                log.debug("auto-learn: no pude lanzar el hilo", exc_info=True)
         # Push-to-talk (auto_stop=False): el usuario controla el fin con la tecla,
         # desactivamos el auto-stop por silencio para que no cierre al pausar a pensar.
         # Menú/toggle (auto_stop=True): la grabación se cierra sola tras el silencio.
@@ -1042,6 +1068,9 @@ class VoooxlyApp(rumps.App):
                 except Exception:
                     log.debug("markdown_to_html falló; pego solo texto plano", exc_info=True)
             status = output.deliver(final, auto_paste=auto_paste, copy=copy, html=html)
+            # Auto-learn comparará ESTE texto con lo que quede en el campo
+            # cuando el usuario vuelva a dictar (ver _start_record).
+            self._pending_learn = final
             # Tokens del LLM remoto, si lo hubo — SIEMPRE después de entregar:
             # nada en este camino puede impedir ni preceder el pegado (ver
             # _record_token_usage). getattr porque en fast-lane refiner es
@@ -1070,6 +1099,37 @@ class VoooxlyApp(rumps.App):
             log.exception("Error procesando dictado")
         finally:
             self._reset_idle()
+        # Con el gate ya IDLE, el aviso de lo aprendido durante ESTE dictado
+        # (ver _auto_learn_check) por fin puede pintarse sin que _hud lo trague.
+        note, self._learned_note = self._learned_note, None
+        if note:
+            self._hud(note, title=i18n.t("✨ Learned"))
+
+    def _auto_learn_check(self, pasted: str) -> None:
+        """Compara lo pegado con lo que quedó en el campo y aprende. Best-effort total.
+
+        Corre en un hilo daemon lanzado al iniciar el siguiente dictado; el
+        texto del campo no se persiste ni se loguea — solo los pares aprendidos
+        van al diccionario. El aviso se difiere a _learned_note porque en este
+        momento el gate está grabando y _hud lo descartaría.
+        """
+        try:
+            from . import axfield, learn
+
+            field = axfield.read_focused_text()
+            if not field:
+                return
+            learned = learn.auto_learn_from(pasted, field)
+            if not learned:
+                return
+            note = "\n".join(learned)
+            if not self._prefs.get("auto_learn_seen"):
+                self._prefs["auto_learn_seen"] = True
+                _save_prefs(self._prefs)
+                note += "\n" + i18n.t("Turn off in Settings if you prefer.")
+            self._learned_note = note
+        except Exception:
+            log.debug("auto-learn silencioso", exc_info=True)
 
     def _reset_idle(self):
         self._overlay.hide()

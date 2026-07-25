@@ -28,6 +28,45 @@ def _strip_punct(w: str) -> str:
     return re.sub(r"^\W+|\W+$", "", w, flags=re.UNICODE)
 
 
+# --- Vía automática: guardas extra sobre corrections() ---------------------
+# Un error de ASR SUENA como lo que el usuario quería decir; una edición de
+# estilo no. Normalización fonética es-aware barata (sin dependencias) +
+# ratio de similitud: suficiente para separar "wisperflow"→"Wispr Flow"
+# (aprende) de "envía"→"manda" (silencio).
+_PHONETIC_SUBS = (
+    ("ph", "f"), ("qu", "k"), ("ch", "x"), ("ll", "y"), ("h", ""),
+    ("v", "b"), ("z", "s"), ("ge", "je"), ("gi", "ji"), ("ce", "se"),
+    ("ci", "si"), ("w", "u"), ("y", "i"), ("c", "k"),
+)
+_SOUNDS_ALIKE_MIN = 0.6
+
+
+def normalize_phonetic(s: str) -> str:
+    """Colapsa grafías que suenan igual en español (v/b, h muda, ll/y, qu/k…)."""
+    import unicodedata
+
+    t = unicodedata.normalize("NFD", (s or "").lower())
+    t = "".join(c for c in t if unicodedata.category(c) != "Mn")
+    t = re.sub(r"[^a-z]+", "", t)
+    for a, b in _PHONETIC_SUBS:
+        t = t.replace(a, b)
+    return re.sub(r"(.)\1+", r"\1", t)
+
+
+def sounds_alike(wrong: str, right: str) -> bool:
+    a, b = normalize_phonetic(wrong), normalize_phonetic(right)
+    if not a or not b:
+        return False
+    return difflib.SequenceMatcher(None, a, b).ratio() >= _SOUNDS_ALIKE_MIN
+
+
+def _is_common(word: str) -> bool:
+    from .langlock import COMMON_EN, COMMON_ES
+
+    w = (word or "").lower().strip()
+    return w in COMMON_ES or w in COMMON_EN
+
+
 def corrections(original: str, corrected: str) -> list[tuple[str, str]]:
     """Pares (mal, bien) que el usuario corrigió, aptos como reemplazos.
 
@@ -54,18 +93,70 @@ def corrections(original: str, corrected: str) -> list[tuple[str, str]]:
     return fuera
 
 
+# Umbral de "lo pegado sigue ahí": por debajo, el usuario cambió de campo,
+# lo borró o lo reescribió — y en cualquiera de esos casos no hay nada que
+# aprender con seguridad. Limitación aceptada: un pegado de 1 palabra
+# corregido entero no se localiza (matched=0) — falla en silencio, a propósito.
+_LOCATE_MIN_RATIO = 0.6
+
+
+def locate_pasted(pasted: str, field_text: str) -> str | None:
+    """Región del campo que corresponde a lo pegado (quizá ya corregida)."""
+    pw, fw = _words(pasted), _words(field_text)
+    if not pw or not fw:
+        return None
+    sm = difflib.SequenceMatcher(None, fw, pw)
+    blocks = [b for b in sm.get_matching_blocks() if b.size]
+    if not blocks:
+        return None
+    if sum(b.size for b in blocks) / len(pw) < _LOCATE_MIN_RATIO:
+        return None
+    first, last = blocks[0], blocks[-1]
+    start = max(0, first.a - first.b)
+    end = min(len(fw), last.a + last.size + (len(pw) - (last.b + last.size)))
+    return " ".join(fw[start:end])
+
+
+def auto_corrections(pasted: str, field_text: str) -> list[tuple[str, str]]:
+    """Pares (mal, bien) de la vía automática: corrections() + fonética + frecuencia."""
+    region = locate_pasted(pasted, field_text)
+    if region is None:
+        return []
+    fuera: list[tuple[str, str]] = []
+    for wrong, right in corrections(pasted, region):
+        if not sounds_alike(wrong, right):
+            continue  # edición de estilo, no error de oído
+        if _is_common(wrong) or all(_is_common(w) for w in right.split()):
+            continue  # una palabra común como reemplazo global es una bomba
+        fuera.append((wrong, right))
+    return fuera
+
+
+def _persist(pairs: list[tuple[str, str]], path=None) -> list[str]:
+    """Guarda pares en el diccionario; una entrada que falle se salta."""
+    from . import dictionary
+
+    descs: list[str] = []
+    for wrong, right in pairs:
+        try:
+            descs.append(dictionary.add(f"{wrong} -> {right}", path=path))
+        except Exception:
+            continue
+    return descs
+
+
 def learn_from(original: str, corrected: str, path=None) -> list[str]:
     """Aprende las correcciones y devuelve descripciones para el HUD.
 
     Best-effort como todo lo que rodea al dictado: una entrada que no se
     pueda guardar se salta, jamás se propaga una excepción al menú.
     """
-    from . import dictionary
+    return _persist(corrections(original, corrected), path=path)
 
-    descs: list[str] = []
-    for wrong, right in corrections(original, corrected):
-        try:
-            descs.append(dictionary.add(f"{wrong} -> {right}", path=path))
-        except Exception:
-            continue
-    return descs
+
+def auto_learn_from(pasted: str, field_text: str, path=None) -> list[str]:
+    """Aprende de las correcciones hechas in-situ. Best-effort, nunca lanza."""
+    try:
+        return _persist(auto_corrections(pasted, field_text), path=path)
+    except Exception:
+        return []

@@ -70,6 +70,18 @@ def test_traduce_el_submenu_de_idioma():
         i18n.set_lang("en")
 
 
+def test_traduce_el_aviso_de_auto_learn():
+    # El HUD del auto-learn es la excepción deliberada a "HUDs en inglés":
+    # es el aviso de transparencia del feature.
+    i18n.set_lang("es")
+    try:
+        assert i18n.t("Learn from my corrections") == "Aprender de mis correcciones"
+        assert i18n.t("✨ Learned") == "✨ Aprendido"
+        assert i18n.t("Turn off in Settings if you prefer.") == "Desactívalo en Ajustes si lo prefieres."
+    finally:
+        i18n.set_lang("en")
+
+
 def test_traduce_botones_de_quit_to_install():
     # _offer_quit_to_install pasaba ok/cancel en crudo (hallazgo de revisión #3).
     i18n.set_lang("es")
