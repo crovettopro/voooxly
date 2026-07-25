@@ -83,6 +83,23 @@ def current_version() -> str:
     return FALLBACK_VERSION
 
 
+def _notes(data: dict) -> str:
+    """Release notes in the UI language, English as the fallback.
+
+    These are the only user-facing strings the app does NOT own — they come
+    from the appcast — so they cannot go through i18n.t(). The server ships
+    each language already written and this picks one; an appcast without
+    "notes_es" (every one before 1.9.0) simply falls back, it never blanks.
+    """
+    from . import i18n
+
+    if i18n.current_lang() == "es":
+        traducidas = str(data.get("notes_es", "") or "").strip()
+        if traducidas:
+            return traducidas
+    return str(data.get("notes", ""))
+
+
 def check(url: str = APPCAST_URL, local: str | None = None) -> dict | None:
     """Returns {version, url, notes} if there's a newer version; None if not.
 
@@ -118,7 +135,7 @@ def check_status(
             return UPDATE_AVAILABLE, {
                 "version": str(remote),
                 "url": str(dmg),
-                "notes": str(data.get("notes", "")),
+                "notes": _notes(data),
             }
         return UP_TO_DATE, None
     except Exception as e:

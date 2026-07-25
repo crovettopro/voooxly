@@ -387,3 +387,70 @@ def test_whats_new_is_shown_in_spanish_too():
         assert "dictado" in traducido.lower()
     finally:
         i18n.set_lang("en")
+
+
+# --- release notes in the user's language ---------------------------------
+
+def test_check_prefers_the_spanish_notes_when_the_ui_speaks_spanish():
+    """The update pop-up is a headline surface for the Spanish interface: the
+    lead sentence was already translated, the notes body was not."""
+    from voooxly import i18n
+
+    resp = MagicMock(ok=True)
+    resp.json.return_value = {
+        "version": "2.0.0", "url": "https://x/y.dmg",
+        "notes": "What's new", "notes_es": "Novedades",
+    }
+    i18n.set_lang("es")
+    try:
+        with patch("voooxly.updates.requests.get", return_value=resp):
+            got = updates.check("https://voooxly/appcast.json", "1.0.0")
+    finally:
+        i18n.set_lang("en")
+
+    assert got["notes"] == "Novedades"
+
+
+def test_check_falls_back_to_english_notes_when_there_is_no_translation():
+    """An older appcast has no notes_es, and a missing translation must never
+    blank out the notes — English is the fallback, as everywhere else."""
+    from voooxly import i18n
+
+    resp = MagicMock(ok=True)
+    resp.json.return_value = {"version": "2.0.0", "url": "https://x/y.dmg",
+                              "notes": "What's new"}
+    i18n.set_lang("es")
+    try:
+        with patch("voooxly.updates.requests.get", return_value=resp):
+            got = updates.check("https://voooxly/appcast.json", "1.0.0")
+    finally:
+        i18n.set_lang("en")
+
+    assert got["notes"] == "What's new"
+
+
+def test_check_ignores_the_spanish_notes_in_english():
+    resp = MagicMock(ok=True)
+    resp.json.return_value = {
+        "version": "2.0.0", "url": "https://x/y.dmg",
+        "notes": "What's new", "notes_es": "Novedades",
+    }
+    with patch("voooxly.updates.requests.get", return_value=resp):
+        got = updates.check("https://voooxly/appcast.json", "1.0.0")
+
+    assert got["notes"] == "What's new"
+
+
+def test_the_update_prompt_lead_sentence_is_translated_like_the_manual_check():
+    """_notify_update built its body with a bare f-string while
+    check_now_message translated the equivalent line — same dialog title,
+    half of it in English."""
+    from voooxly import i18n
+
+    i18n.set_lang("es")
+    try:
+        assert i18n.t("Voooxly {ver} is ready to install.").format(ver="1.9.0") == (
+            "Voooxly 1.9.0 está lista para instalar."
+        )
+    finally:
+        i18n.set_lang("en")

@@ -27,6 +27,13 @@ def set_lang(lang: str) -> None:
     _lang = lang if lang in ("en", "es") else "en"
 
 
+def current_lang() -> str:
+    """The active UI language. For code outside this module that has to pick
+    between two ready-made texts instead of translating a key — the appcast
+    ships its notes already written in each language."""
+    return _lang
+
+
 def t(s: str) -> str:
     if _lang == "es":
         return ES.get(s, s)
@@ -137,6 +144,7 @@ ES = {
     "Up to date": "Actualizado",
     "Couldn't check": "No se pudo comprobar",
     "Voooxly {ver} is available.": "Voooxly {ver} está disponible.",
+    "Voooxly {ver} is ready to install.": "Voooxly {ver} está lista para instalar.",
     "You're running the latest version (Voooxly {local}).":
         "Tienes la última versión (Voooxly {local}).",
     "Couldn't reach the update server. Try again later.":

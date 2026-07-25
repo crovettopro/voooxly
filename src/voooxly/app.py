@@ -1840,7 +1840,9 @@ class VoooxlyApp(rumps.App):
         _save_prefs(self._prefs)
         ver = info["version"]
         notes = (info.get("notes") or "").strip()
-        body = f"Voooxly {ver} is ready to install." + (f"\n\n{notes}" if notes else "")
+        body = i18n.t("Voooxly {ver} is ready to install.").format(ver=ver) + (
+            f"\n\n{notes}" if notes else ""
+        )
 
         def ask():
             try:
