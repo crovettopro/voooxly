@@ -1,6 +1,6 @@
 [project]
 name = "voooxly"
-version = "1.8.0"
+version = "1.9.0"
 description = "Private, on-device dictation for macOS: local Whisper STT plus mode-based AI cleanup."
 requires-python = ">=3.12,<3.13"
 dependencies = [

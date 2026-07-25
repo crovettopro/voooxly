@@ -32,7 +32,7 @@ log = logging.getLogger("voooxly.updates")
 # domain is voooxly.com (crovettopro's "voooxly" project).
 APPCAST_URL = "https://voooxly.com/appcast.json"
 # Outside the .app (running from the repo) there's no Info.plist to read from.
-FALLBACK_VERSION = "1.8.0"
+FALLBACK_VERSION = "1.9.0"
 
 # Periodic re-check: the app queries again every CHECK_INTERVAL seconds
 # while it's open (besides the startup check). 24 h covers whoever leaves it
