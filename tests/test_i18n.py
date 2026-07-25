@@ -60,6 +60,16 @@ def test_traduce_estado_de_la_barra_de_menu():
         i18n.set_lang("en")
 
 
+def test_traduce_el_submenu_de_idioma():
+    # El submenú de idioma de dictado (auto-lock de langlock) sale traducido.
+    i18n.set_lang("es")
+    try:
+        assert i18n.t("Dictation language") == "Idioma de dictado"
+        assert i18n.t("Auto") == "Automático"
+    finally:
+        i18n.set_lang("en")
+
+
 def test_traduce_botones_de_quit_to_install():
     # _offer_quit_to_install pasaba ok/cancel en crudo (hallazgo de revisión #3).
     i18n.set_lang("es")

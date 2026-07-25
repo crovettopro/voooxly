@@ -55,6 +55,32 @@ _TRANSCRIBE_TIMEOUT_FLOOR = 30.0
 # se desvía: un server colgado no puede dejar la app esperando sin fin.
 _TRANSCRIBE_TIMEOUT_CEILING = 180.0
 
+# El encoder de Whisper procesa SIEMPRE una ventana de 30s (1500 frames, 50/s),
+# dure lo que dure el audio real. `audio_ctx` por petición recorta esa ventana:
+# -51% de latencia medida en dictados cortos con CERO divergencia de texto
+# (scratchpad/latency-experiments.md). El margen 1.5x (75 frames/s) y el corte
+# existen porque un contexto menor que el audio corrompe el final en bucle de
+# alucinación — reproducido en el experimento con 19s de audio.
+#
+# SOLO múltiplos de 256: los kernels Metal de whisper.cpp 1.9.1 solo van
+# rápidos con el contexto alineado (medido en este Mac: 309/320/384 → ~4s;
+# 256/512/768/1024 → 0.4-1.1s, mismo audio y mismo texto). Por encima de 1280
+# el siguiente escalón útil ya casi es la ventana completa: contexto nativo.
+_AUDIO_CTX_FRAMES_PER_S = 75
+_AUDIO_CTX_STEP = 256
+_AUDIO_CTX_MAX = 1280
+
+
+def audio_ctx_for(duration_s: float) -> int | None:
+    """Frames de contexto para el encoder, o None (= contexto completo)."""
+    import math
+
+    if duration_s <= 0:
+        return None
+    frames = duration_s * _AUDIO_CTX_FRAMES_PER_S
+    ctx = max(1, math.ceil(frames / _AUDIO_CTX_STEP)) * _AUDIO_CTX_STEP
+    return ctx if ctx <= _AUDIO_CTX_MAX else None
+
 
 def _transcribe_timeout(audio: np.ndarray) -> float:
     """Timeout de /inference proporcional al audio, no fijo.
@@ -326,6 +352,9 @@ def transcribe(
     try:
         _audio_to_wav(audio, wav_path)
         data = {"temperature": "0.0", "response_format": "json"}
+        ctx = audio_ctx_for(len(audio) / SR)
+        if ctx is not None:
+            data["audio_ctx"] = str(ctx)
         if language and language != "auto":
             data["language"] = language
         if prompt:
