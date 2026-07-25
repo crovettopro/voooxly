@@ -1,6 +1,6 @@
-"""Pausar la música al dictar solo debe tocar lo que estaba SONANDO, y resume()
-solo debe reanudar lo que pause_playing() pausó — nunca arrancar un reproductor
-que el usuario tenía parado.
+"""Pausing music while dictating must only touch what was PLAYING, and resume()
+must only resume what pause_playing() paused — never start a player
+the user had stopped.
 """
 from unittest.mock import MagicMock, patch
 
@@ -12,7 +12,7 @@ def _run_result(stdout: str):
 
 
 def test_pausa_solo_los_que_estan_sonando():
-    # Spotify sonando, Music parado
+    # Spotify playing, Music stopped
     def fake_run(cmd, **kwargs):
         script = cmd[-1]
         return _run_result("paused" if "Spotify" in script else "no")
@@ -26,7 +26,7 @@ def test_pausa_ninguno_si_nada_suena():
         assert media.pause_playing() == []
 
 
-def test_un_reproductor_colgado_no_estorba_al_resto():
+def test_a_hung_player_does_not_block_the_rest():
     def fake_run(cmd, **kwargs):
         script = cmd[-1]
         if "Spotify" in script:
@@ -53,7 +53,7 @@ def test_resume_con_lista_vacia_no_llama_a_osascript():
 
 
 def test_el_script_de_pausa_comprueba_running_antes_del_tell():
-    """Un tell a una app cerrada la LANZA: 'is running' tiene que ir primero."""
+    """A tell to a closed app LAUNCHES it: 'is running' has to come first."""
     assert media._PAUSE_IF_PLAYING.index("is running") < media._PAUSE_IF_PLAYING.index(
         "player state"
     )

@@ -1,9 +1,10 @@
-"""Cambiar los atajos que NO son el de dictado, en caliente.
+"""Changing the shortcuts that are NOT the dictation one, on the fly.
 
-Hasta ahora cycle/latch/cancel se fijaban en el constructor y solo se movían
-editando config.yaml. La ventana de Shortcuts los cambia con el listener ya
-corriendo, así que rebind() tiene que aplicarse sin recrear nada: recrear el
-listener es lo que mata la app (dos listeners → SIGABRT en HIToolbox).
+Until now cycle/latch/cancel were set in the constructor and only moved by
+editing config.yaml. The Shortcuts window changes them with the listener
+already running, so rebind() has to apply without recreating anything:
+recreating the listener is what kills the app (two listeners → SIGABRT in
+HIToolbox).
 """
 import threading
 import time
@@ -45,7 +46,7 @@ def test_rebind_cambia_el_combo_de_cycle():
     assert fired.wait(1.0), "el combo nuevo no disparó"
 
 
-def test_rebind_deja_muerto_el_combo_viejo():
+def test_rebind_leaves_old_combo_dead():
     fired = threading.Event()
     hk = _mk(on_cycle=fired.set)
     hk.rebind("cycle_mode", ["ctrl", "shift", "p"])
@@ -56,7 +57,7 @@ def test_rebind_deja_muerto_el_combo_viejo():
     assert not fired.is_set(), "el combo viejo seguía vivo"
 
 
-def test_rebind_cambia_la_tecla_de_cancelar():
+def test_rebind_changes_cancel_key():
     fired = threading.Event()
     hk = _mk(on_cancel=fired.set)
     assert hk.rebind("cancel", ["f13"]) is True
@@ -64,7 +65,7 @@ def test_rebind_cambia_la_tecla_de_cancelar():
     assert fired.wait(1.0)
 
 
-def test_rebind_cambia_la_tecla_de_latch():
+def test_rebind_changes_latch_key():
     started, latched = threading.Event(), threading.Event()
     hk = _mk(on_start=started.set, on_latch=latched.set)
     assert hk.rebind("latch", ["f14"]) is True
@@ -74,20 +75,20 @@ def test_rebind_cambia_la_tecla_de_latch():
     assert latched.wait(1.0)
 
 
-def test_rebind_rechaza_la_tecla_de_dictado():
-    # Si latch pasa a ser la tecla de dictado, el latch queda muerto: la rama
-    # de hold retorna antes de llegar a él. Es el fallo mudo de siempre.
+def test_rebind_rejects_dictation_key():
+    # If latch becomes the dictation key, the latch goes dead: the hold
+    # branch returns before reaching it. It is the usual silent failure.
     hk = _mk()
     assert hk.rebind("latch", ["cmd_r"]) is False
 
 
-def test_rebind_rechaza_un_id_desconocido():
+def test_rebind_rejects_unknown_id():
     hk = _mk()
     assert hk.rebind("dictation", ["f13"]) is False
 
 
-def test_reconfigure_cambia_el_delay_en_caliente():
-    # El slíder de la ventana: bajar el delay tiene que notarse sin reiniciar.
+def test_reconfigure_changes_delay_live():
+    # The window's slider: lowering the delay has to take effect without restarting.
     started = threading.Event()
     hk = _mk(on_start=started.set, toggle_guard=True)
     hk.reconfigure(toggle_key="cmd_r", toggle_mode="hold", guard=True, guard_delay=0.01)

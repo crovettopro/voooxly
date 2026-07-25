@@ -1,9 +1,9 @@
-"""Lectura puntual del campo con foco vía Accessibility. Único punto AX del auto-learn.
+"""Point-in-time read of the focused field via Accessibility. The only AX point of auto-learn.
 
-Alcance deliberadamente mínimo (es la promesa de privacidad del feature):
-una lectura, solo el elemento con foco, campos seguros excluidos, el texto
-jamás se persiste ni se loguea. Imports guardados al estilo guide.py para
-que pytest importe el módulo sin sesión gráfica.
+Deliberately minimal scope (it's the feature's privacy promise): one read,
+only the focused element, secure fields excluded, the text is never persisted
+nor logged. Imports guarded guide.py-style so pytest imports the module
+without a graphical session.
 """
 from __future__ import annotations
 
@@ -14,11 +14,11 @@ try:
     )
 
     _AX_OK = True
-except Exception:  # pyobjc ausente o sin framework: el feature simplemente no actúa
+except Exception:  # pyobjc missing or no framework: the feature just doesn't act
     _AX_OK = False
 
-# Un documento gigante no aporta: lo pegado está cerca del cursor y locate_pasted
-# trabaja por palabras. Cota dura para no pasear megabytes entre hilos.
+# A giant document adds nothing: what's pasted is near the cursor and
+# locate_pasted works word by word. Hard cap to avoid moving megabytes between threads.
 _MAX_FIELD_CHARS = 20000
 
 

@@ -1,10 +1,10 @@
-"""Entrega de avisos al usuario.
+"""Delivery of notices to the user.
 
-Contexto: en macOS 26 la API legacy NSUserNotification (la que usa
-rumps.notification) NO entrega nada. Voooxly ni siquiera aparece en
-com.apple.ncprefs.plist, así que los avisos se descartaban en silencio —
-"Backend status" y "Usage stats" no hacían nada porque el aviso ERA la
-función entera. Estos tests impiden que la API muerta vuelva a colarse.
+Context: on macOS 26 the legacy NSUserNotification API (the one
+rumps.notification uses) delivers NOTHING. Voooxly does not even appear in
+com.apple.ncprefs.plist, so notices were silently discarded —
+"Backend status" and "Usage stats" did nothing because the notice WAS the
+entire feature. These tests keep the dead API from sneaking back in.
 """
 
 import re
@@ -13,12 +13,12 @@ from pathlib import Path
 SRC = Path(__file__).resolve().parent.parent / "src" / "voooxly"
 
 
-def test_no_queda_ningun_rumps_notification_en_el_codigo():
-    """rumps.notification no entrega en macOS 26: cualquier uso es un aviso perdido."""
+def test_no_rumps_notification_left_in_code():
+    """rumps.notification does not deliver on macOS 26: any use is a lost notice."""
     culpables = []
     for py in SRC.rglob("*.py"):
         for n, linea in enumerate(py.read_text(encoding="utf-8").splitlines(), 1):
-            codigo = linea.split("#", 1)[0]  # los comentarios SÍ pueden nombrarla
+            codigo = linea.split("#", 1)[0]  # comments MAY mention it
             if re.search(r"\brumps\.notification\s*\(", codigo):
                 culpables.append(f"{py.name}:{n}")
     assert not culpables, (
@@ -27,7 +27,7 @@ def test_no_queda_ningun_rumps_notification_en_el_codigo():
     )
 
 
-# health_summary() y "Backend status…" se retiraron: el submenú AI engine ya
-# lleva el motor activo en su propio título ("AI engine — Groq"), así que el
-# modal decía lo mismo con jerga de backends. refine.health() sigue viva —
-# setup_checks y `launch.sh --check` la usan.
+# health_summary() and "Backend status…" were removed: the AI engine submenu
+# already carries the active engine in its own title ("AI engine — Groq"), so
+# the modal said the same thing in backend jargon. refine.health() is still
+# alive — setup_checks and `launch.sh --check` use it.

@@ -1,14 +1,14 @@
-"""Ventana "How to use Voooxly": la guía de uso dentro de la app.
+""""How to use Voooxly" window: the usage guide inside the app.
 
-Feedback v1.6 de Jeff: "hay muchas funciones pero ninguna guía". Una sola
-ventana scrollable que cuenta todo lo que la app sabe hacer, con los atajos
-REALES del usuario (via shortcuts.key_label, la tabla única): si alguien cambió
-la tecla de dictado a fn, la guía dice fn, no ⌘. El contenido lo decide
-sections(), que es pura y está probada; la ventana solo la pinta.
+Jeff's v1.6 feedback: "lots of features but no guide". A single
+scrollable window telling everything the app can do, with the user's
+REAL shortcuts (via shortcuts.key_label, the single table): if someone changed
+the dictation key to fn, the guide says fn, not ⌘. The content is decided by
+sections(), which is pure and tested; the window only paints it.
 
-Mismas restricciones que onboarding.py y settings_window.py: NSWindow (nunca
-NSPanel — macOS 26 no lo compone), solo instanciable en el hilo principal, a
-nivel flotante para que una app de barra sin Dock no la pierda detrás de todo.
+Same restrictions as onboarding.py and settings_window.py: NSWindow (never
+NSPanel — macOS 26 doesn't compose it), only instantiable on the main thread, at
+floating level so a Dock-less menu bar app doesn't lose it behind everything.
 """
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ W, H = 560, 640
 
 
 def _binding(state: dict, sid: str) -> str:
-    """Leyenda del binding real de `sid`: '⌘ (right)', 'fn', '⌃⇧M'…"""
+    """Legend of `sid`'s real binding: '⌘ (right)', 'fn', '⌃⇧M'…"""
     sc = shortcuts.SHORTCUTS[sid]
     fila = state.get(sid) if isinstance(state, dict) else None
     if not isinstance(fila, dict):
@@ -35,11 +35,11 @@ def _binding(state: dict, sid: str) -> str:
 
 
 def sections(state: dict | None = None) -> list[tuple[str, str]]:
-    """(título, cuerpo) de cada sección de la guía, en orden.
+    """(title, body) of each guide section, in order.
 
-    Pura (sin AppKit) para poder testearla. `state` es shortcuts.resolve();
-    con None (o un dict a medias) cada atajo cae a su valor de fábrica, igual
-    que hace resolve().
+    Pure (no AppKit) so it can be tested. `state` is shortcuts.resolve();
+    with None (or a half-filled dict) each shortcut falls to its factory
+    value, just like resolve() does.
     """
     state = state if isinstance(state, dict) else {}
     dic = _binding(state, "dictation")
@@ -53,8 +53,8 @@ def sections(state: dict | None = None) -> list[tuple[str, str]]:
                    "words get typed right where the cursor is, in any app."
                    ).format(key=dic)
 
-    # Nombres y descripciones de modos están congelados (registro/ids): no
-    # pasan por t(), igual que en el menú.
+    # Mode names and descriptions are frozen (registry/ids): they don't
+    # go through t(), same as in the menu.
     lista_modos = "\n".join(
         f"    {info['label']} — {info['hint']}"
         for info in modes.modes_by_key().values()
@@ -96,28 +96,28 @@ def sections(state: dict | None = None) -> list[tuple[str, str]]:
     ]
 
 
-# ---------------- ventana (solo pintado) ----------------
+# ---------------- window (painting only) ----------------
 
-# Referencia global: sin ella el recolector se lleva la ventana y desaparece.
+# Global reference: without it the collector takes the window and it vanishes.
 _controller = None
 
 
 def show_guide(state: dict | None = None) -> None:
-    """Muestra la guía. DEBE llamarse desde el hilo principal (callback de
-    menú de rumps, que ya lo es). El texto se reconstruye en cada apertura:
-    los atajos pueden haber cambiado desde la última vez."""
+    """Shows the guide. MUST be called from the main thread (a rumps menu
+    callback, which already is). The text is rebuilt on every opening:
+    the shortcuts may have changed since last time."""
     global _controller
     try:
         if _controller is None:
             _controller = GuideController.alloc().init()
         _controller.showWithState_(state or {})
     except Exception as e:
-        log.error("No pude mostrar la guía: %s", e)
+        log.error("Couldn't show the guide: %s", e)
 
 
 def _attributed(state: dict):
-    """El documento entero como NSAttributedString con la tipografía de la
-    marca (serif para títulos, SF para cuerpo — mismas fuentes que el
+    """The whole document as an NSAttributedString with the brand's
+    typography (serif for titles, SF for body — same fonts as the
     onboarding)."""
     from AppKit import (
         NSFontAttributeName,
@@ -225,5 +225,5 @@ try:
                 self._win.center()
             self._win.makeKeyAndOrderFront_(None)
 
-except Exception:  # sin pyobjc (tests de sections() en CI sin AppKit)
+except Exception:  # no pyobjc (sections() tests in CI without AppKit)
     GuideController = None  # type: ignore[assignment]

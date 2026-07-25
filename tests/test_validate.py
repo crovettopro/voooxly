@@ -1,4 +1,4 @@
-"""validate() manda una generación real y traduce el fallo a algo legible."""
+"""validate() sends a real generation and translates the failure into something readable."""
 
 import copy
 import os
@@ -17,7 +17,7 @@ def seleccion(key="ollama", model="llama3.2"):
 
 
 class _FakeCfg:
-    """Config mínima para instanciar un Refiner sin tocar la real."""
+    """Minimal config to instantiate a Refiner without touching the real one."""
 
     def __init__(self, valores=None):
         self._valores = valores or {}
@@ -27,7 +27,7 @@ class _FakeCfg:
 
 
 class _FakeResp:
-    """Respuesta HTTP fake para monkeypatchear requests.post."""
+    """Fake HTTP response for monkeypatching requests.post."""
 
     def __init__(self, status_code, payload):
         self.status_code = status_code
@@ -44,7 +44,7 @@ class _FakeResp:
             raise requests.HTTPError(f"HTTP {self.status_code}")
 
 
-def test_ok_cuando_el_modelo_responde(monkeypatch):
+def test_ok_when_model_responds(monkeypatch):
     monkeypatch.setattr(refine, "_probe", lambda *a, **k: "OK")
     ok, msg = refine.validate(seleccion(), None)
     assert ok is True
@@ -52,7 +52,7 @@ def test_ok_cuando_el_modelo_responde(monkeypatch):
 
 
 def test_falla_nombrando_el_modelo_que_no_existe(monkeypatch):
-    """El caso glm-5.2:cloud: el servidor responde, el modelo no está."""
+    """The glm-5.2:cloud case: the server responds, the model is not there."""
     def explota(*a, **k):
         raise refine.ModelNotAvailable("model 'glm-5.2:cloud' not found")
 
@@ -68,10 +68,10 @@ def test_falla_si_el_proveedor_pide_key_y_no_hay():
     assert "key" in msg.lower()
 
 
-def test_falla_si_no_hay_modelo_elegido():
-    """Con modelo vacío (p.ej. tras borrar la key de config.yaml) el mensaje
-    debe pedir elegir un modelo, nunca hablar de "reach"/"connect" — ese
-    texto llevaba al usuario a depurar su red por un modelo sin elegir."""
+def test_fails_if_no_model_chosen():
+    """With an empty model (e.g. after deleting the key from config.yaml) the
+    message must ask to pick a model, never talk about "reach"/"connect" — that
+    text sent the user off to debug their network over an unchosen model."""
     ok, msg = refine.validate(seleccion(model=""), None)
     assert ok is False
     assert "model" in msg.lower()
@@ -80,8 +80,8 @@ def test_falla_si_no_hay_modelo_elegido():
 
 
 def test_falla_si_no_hay_modelo_no_hace_ninguna_peticion(monkeypatch):
-    """El guard tiene que cortar ANTES de _probe(): sin modelo no debe salir
-    ninguna petición HTTP."""
+    """The guard has to cut in BEFORE _probe(): with no model, no HTTP
+    request may go out."""
     llamadas = []
     monkeypatch.setattr(
         refine.requests, "post", lambda *a, **k: llamadas.append(a or k) or None
@@ -91,7 +91,7 @@ def test_falla_si_no_hay_modelo_no_hace_ninguna_peticion(monkeypatch):
     assert llamadas == []
 
 
-def test_falla_legible_si_no_hay_red(monkeypatch):
+def test_fails_legibly_if_no_network(monkeypatch):
     import requests
 
     def sin_red(*a, **k):
@@ -109,14 +109,14 @@ def test_una_respuesta_vacia_cuenta_como_fallo(monkeypatch):
     assert ok is False
 
 
-# --- Hallazgo 1: el texto GENERADO no puede disparar ModelNotAvailable ---
-# Estos tests NO monkeypatchean _probe: ejercitan _ollama de verdad contra un
-# requests.post fake, que es justo lo que los 4 tests de arriba no cubrían.
+# --- Finding 1: the GENERATED text cannot trigger ModelNotAvailable ---
+# These tests do NOT monkeypatch _probe: they exercise the real _ollama against
+# a fake requests.post, which is exactly what the 4 tests above did not cover.
 
 
 def test_200_con_no_encontrado_en_el_texto_generado_no_debe_fallar(monkeypatch):
-    """Reproduce el hallazgo 1: un 200 cuyo contenido dice "not found" (porque
-    el usuario dictó esa frase) tiene que devolverse tal cual, nunca lanzar
+    """Reproduces finding 1: a 200 whose content says "not found" (because
+    the user dictated that phrase) has to be returned as-is, never raise
     ModelNotAvailable."""
     contenido = "The file was not found in the folder, so I created it."
     resp = _FakeResp(200, {"message": {"content": contenido}})
@@ -128,8 +128,8 @@ def test_200_con_no_encontrado_en_el_texto_generado_no_debe_fallar(monkeypatch):
 
 
 def test_error_real_de_modelo_ausente_lanza_ModelNotAvailable(monkeypatch):
-    """Un error real (status >= 400) con "not found" en el campo JSON de error
-    sí tiene que distinguirse como ModelNotAvailable."""
+    """A real error (status >= 400) with "not found" in the JSON error field
+    does have to be singled out as ModelNotAvailable."""
     resp = _FakeResp(404, {"error": "model 'glm-5.2:cloud' not found, try pulling it first"})
     monkeypatch.setattr(refine.requests, "post", lambda *a, **k: resp)
 
@@ -138,10 +138,10 @@ def test_error_real_de_modelo_ausente_lanza_ModelNotAvailable(monkeypatch):
         r._ollama("system", "user")
 
 
-# --- Hallazgos 2 y 3: _probe no puede tocar el singleton de config ---
+# --- Findings 2 and 3: _probe cannot touch the config singleton ---
 
 
-def test_probe_no_modifica_el_singleton_de_config_tras_exito(monkeypatch):
+def test_probe_does_not_modify_config_singleton_after_success(monkeypatch):
     from voooxly.config import get_config
 
     cfg = get_config()
@@ -169,10 +169,10 @@ def test_probe_no_modifica_el_singleton_de_config_tras_fallo(monkeypatch):
     assert cfg.raw == antes
 
 
-# --- Hallazgo 3: cada "kind" prueba su propia ruta de host/base_url ---
+# --- Finding 3: each "kind" probes its own host/base_url route ---
 
 
-def test_probe_ollama_apunta_al_host_del_candidato_no_al_de_config(monkeypatch):
+def test_probe_ollama_targets_candidate_host_not_config_host(monkeypatch):
     llamadas = []
     resp = _FakeResp(200, {"message": {"content": "OK"}})
 
@@ -211,30 +211,30 @@ def test_probe_openai_apunta_al_base_url_del_candidato(monkeypatch):
     assert llamadas and llamadas[0].startswith("https://candidate.example/v1")
 
 
-# --- Hallazgo 4: el probe no puede taparse con el fallback de dictado en vivo ---
+# --- Finding 4: the probe cannot hide behind the live-dictation fallback ---
 #
-# _openai() y _claude() caen a Ollama si el backend remoto falla — correcto
-# para un dictado real, donde el usuario prefiere texto sin refinar a nada.
-# Pero _probe() reutiliza esos mismos métodos: sin modo estricto, un candidato
-# openai/claude roto (key inválida, sin red, base_url que no existe) caía al
-# Ollama YA CONFIGURADO en la máquina, que respondía bien, y validate() daba
-# éxito nombrando un proveedor que en realidad nunca contestó. Ninguno de
-# estos tests monkeypatchea _probe: ejercitan _openai/_claude de verdad contra
-# un requests.post fake, igual que los de "Hallazgo 1".
+# _openai() and _claude() fall back to Ollama if the remote backend fails —
+# right for a real dictation, where the user prefers unrefined text to nothing.
+# But _probe() reuses those same methods: without strict mode, a broken
+# openai/claude candidate (invalid key, no network, nonexistent base_url) fell
+# back to the Ollama ALREADY CONFIGURED on the machine, which answered fine, and
+# validate() reported success naming a provider that never actually replied.
+# None of these tests monkeypatch _probe: they exercise the real _openai/_claude
+# against a fake requests.post, just like the "Finding 1" ones.
 
 
-def test_probe_openai_que_falla_no_cae_al_ollama_configurado(monkeypatch):
-    """Sin el modo estricto, esta prueba fallaría: fake_post respondería "OK"
-    en la segunda llamada (el fallback a Ollama) y validate() devolvería
-    éxito para un candidato que en realidad devolvió 401."""
+def test_failing_probe_openai_does_not_fall_back_to_configured_ollama(monkeypatch):
+    """Without strict mode, this test would fail: fake_post would answer "OK"
+    on the second call (the fallback to Ollama) and validate() would return
+    success for a candidate that actually returned 401."""
     llamadas = []
 
     def fake_post(url, **kwargs):
         llamadas.append(url)
         if "candidate.example" in url:
             raise Exception("401 unauthorized")
-        # Si esto llega a llamarse es porque el fallback a Ollama se coló:
-        # responde bien a propósito para demostrar que taparía el fallo.
+        # If this ever gets called, the Ollama fallback slipped through: it
+        # answers fine on purpose to show it would mask the failure.
         return _FakeResp(200, {"message": {"content": "OK"}})
 
     monkeypatch.setattr(refine.requests, "post", fake_post)
@@ -247,16 +247,16 @@ def test_probe_openai_que_falla_no_cae_al_ollama_configurado(monkeypatch):
     )
     ok, msg = refine.validate(sel, "sk-bad-key", timeout=5.0)
     assert ok is False
-    # Sólo la llamada al candidato: si el fallback se hubiera colado habría
-    # una segunda llamada (al host de Ollama).
+    # Only the call to the candidate: had the fallback slipped through there
+    # would be a second call (to the Ollama host).
     assert llamadas == ["https://candidate.example/v1/chat/completions"]
 
 
-def test_probe_claude_que_falla_no_cae_al_ollama_configurado(monkeypatch):
-    """Misma idea con kind="claude": _claude() usa el SDK de anthropic, no
-    requests.post directamente, así que la key inválida se simula ahí. El
-    requests.post fake queda para demostrar que el fallback a Ollama (si se
-    colara) respondería bien y taparía el fallo."""
+def test_failing_probe_claude_does_not_fall_back_to_configured_ollama(monkeypatch):
+    """Same idea with kind="claude": _claude() uses the anthropic SDK, not
+    requests.post directly, so the invalid key is simulated there. The fake
+    requests.post stays in place to show that the Ollama fallback (had it
+    slipped through) would answer fine and mask the failure."""
     import anthropic
 
     llamadas = []
@@ -282,15 +282,15 @@ def test_probe_claude_que_falla_no_cae_al_ollama_configurado(monkeypatch):
     )
     ok, msg = refine.validate(sel, "clave-invalida", timeout=5.0)
     assert ok is False
-    # Ninguna llamada a requests.post: si el fallback a Ollama se hubiera
-    # colado, habría una (y encima respondería "OK", tapando el fallo).
+    # No call to requests.post: had the Ollama fallback slipped through,
+    # there would be one (and it would even answer "OK", masking the failure).
     assert llamadas == []
 
 
-def test_dictado_en_vivo_sigue_cayendo_a_ollama_si_openai_falla(monkeypatch):
-    """El Refiner normal (el que usa app.py para dictar) NO es estricto: si el
-    backend remoto falla en mitad de un dictado, el usuario debe seguir
-    recibiendo texto (sin refinar) en vez de nada."""
+def test_live_dictation_still_falls_back_to_ollama_if_openai_fails(monkeypatch):
+    """The normal Refiner (the one app.py uses to dictate) is NOT strict: if
+    the remote backend fails mid-dictation, the user must keep receiving
+    text (unrefined) rather than nothing."""
     llamadas = []
 
     def fake_post(url, **kwargs):
@@ -309,20 +309,20 @@ def test_dictado_en_vivo_sigue_cayendo_a_ollama_si_openai_falla(monkeypatch):
     assert len(llamadas) == 2
 
 
-# --- Hallazgo 5: _ollama también tenía que respetar el modo estricto ---
+# --- Finding 5: _ollama also had to honor strict mode ---
 #
-# _claude y _openai ya relanzaban en modo estricto en vez de tapar el fallo,
-# pero _ollama se quedó fuera: su except genérico siempre devolvía `user` (la
-# transcripción/prompt de entrada) como si fuera la respuesta del modelo. Para
-# el dictado real eso es lo correcto (sin red no hay que perder el texto),
-# pero _probe(kind="ollama") llama a _ollama() directamente, y validate() sólo
-# comprueba que la salida no esté vacía — un Ollama totalmente inalcanzable
-# devolvía el prompt "ping" tal cual y validate() lo leía como éxito.
+# _claude and _openai already re-raised in strict mode instead of masking the
+# failure, but _ollama was left out: its generic except always returned `user`
+# (the input transcription/prompt) as if it were the model's answer. For real
+# dictation that is the right call (no network must not lose the text), but
+# _probe(kind="ollama") calls _ollama() directly, and validate() only checks
+# that the output is non-empty — a completely unreachable Ollama returned the
+# "ping" prompt as-is and validate() read it as success.
 
 
-def test_ollama_inalcanzable_en_modo_probe_no_reporta_exito(monkeypatch):
-    """Reproducción exacta del revisor: con requests.post lanzando
-    ConnectionError, validate() debe devolver (False, ...), no (True,
+def test_unreachable_ollama_in_probe_mode_does_not_report_success(monkeypatch):
+    """Exact reproduction from the reviewer: with requests.post raising
+    ConnectionError, validate() must return (False, ...), not (True,
     "Connected to Ollama...")."""
     import requests
 
@@ -340,8 +340,8 @@ def test_ollama_inalcanzable_en_modo_probe_no_reporta_exito(monkeypatch):
     assert ok is False
 
 
-def test_ollama_con_timeout_en_modo_probe_no_reporta_exito(monkeypatch):
-    """Mismo hallazgo, con un timeout en vez de una conexión rechazada."""
+def test_ollama_with_timeout_in_probe_mode_does_not_report_success(monkeypatch):
+    """Same finding, with a timeout instead of a refused connection."""
     import requests
 
     def se_cuelga(*a, **k):
@@ -358,10 +358,10 @@ def test_ollama_con_timeout_en_modo_probe_no_reporta_exito(monkeypatch):
     assert ok is False
 
 
-def test_dictado_en_vivo_sigue_devolviendo_transcripcion_si_ollama_falla(monkeypatch):
-    """El Refiner normal (el que usa app.py para dictar) NO es estricto: si
-    Ollama falla en mitad de un dictado, el usuario debe seguir recibiendo su
-    transcripción cruda, exactamente como antes de este fix."""
+def test_live_dictation_still_returns_transcription_if_ollama_fails(monkeypatch):
+    """The normal Refiner (the one app.py uses to dictate) is NOT strict: if
+    Ollama fails mid-dictation, the user must keep receiving their raw
+    transcription, exactly as before this fix."""
     import requests
 
     def sin_red(*a, **k):
@@ -375,13 +375,13 @@ def test_dictado_en_vivo_sigue_devolviendo_transcripcion_si_ollama_falla(monkeyp
     assert salida == "transcripción cruda del usuario"
 
 
-# --- Hallazgo 6: una key rechazada no puede quedarse en os.environ ---
+# --- Finding 6: a rejected key cannot linger in os.environ ---
 #
-# _probe() llama a export_key(selection, api_key) ANTES de generar, porque
-# _openai()/_claude() leen la key del entorno. Si la validación falla, nada
-# la quitaba: detect_backend() sólo mira PRESENCIA de la variable, así que una
-# key recién rechazada sesgaba la próxima auto-detección hacia el proveedor
-# que acababa de fallar.
+# _probe() calls export_key(selection, api_key) BEFORE generating, because
+# _openai()/_claude() read the key from the environment. If validation failed,
+# nothing removed it: detect_backend() only checks the PRESENCE of the
+# variable, so a freshly rejected key biased the next auto-detection toward
+# the provider that had just failed.
 
 
 def _sel_openai(model="gpt-4o-mini"):
@@ -417,7 +417,7 @@ def test_falla_restaura_el_valor_previo_de_la_env_var(monkeypatch):
     assert os.environ.get("OPENAI_API_KEY") == "sk-old-working"
 
 
-def test_exito_deja_puesta_la_key_nueva(monkeypatch):
+def test_success_leaves_new_key_in_place(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     resp = _FakeResp(200, {"choices": [{"message": {"content": "OK"}}]})
     monkeypatch.setattr(refine.requests, "post", lambda *a, **k: resp)

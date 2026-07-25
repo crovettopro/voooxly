@@ -1,8 +1,8 @@
-"""Guardas de la vía automática: fonética es-aware + palabras comunes.
+"""Guards for the automatic path: es-aware phonetics + common words.
 
-Una edición de estilo ("envía"→"manda") NO es un error de oído y no debe
-aprenderse jamás: el filtro fonético es lo que separa auto-learn de
-auto-corromper el diccionario.
+A style edit ("envía"→"manda") is NOT a mishearing and must never
+be learned: the phonetic filter is what separates auto-learn from
+auto-corrupting the dictionary.
 """
 from voooxly import dictionary
 from voooxly.learn import (
@@ -46,7 +46,7 @@ def test_palabras_comunes_es_y_en():
     assert not _is_common("Voooxly") and not _is_common("Ucademy")
 
 
-def test_localiza_lo_pegado_dentro_de_un_documento_largo():
+def test_locates_pasted_text_inside_a_long_document():
     doc = "Notas del lunes.\n\n" + PEGADO + "\n\nOtras cosas sin relación que ya estaban."
     assert locate_pasted(PEGADO, doc) == " ".join(PEGADO.split())
 
@@ -57,7 +57,7 @@ def test_localiza_aunque_este_corregido():
     assert region is not None and "Wispr Flow" in region
 
 
-def test_no_localiza_si_el_campo_es_otro():
+def test_does_not_locate_if_field_is_different():
     assert locate_pasted(PEGADO, "totalmente otra cosa escrita aquí sin relación alguna") is None
 
 
@@ -72,21 +72,21 @@ def test_auto_aprende_solo_la_grafia_corregida():
     assert auto_corrections(PEGADO, campo) == [("wisperflow", "Wispr Flow")]
 
 
-def test_auto_ignora_ediciones_de_estilo():
-    campo = PEGADO.replace("llega", "aterriza")  # sinónimo: estilo, no oído
+def test_auto_ignores_style_edits():
+    campo = PEGADO.replace("llega", "aterriza")  # synonym: style, not mishearing
     assert auto_corrections(PEGADO, campo) == []
 
 
 def test_auto_ignora_correcciones_a_palabras_comunes():
-    campo = PEGADO.replace("por", "para")  # común y no suena igual: doble rechazo
+    campo = PEGADO.replace("por", "para")  # common and doesn't sound alike: double rejection
     assert auto_corrections(PEGADO, campo) == []
 
 
-def test_auto_sin_cambios_no_aprende_nada():
+def test_auto_without_changes_learns_nothing():
     assert auto_corrections(PEGADO, "x " + PEGADO + " y") == []
 
 
-def test_auto_learn_from_persiste_en_el_diccionario(tmp_path):
+def test_auto_learn_from_persists_to_dictionary(tmp_path):
     dic = tmp_path / "dictionary.json"
     campo = PEGADO.replace("wisperflow", "Wispr Flow")
     out = auto_learn_from(PEGADO, campo, path=dic)
@@ -95,7 +95,7 @@ def test_auto_learn_from_persiste_en_el_diccionario(tmp_path):
     assert data["replacements"].get("wisperflow") == "Wispr Flow"
 
 
-def test_auto_learn_from_con_campo_ilegible_no_toca_el_diccionario(tmp_path):
+def test_auto_learn_from_with_illegible_field_does_not_touch_dictionary(tmp_path):
     dic = tmp_path / "dictionary.json"
     assert auto_learn_from(PEGADO, "", path=dic) == []
     assert not dic.exists()

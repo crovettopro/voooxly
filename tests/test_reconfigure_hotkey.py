@@ -1,19 +1,19 @@
-"""reconfigure() no puede fiarse de que quien llama ya pasó por
-keys.resolve/validate_custom. Hoy esa colisión la evita keys._RESERVADAS
-(shift y shift_l están las dos ahí), pero eso solo protege al camino que pasa
-por esa puerta. Una tarea que llama a reconfigure() directo desde el menú se
-la salta entera, así que reconfigure() tiene que defenderse por su cuenta.
+"""reconfigure() cannot trust that the caller already went through
+keys.resolve/validate_custom. Today that collision is avoided by
+keys._RESERVADAS (shift and shift_l are both there), but that only protects
+the path that goes through that gate. A task calling reconfigure() directly
+from the menu skips it entirely, so reconfigure() has to defend itself.
 
-Sin este chequeo, reconfigure(toggle_key="shift_l", ...) deja _toggle_key ==
-_latch_key == "shift": el shift pasa a ser la tecla de dictado Y la de latch
-a la vez, el latch queda muerto (el `return` de la rama hold del propio
-dictado nunca deja llegar al bloque de latch) y el shift derecho fija en
-silencio en vez de dictar.
+Without this check, reconfigure(toggle_key="shift_l", ...) leaves _toggle_key
+== _latch_key == "shift": shift becomes the dictation key AND the latch key
+at once, the latch goes dead (the `return` of the dictation key's own hold
+branch never lets execution reach the latch block) and the right shift
+silently latches instead of dictating.
 
-"Rechazar" aquí significa devolver False y dejar la configuración anterior
-intacta — NO levantar una excepción. Quien llama es código de menú de
-AppKit: una excepción sin capturar ahí se lleva la app entera por delante
-por culpa de una tecla mal elegida.
+"Rejecting" here means returning False and leaving the previous
+configuration intact — NOT raising an exception. The caller is AppKit menu
+code: an uncaught exception there takes the whole app down over a badly
+chosen key.
 """
 import threading
 
@@ -38,9 +38,9 @@ def _mk():
     )
 
 
-def test_shift_l_como_tecla_de_dictado_se_rechaza_por_colisionar_con_latch():
-    # shift_l canonicaliza a "shift" (Key.shift_l is Key.shift en macOS),
-    # que es también la tecla de latch por defecto.
+def test_shift_l_as_dictation_key_is_rejected_for_colliding_with_latch():
+    # shift_l canonicalizes to "shift" (Key.shift_l is Key.shift on macOS),
+    # which is also the default latch key.
     hk = _mk()
     ok = hk.reconfigure(toggle_key="shift_l", toggle_mode="hold", guard=True)
     assert ok is False
@@ -62,9 +62,9 @@ def test_una_tecla_sin_colision_se_acepta_normalmente():
 
 
 def test_tras_un_rechazo_la_tecla_anterior_sigue_funcionando():
-    # El rechazo no puede dejar el manager en un estado a medias: cmd_r
-    # (la tecla vigente antes de la llamada rechazada) tiene que seguir
-    # arrancando grabaciones con normalidad.
+    # The rejection cannot leave the manager in a half-baked state: cmd_r
+    # (the key in force before the rejected call) has to keep starting
+    # recordings normally.
     started = threading.Event()
     hk = _mk()
     hk.on_start = started.set

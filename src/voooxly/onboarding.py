@@ -1,45 +1,47 @@
-"""Asistente de primer arranque en DOS pasos, con diseño de producto.
+"""First-run assistant in TWO steps, with product-level design.
 
-  Paso 1 — Configure   : permisos (mic, accesibilidad), modelo de voz, IA opcional.
-  Paso 2 — How to dictar: la tecla de dictado y los atajos, con un hero ⌘.
+  Step 1 — Configure   : permissions (mic, accessibility), voice model, optional AI.
+  Step 2 — How to dictate: the dictation key and the shortcuts, with a hero ⌘.
 
-Estética (rediseño v2): marca **teal + papel** (voooxly.com + el icono de la app),
-títulos en serif (Iowan Old Style), filas separadas por hairlines en vez de
-tarjetas. El estado se re-comprueba cada segundo con un NSTimer: cuando el usuario
-concede Accesibilidad en Ajustes, la fila se marca sola sin reiniciar Voooxly.
+Aesthetics (v2 redesign): **teal + paper** branding (voooxly.com + the app icon),
+serif titles (Iowan Old Style), rows separated by hairlines instead of cards.
+The state is re-checked every second with an NSTimer: when the user grants
+Accessibility in Settings, the row checks itself off without restarting Voooxly.
 
-Tres bugs de macOS que esta versión arregla:
-- Ajustes del Sistema bloqueado por la ventana: al pulsar "Open Settings"
-  escondemos el onboarding (orderOut); el NSTimer lo vuelve a mostrar cuando
-  se concede el permiso (o cuando el usuario vuelve a la app).
-- Hotkey mudo la primera vez: pynput arranca sin Accesibilidad y el event tap
-  no se crea; conceder el permiso a mitad ni rearrancar el listener in-process
-  basta (macOS no re-evalúa el permiso en el mismo proceso). Por eso on_finish
-  RELANZA la app como proceso nuevo (ver app.py _on_onboarding_done), y por eso
-  cerrar la ventana con el botón rojo también dispara finish_.
-- Dos listeners a la vez: hotkey.stop() hace join() del listener viejo.
+Three macOS bugs this version fixes:
+- System Settings blocked by the window: on pressing "Open Settings" we hide
+  the onboarding (orderOut); the NSTimer shows it again when the permission is
+  granted (or when the user comes back to the app).
+- Mute hotkey the first time: pynput starts without Accessibility and the event
+  tap isn't created; granting the permission midway or even restarting the
+  listener in-process isn't enough (macOS doesn't re-evaluate the permission in
+  the same process). That's why on_finish RELAUNCHES the app as a new process
+  (see app.py _on_onboarding_done), and why closing the window with the red
+  button also fires finish_.
+- Two listeners at once: hotkey.stop() join()s the old listener.
 
-RESTRICCIONES de macOS aprendidas a base de crashes:
-- NSWindow solo puede instanciarse en el hilo principal (igual que overlay.py).
-- La ventana va a NIVEL FLOTANTE: app de barra sin Dock, así no se pierde atrás
-  mientras descarga el modelo. Al abrir Ajustes se esconde (ver arriba).
+macOS RESTRICTIONS learned through crashes:
+- NSWindow can only be instantiated on the main thread (same as overlay.py).
+- The window goes at FLOATING LEVEL: menu-bar app without Dock, so it doesn't
+  get lost behind while the model downloads. On opening Settings it hides (see above).
 
-Botones "muertos" en macOS 26 (Tahoe) — el bug que más costó:
-  La app es accesoria (LSUIElement) y show() se llama ANTES de que arranque el
-  run loop de rumps. En macOS 26 eso deja la ventana visible pero NO activa/key,
-  y el window server se traga el primer clic como "activar app" en vez de
-  entregárselo al botón: mic y accesibilidad parecían no responder. La cura es
-  promover la app a Regular mientras dura el onboarding (ventana de primer plano
-  de verdad, con foco y tile en el Dock — que además hace útil el minimizar) y
-  re-activar UNA vez el run loop ya corre. Al terminar se restaura Accessory.
-  El botón de micrófono, además, manda a Ajustes si el permiso ya se denegó:
-  requestAccess solo abre el prompt cuando está "sin decidir".
+"Dead" buttons on macOS 26 (Tahoe) — the bug that cost the most:
+  The app is accessory (LSUIElement) and show() is called BEFORE the rumps run
+  loop starts. On macOS 26 that leaves the window visible but NOT active/key,
+  and the window server swallows the first click as "activate app" instead of
+  delivering it to the button: mic and accessibility seemed unresponsive. The
+  cure is promoting the app to Regular for the duration of the onboarding (a
+  true foreground window, with focus and a Dock tile — which also makes
+  minimize useful) and re-activating ONCE the run loop is already running. On
+  finishing, Accessory is restored.
+  The microphone button, additionally, sends to Settings if the permission was
+  already denied: requestAccess only opens the prompt when it's "undecided".
 
-IA opcional: "Connect AI" delega en un callback (on_connect_ai) que abre el
-selector de proveedor + key del app.py (flujo ya probado). Lo conectado persiste
-tras el relanzamiento. Nadie tiene IA en el primer arranque, así que NO es un
-botón de "test" — es un "conectar", opcional, que convierte el dictado en algo
-más que transcribir (limpia, formatea y reescribe lo dictado).
+Optional AI: "Connect AI" delegates to a callback (on_connect_ai) that opens
+app.py's provider + key selector (an already proven flow). What's connected
+persists across the relaunch. Nobody has AI on first launch, so this is NOT a
+"test" button — it's a "connect", optional, that turns dictation into more
+than transcribing (it cleans, formats and rewrites what's dictated).
 """
 from __future__ import annotations
 
@@ -73,7 +75,7 @@ from AppKit import (
 from Foundation import NSAttributedString, NSMakeRect, NSMakeSize, NSObject, NSTimer
 
 from . import i18n, setup_checks, stt
-from .theme import (  # noqa: F401  (se re-exportan: los usan las páginas)
+from .theme import (  # noqa: F401  (re-exported: the pages use them)
     BTN_BORDER, BTN_GHOST_TEXT, CTA_DISABLED_BG, CTA_DISABLED_TEXT, DIVIDER,
     HAIRLINE, INK, INK_KEYCAP, INK_MUTED, INK_SOFT, KEYCAP_BG, KEYCAP_BG2,
     KEYCAP_EDGE, MODEL_BTN_BG, MODEL_BTN_BORDER, PAGE_BG, PENDING_RING,
@@ -94,22 +96,22 @@ PAD = 40
 
 
 def _y(top, h):
-    """Convierte una 'y desde arriba' (como en el diseño) al origen abajo-izquierda."""
+    """Converts a 'y from the top' (as in the design) to the bottom-left origin."""
     return H - top - h
 
 
 def cta_label() -> str:
-    """Texto del CTA principal ('Continue →'), ya traducido.
+    """Text of the main CTA ('Continue →'), already translated.
 
-    Única fuente para _build_page1 (lo pinta la primera vez) y _refresh
-    (lo repinta cada segundo vía NSTimer): antes _refresh usaba el literal
-    en inglés y pisaba la traducción puesta al construir la ventana. Pura,
-    sin AppKit, para poder testearla sin instanciar nada.
+    Single source for _build_page1 (paints it the first time) and _refresh
+    (repaints it every second via NSTimer): before, _refresh used the English
+    literal and stomped on the translation set when building the window. Pure,
+    no AppKit, so it can be tested without instantiating anything.
     """
     return i18n.t("Continue →")
 
 
-# key, título, explicación, texto del botón, estilo. El orden es el de check_all().
+# key, title, explanation, button text, style. The order is check_all()'s.
 STEPS = [
     ("mic", "Microphone",
      "So Voooxly can hear you. Your voice never leaves this Mac.", "Allow", "ghost"),
@@ -125,8 +127,8 @@ STEPS = [
 
 
 class OnboardingController(NSObject):
-    """Controlador + ventana. Subclase de NSObject para ser target de los
-    botones y delegate de la ventana (así cerrar con el botón rojo = finish_)."""
+    """Controller + window. NSObject subclass so it can be the buttons' target
+    and the window's delegate (so closing with the red button = finish_)."""
 
     def initWithFinish_(self, on_finish):
         return self.initWithFinish_connectAI_(on_finish, None)
@@ -152,7 +154,7 @@ class OnboardingController(NSObject):
         self._build()
         return self
 
-    # ---------- construcción ----------
+    # ---------- construction ----------
     def _build(self):
         self._win = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
             NSMakeRect(0, 0, W, H),
@@ -168,7 +170,7 @@ class OnboardingController(NSObject):
         self._win.setBackgroundColor_(PAGE_BG)
         content = self._win.contentView()
 
-        # STEP label compartido (arriba a la derecha, ambas páginas).
+        # Shared STEP label (top right, both pages).
         self._step_label = _label(NSMakeRect(W - PAD - 160, _y(38, 12), 160, 12),
                                   i18n.t("STEP 1 OF 2"), _mono(10, 0.3), INK_MUTED,
                                   align=NSTextAlignmentRight)
@@ -179,7 +181,7 @@ class OnboardingController(NSObject):
         self._show_page(1)
         self._refresh()
 
-    # ---------------- página 1: configurar ----------------
+    # ---------------- page 1: configure ----------------
     def _build_page1(self, content):
         add = self._page1.append
 
@@ -187,7 +189,7 @@ class OnboardingController(NSObject):
         try:
             icon.setImage_(NSApplication.sharedApplication().applicationIconImage())
         except Exception:
-            log.debug("No pude cargar el icono en el onboarding", exc_info=True)
+            log.debug("Couldn't load the icon in onboarding", exc_info=True)
         content.addSubview_(icon); add(icon)
 
         title = _label(NSMakeRect(PAD, _y(114, 34), W - 2 * PAD, 34),
@@ -229,7 +231,7 @@ class OnboardingController(NSObject):
         self._done = _cta_button(NSMakeRect(PAD, 26, W - 2 * PAD, 48), cta_label(), self, "continue:")
         content.addSubview_(self._done); add(self._done)
 
-    # ---------------- página 2: cómo dictar ----------------
+    # ---------------- page 2: how to dictate ----------------
     def _build_page2(self, content):
         add = self._page2.append
 
@@ -256,8 +258,8 @@ class OnboardingController(NSObject):
                        _sf(13), INK_SOFT, align=NSTextAlignmentCenter, multiline=True)
         content.addSubview_(instr); add(instr)
 
-        # El contador de modos sale del registro real: "8 modes" se quedó
-        # viejo en silencio cuando llegó el noveno.
+        # The mode counter comes from the real registry: "8 modes" silently
+        # went stale when the ninth arrived.
         from . import modes as _modes
 
         n_modos = len(_modes.modes_by_key())
@@ -278,11 +280,12 @@ class OnboardingController(NSObject):
             content.addSubview_(card); add(card)
             t += 53
 
-        # Cierra la lista y avisa de que nada de esto es definitivo. Va aquí y
-        # no en un tooltip porque es la única pantalla que el usuario ve seguro:
-        # sin este renglón, quien no puede usar la ⌘ derecha (teclado externo
-        # sin ella, o la mano ocupada) se queda pensando que la app no es para
-        # él, en vez de abrir Settings y cambiarla en dos clics.
+        # Closes the list and warns that none of this is final. It goes here
+        # and not in a tooltip because this is the only screen the user is
+        # guaranteed to see: without this line, whoever can't use the right ⌘
+        # (an external keyboard without it, or that hand busy) is left
+        # thinking the app isn't for them, instead of opening Settings and
+        # changing it in two clicks.
         hair = _rule(NSMakeRect(PAD, _y(t, 1), W - 2 * PAD, 1), HAIRLINE)
         content.addSubview_(hair); add(hair)
         nota = _label(NSMakeRect(PAD, _y(t + 16, 34), W - 2 * PAD, 34),
@@ -310,20 +313,20 @@ class OnboardingController(NSObject):
         rw, rh = frame.size.width, frame.size.height
         title_x = 34
 
-        # punto de estado (● hecho / ○ pendiente) alineado con el título
+        # status dot (● done / ○ pending) aligned with the title
         status = _label(NSMakeRect(0, rh - 29, 20, 20), "○", _sf(15), PENDING_RING,
                         align=NSTextAlignmentCenter)
         row.addSubview_(status)
 
         row.addSubview_(_label(NSMakeRect(title_x, rh - 27, 200, 16), i18n.t(name), _sf(14, 0.3), INK))
-        if key == "ai":  # etiqueta "Optional" en gris junto al título
+        if key == "ai":  # gray "Optional" label next to the title
             row.addSubview_(_label(NSMakeRect(title_x + 78, rh - 26, 90, 15), i18n.t("Optional"),
                                    _sf(11.5), INK_MUTED))
 
-        # Botón arriba, alineado con el título; la descripción va DEBAJO, a todo
-        # el ancho (así no la recorta el botón — el bug que había). El ancho se
-        # calcula sobre `action` en inglés (clave estable de la tabla); solo el
-        # texto pintado pasa por t().
+        # Button on top, aligned with the title; the description goes BELOW,
+        # full width (so the button doesn't clip it — the bug there was). The
+        # width is computed over the English `action` (a stable table key);
+        # only the painted text goes through t().
         btn_w = {"Allow": 70, "Open Settings": 116, "Download": 104, "Connect AI": 100}.get(action, 100)
         btn = _row_button(NSMakeRect(rw - btn_w, rh - 31, btn_w, 24), i18n.t(action), style, self, f"{key}:")
         row.addSubview_(btn)
@@ -356,7 +359,7 @@ class OnboardingController(NSObject):
                 self._model_fill = fill
                 self._model_track_w = float(track_w)
             except Exception:
-                log.debug("Sin CALayer para la barra de progreso", exc_info=True)
+                log.debug("No CALayer for the progress bar", exc_info=True)
             row.addSubview_(bar)
             self._model_pct = _label(NSMakeRect(title_x + track_w + 6, 3, 36, 12), "",
                                      _mono(10.5, 0.3), BTN_GHOST_TEXT)
@@ -366,20 +369,20 @@ class OnboardingController(NSObject):
         self._rows[key] = {"status": status, "button": btn, "bar": bar}
         return row
 
-    # ---------- acciones de los botones (selectores mic:, accessibility:, ...) ----------
+    # ---------- button actions (selectors mic:, accessibility:, ...) ----------
     def _hide_for_settings(self):
-        """Esconde el onboarding para que Ajustes del Sistema sea visible y
-        manejable: si no, la ventana flotante se queda encima y lo bloquea. El
-        NSTimer (_refresh) lo vuelve a mostrar cuando se concede el permiso o
-        cuando el usuario vuelve a Voooxly."""
+        """Hides the onboarding so System Settings is visible and
+        usable: otherwise, the floating window stays on top and blocks it. The
+        NSTimer (_refresh) shows it again when the permission is granted or
+        when the user comes back to Voooxly."""
         self._win.orderOut_(None)
         self._hidden_for_settings = True
         self._hide_t = time.monotonic()
 
     def mic_(self, _sender):
-        # requestAccess SOLO abre el prompt del sistema cuando el permiso está
-        # "sin decidir". Si el usuario ya lo denegó una vez, macOS no vuelve a
-        # preguntar y el botón parecería muerto: hay que llevarlo a Ajustes.
+        # requestAccess ONLY opens the system prompt when the permission is
+        # "undecided". If the user already denied it once, macOS doesn't ask
+        # again and the button would seem dead: they must be taken to Settings.
         status = setup_checks.microphone_status()
         log.info("Onboarding: clic en Microphone (status=%s)", status)
         if status == 0:  # notDetermined
@@ -406,14 +409,15 @@ class OnboardingController(NSObject):
         threading.Thread(target=self._download_model, daemon=True).start()
 
     def ai_(self, _sender):
-        """Conectar IA: delega en el callback del app (selector de proveedor +
-        key, flujo ya probado). Sin callback (test / standalone), re-detecta."""
+        """Connect AI: delegates to the app's callback (provider + key
+        selector, an already proven flow). Without a callback (test /
+        standalone), it re-detects."""
         log.info("Onboarding: clic en Connect AI")
         if self._on_connect_ai is not None:
             try:
                 self._on_connect_ai()
             except Exception:
-                log.warning("Connect AI falló", exc_info=True)
+                log.warning("Connect AI failed", exc_info=True)
             self._refresh()
         else:
             from . import refine
@@ -421,40 +425,40 @@ class OnboardingController(NSObject):
             self._refresh()
 
     def continue_(self, _sender):
-        """Página 1 → 2. Solo se habilita cuando los checks bloqueantes pasan."""
+        """Page 1 → 2. Only enabled when the blocking checks pass."""
         self._show_page(2)
 
     def finish_(self, _sender):
         self._stop_timer()
         self._win.orderOut_(None)
-        # Volvemos a app de barra: sin icono en el Dock ni menú principal. En el
-        # arranque normal on_finish relanza un proceso nuevo (que ya nace
-        # Accessory), pero en el fallback de dev seguimos vivos: hay que restaurar.
+        # Back to menu-bar app: no Dock icon or main menu. On a normal launch
+        # on_finish relaunches a new process (which is already born
+        # Accessory), but in the dev fallback we stay alive: must restore.
         try:
             NSApplication.sharedApplication().setActivationPolicy_(
                 NSApplicationActivationPolicyAccessory)
         except Exception:
-            log.debug("No pude restaurar la policy Accessory", exc_info=True)
+            log.debug("Couldn't restore the Accessory policy", exc_info=True)
         if self._on_finish:
             try:
                 self._on_finish()
             except Exception:
-                log.debug("callback on_finish falló", exc_info=True)
+                log.debug("on_finish callback failed", exc_info=True)
 
     def windowShouldClose_(self, _sender):
-        # Cerrar con el botón rojo cuenta como finish: relanza la app (hotkey).
+        # Closing with the red button counts as finish: relaunches the app (hotkey).
         self.finish_(None)
         return True
 
-    # ---------- descarga del modelo ----------
+    # ---------- model download ----------
     def _download_model(self):
-        """Corre en hilo secundario; todo toque de UI se reenvía al principal."""
+        """Runs on a secondary thread; every UI touch is forwarded to the main one."""
         try:
             stt.ensure_model(progress_cb=lambda pct:
                              self.performSelectorOnMainThread_withObject_waitUntilDone_(
                                  "updateProgress:", pct, False))
         except Exception as e:
-            log.error("Descarga del modelo falló: %s", e)
+            log.error("Model download failed: %s", e)
         finally:
             self._downloading = False
             self.performSelectorOnMainThread_withObject_waitUntilDone_(
@@ -477,7 +481,7 @@ class OnboardingController(NSObject):
             self._model_pct.setHidden_(True)
         self._refresh()
 
-    # ---------- refresco periódico ----------
+    # ---------- periodic refresh ----------
     def tick_(self, _timer):
         self._refresh()
 
@@ -503,8 +507,8 @@ class OnboardingController(NSObject):
             row["status"].setTextColor_(TEAL if check.ok else PENDING_RING)
             if not (check.key == "model" and self._downloading):
                 row["button"].setEnabled_(not check.ok or check.key == "ai")
-            # Cuando el requisito ya está, el botón sobra (el punto ● lo dice);
-            # la IA queda siempre reconectable.
+            # When the requirement is met, the button is redundant (the ● dot
+            # says so); the AI stays reconnectable forever.
             row["button"].setHidden_(bool(check.ok) and check.key != "ai")
             if check.key == "model" and check.ok and row["bar"] is not None:
                 row["bar"].setHidden_(True)
@@ -512,19 +516,19 @@ class OnboardingController(NSObject):
                 ready = False
         _style_cta(self._done, ready, cta_label())
 
-        # Re-mostrar la ventana si la escondimos para ir a Ajustes del Sistema.
+        # Re-show the window if we hid it to go to System Settings.
         if self._hidden_for_settings:
             granted = setup_checks.has_accessibility()
             back = NSApplication.sharedApplication().isActive()
             elapsed = time.monotonic() - self._hide_t
-            # El ">1.5s" evita re-mostrar en el mismo tick antes de que Ajustes
-            # robe el foco. Se re-muestra al conceder el permiso o al volver.
+            # The ">1.5s" avoids re-showing in the same tick before Settings
+            # steals focus. It re-shows on granting the permission or on returning.
             if granted or (back and elapsed > 1.5):
                 self._hidden_for_settings = False
                 NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
                 self._win.makeKeyAndOrderFront_(None)
 
-    # ---------- páginas ----------
+    # ---------- pages ----------
     def _show_page(self, n):
         self._page = n
         for v in self._page1:
@@ -542,22 +546,22 @@ class OnboardingController(NSObject):
 
     def show(self):
         app = NSApplication.sharedApplication()
-        # Promover a app de primer plano mientras dura el onboarding: así la
-        # ventana se vuelve key/activa de verdad y los clics llegan a los botones
-        # (en macOS 26, siendo accesoria, se los tragaba el window server). De
-        # paso aparece tile en el Dock, que hace que minimizar tenga sentido.
+        # Promote to foreground app for the duration of the onboarding: this
+        # way the window becomes truly key/active and clicks reach the buttons
+        # (on macOS 26, being accessory, the window server swallowed them). It
+        # also gets a Dock tile, which makes minimizing meaningful.
         try:
             app.setActivationPolicy_(NSApplicationActivationPolicyRegular)
         except Exception:
-            log.debug("No pude promover a Regular", exc_info=True)
+            log.debug("Couldn't promote to Regular", exc_info=True)
         app.activateIgnoringOtherApps_(True)
         self._win.center()
         self._win.makeKeyAndOrderFront_(None)
         self._start_timer()
-        # show() corre ANTES de que arranque el run loop de rumps, y activar antes
-        # de tiempo no "pega". Re-activamos una vez el loop ya está vivo, y ~medio
-        # segundo después registramos el estado YA asentado (comprobarlo en el
-        # mismo tick del activate da un falso 'key=False' antes de que cuaje).
+        # show() runs BEFORE the rumps run loop starts, and activating too
+        # early doesn't "stick". We re-activate once the loop is alive, and
+        # ~half a second later we log the ALREADY settled state (checking it in
+        # the same tick as the activate gives a false 'key=False' before it sets).
         NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
             0.2, self, "reactivate:", None, False)
         NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
@@ -569,7 +573,7 @@ class OnboardingController(NSObject):
             app.activateIgnoringOtherApps_(True)
             self._win.makeKeyAndOrderFront_(None)
         except Exception:
-            log.debug("re-activación falló", exc_info=True)
+            log.debug("re-activation failed", exc_info=True)
 
     def logState_(self, _timer):
         try:
@@ -580,10 +584,10 @@ class OnboardingController(NSObject):
             pass
 
 
-# ---------------- helpers de vistas ----------------
+# ---------------- view helpers ----------------
 def _row_button(rect, title, style, target, action):
-    """Botón de fila: 'ghost' (borde fino), 'tint' (relleno teal claro) o
-    'text' (solo texto teal)."""
+    """Row button: 'ghost' (thin border), 'tint' (light teal fill) or
+    'text' (teal text only)."""
     b = NSButton.alloc().initWithFrame_(rect)
     b.setBordered_(False)
     b.setBezelStyle_(0)
@@ -608,14 +612,14 @@ def _row_button(rect, title, style, target, action):
 
 
 def _set_button_title(b, title, fg):
-    """Título de un botón de fila con color de marca (attributedTitle manda sobre
-    setTitle_, así que los cambios de texto del modelo pasan por aquí)."""
+    """Row-button title with brand color (attributedTitle wins over
+    setTitle_, so the model's text changes go through here)."""
     b.setAttributedTitle_(NSAttributedString.alloc().initWithString_attributes_(
         title, {NSFontAttributeName: _sf(12.5, 0.3), NSForegroundColorAttributeName: fg}))
 
 
 def _cta_button(rect, title, target, action):
-    """CTA principal, relleno teal, texto blanco."""
+    """Main CTA, teal fill, white text."""
     b = NSButton.alloc().initWithFrame_(rect)
     b.setBordered_(False)
     b.setBezelStyle_(0)
@@ -635,16 +639,16 @@ def _style_cta(b, enabled, title):
     b.setEnabled_(enabled)
 
 
-# Referencia global: sin ella el recolector se lleva la ventana y desaparece sola.
+# Global reference: without it the collector takes the window and it vanishes on its own.
 _controller = None
 
 
 def show_onboarding(on_finish=None, on_connect_ai=None) -> None:
-    """Muestra el asistente. DEBE llamarse desde el hilo principal."""
+    """Shows the assistant. MUST be called from the main thread."""
     global _controller
     try:
         _controller = OnboardingController.alloc().initWithFinish_connectAI_(
             on_finish, on_connect_ai)
         _controller.show()
     except Exception as e:
-        log.error("No pude mostrar el onboarding: %s", e)
+        log.error("Couldn't show onboarding: %s", e)

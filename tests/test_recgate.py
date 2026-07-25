@@ -1,8 +1,8 @@
-"""El gate cierra las dos carreras del micro encallado (bug de Jeff, v1.4):
+"""The gate closes the two stuck-mic races (Jeff's bug, v1.4):
 
-1. Tap rápido: el stop llegaba antes de que el estado fuera RECORDING, era un
-   no-op, y la grabación quedaba huérfana hasta audio.max_duration (5 min).
-2. Doble press: dos hilos pasaban el chequeo de IDLE y abrían dos recorders.
+1. Quick tap: the stop arrived before the state was RECORDING, was a
+   no-op, and the recording was left orphaned until audio.max_duration (5 min).
+2. Double press: two threads passed the IDLE check and opened two recorders.
 """
 import threading
 
@@ -18,7 +18,7 @@ def test_ciclo_normal():
     assert g.state == recgate.IDLE
     assert g.try_begin()
     assert g.state == recgate.STARTING
-    assert g.begin_done() is False          # nadie pidió parar durante el arranque
+    assert g.begin_done() is False          # nobody asked to stop during startup
     assert g.state == recgate.RECORDING
     assert g.request_stop() == "stop"
     g.processing()
@@ -27,35 +27,35 @@ def test_ciclo_normal():
     assert g.state == recgate.IDLE
 
 
-def test_doble_arranque_solo_pasa_el_primero():
+def test_double_start_only_passes_first():
     g = _gate()
     assert g.try_begin()
-    assert not g.try_begin()                # segundo press mientras arranca
+    assert not g.try_begin()                # second press while starting
     g.begin_done()
-    assert not g.try_begin()                # ni mientras graba
+    assert not g.try_begin()                # nor while recording
     g.processing()
-    assert not g.try_begin()                # ni mientras procesa
+    assert not g.try_begin()                # nor while processing
     g.idle()
-    assert g.try_begin()                    # tras volver a IDLE, sí
+    assert g.try_begin()                    # after returning to IDLE, yes
 
 
-def test_stop_durante_el_arranque_queda_anotado():
-    """El corazón del bug: el release del tap rápido no puede perderse."""
+def test_stop_during_start_is_noted():
+    """The heart of the bug: the quick tap's release must not get lost."""
     g = _gate()
     g.try_begin()
-    assert g.request_stop() == "deferred"   # el llamador no para nada aún
-    assert g.begin_done() is True           # ...pero el arranque lo aplica al terminar
+    assert g.request_stop() == "deferred"   # the caller stops nothing yet
+    assert g.begin_done() is True           # ...but startup applies it when it finishes
 
 
-def test_el_stop_anotado_no_sobrevive_al_siguiente_dictado():
+def test_noted_stop_does_not_survive_next_dictation():
     g = _gate()
     g.try_begin()
     g.request_stop()
-    g.begin_done()                          # consumido aquí
+    g.begin_done()                          # consumed here
     g.processing()
     g.idle()
     g.try_begin()
-    assert g.begin_done() is False          # el dictado nuevo arranca limpio
+    assert g.begin_done() is False          # the new dictation starts clean
 
 
 def test_stop_sin_nada_que_parar_es_no():
@@ -64,7 +64,7 @@ def test_stop_sin_nada_que_parar_es_no():
     g.try_begin()
     g.begin_done()
     g.processing()
-    assert g.request_stop() == "no"         # PROCESSING: _process ya decide solo
+    assert g.request_stop() == "no"         # PROCESSING: _process already decides on its own
 
 
 def test_begin_failed_vuelve_a_idle_y_limpia_el_pendiente():
@@ -78,9 +78,9 @@ def test_begin_failed_vuelve_a_idle_y_limpia_el_pendiente():
 
 
 def test_carrera_real_tap_rapido_alguien_para_siempre():
-    """La carrera con hilos de verdad: press y release concurrentes. Pase lo
-    que pase el orden, exactamente un camino para la grabación — o el stop
-    directo (ya era RECORDING) o el pendiente que devuelve begin_done()."""
+    """The race with real threads: concurrent press and release. Whatever
+    the ordering, exactly one path stops the recording — either the direct
+    stop (it was already RECORDING) or the pending one begin_done() returns."""
     for _ in range(50):
         g = _gate()
         arrancando = threading.Event()

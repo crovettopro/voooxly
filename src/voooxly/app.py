@@ -1,10 +1,10 @@
-"""App de barra de menús (rumps) que orquesta todo el sistema de dictado.
+"""Menu-bar app (rumps) that orchestrates the whole dictation system.
 
-Máquina de estados simple:
-  IDLE -> (toggle) -> RECORDING -> (toggle | silencio) -> PROCESSING -> IDLE
+Simple state machine:
+  IDLE -> (toggle) -> RECORDING -> (toggle | silence) -> PROCESSING -> IDLE
 
-Durante RECORDING se muestra el overlay con transcripción parcial.
-Al finalizar: STT final -> refino por modo -> entregar (clipboard + paste).
+During RECORDING the overlay shows the partial transcription.
+On finish: final STT -> per-mode refine -> deliver (clipboard + paste).
 """
 from __future__ import annotations
 
@@ -26,11 +26,11 @@ from .overlay import Overlay
 
 log = logging.getLogger("voooxly")
 
-# Preferencias que se tocan desde el menú (el config.yaml va DENTRO del .app y
-# es de solo lectura en la práctica): un json pequeño en ~/.voooxly.
+# Preferences touched from the menu (config.yaml lives INSIDE the .app and
+# is read-only in practice): a small json in ~/.voooxly.
 PREFS_PATH = os.path.expanduser("~/.voooxly/prefs.json")
-# "Start at login": un LaunchAgent clásico — sin APIs de ServiceManagement,
-# funciona igual lanzado desde el repo o desde /Applications.
+# "Start at login": a classic LaunchAgent — no ServiceManagement APIs,
+# works the same launched from the repo or from /Applications.
 LAUNCH_AGENT = os.path.expanduser(
     "~/Library/LaunchAgents/com.eduardocrovetto.voooxly.plist"
 )
@@ -51,42 +51,42 @@ def _save_prefs(prefs: dict) -> None:
         with open(PREFS_PATH, "w") as f:
             json.dump(prefs, f, indent=2)
     except Exception:
-        log.warning("No pude guardar prefs en %s", PREFS_PATH)
+        log.warning("Couldn't save prefs in %s", PREFS_PATH)
 
 
 def ai_menu_labels(selection) -> list[tuple[str, bool]]:
-    """Filas del submenú AI engine: (etiqueta, ¿es el activo?).
+    """Rows for the AI engine submenu: (label, is it the active one?).
 
-    A nivel de módulo y no como método para poder testearla: instanciar
-    VoooxlyApp construye menús de AppKit y eso no corre en un test.
+    At module level and not as a method so it can be tested: instantiating
+    VoooxlyApp builds AppKit menus and that doesn't run in a test.
     """
     filas = []
     for prov in providers.PROVIDERS.values():
-        # Etiqueta limpia, sin "…": la lista corta ya se entiende y el "…" en
-        # cada fila se veía ruidoso. Al pulsar se pide la key (o el modelo de
-        # Ollama), pero eso no justifica ensuciar las cinco filas.
+        # Clean label, no "…": the short list is already clear and the "…" on
+        # every row looked noisy. Clicking asks for the key (or the Ollama
+        # model), but that doesn't justify cluttering the five rows.
         etiqueta = prov.label
         activo = selection is not None and selection.provider.key == prov.key
         filas.append((etiqueta, activo))
     return filas
 
 
-# Nombres cortos para los backends que devuelve refine.detect_backend(): las
-# filas del submenú "AI engine" ya no pueden mostrarlos (solo llevan check),
-# así que este título compensa vía el padre del submenú, que sí admite texto.
+# Short names for the backends refine.detect_backend() returns: the rows of
+# the "AI engine" submenu can no longer show them (they only carry a check),
+# so this title compensates via the submenu's parent, which does accept text.
 _BACKEND_LABELS = {"ollama": "Ollama", "claude": "Claude", "openai": "OpenAI"}
 
 
 def ai_engine_title(selection, detected: str) -> str:
-    """Título del ítem padre del submenú AI engine: la única pista visible de
-    qué motor está activo (las filas hijas solo llevan un check).
+    """Title of the AI engine submenu's parent item: the only visible hint of
+    which engine is active (the child rows only carry a check).
 
-    A nivel de módulo y no como método, por el mismo motivo que
-    ai_menu_labels: instanciar VoooxlyApp construye menús de AppKit.
+    At module level and not as a method, for the same reason as
+    ai_menu_labels: instantiating VoooxlyApp builds AppKit menus.
     """
     if selection is not None:
-        # .name, no .label: label lleva la nota ("Groq — free") y saldría
-        # "AI engine — Groq — free", con dos guiones largos seguidos.
+        # .name, not .label: label carries the note ("Groq — free") and it
+        # would read "AI engine — Groq — free", with two em dashes in a row.
         return f"AI engine — {selection.provider.name}"
     if detected == "none":
         return "AI engine — none (raw text)"
@@ -95,21 +95,21 @@ def ai_engine_title(selection, detected: str) -> str:
 
 
 def _migrate_shortcuts_prefs(prefs: dict) -> bool:
-    """Migra `prefs` (en memoria) al bloque `shortcuts` y persiste el
-    resultado en disco — pero SOLO si `shortcuts.migrate()` cambió algo de
-    verdad. Devuelve si escribió.
+    """Migrates `prefs` (in memory) to the `shortcuts` block and persists the
+    result to disk — but ONLY if `shortcuts.migrate()` actually changed
+    something. Returns whether it wrote.
 
-    A nivel de módulo y no inline en __init__, por el mismo motivo que
-    apply_shortcut: instanciar VoooxlyApp construye menús de AppKit y eso no
-    corre en un test.
+    At module level and not inline in __init__, for the same reason as
+    apply_shortcut: instantiating VoooxlyApp builds AppKit menus and that
+    doesn't run in a test.
 
-    Sin este guardado, un usuario que actualiza desde v1.3.0 y nunca abre la
-    ventana de Shortcuts no llega a tener nunca la clave "shortcuts" en su
-    prefs.json: hoy es inofensivo porque resolve() recalcula lo mismo leyendo
-    las claves viejas en cada arranque, pero el día que una versión futura
-    deje de leerlas, ese usuario pierde su configuración sin haber hecho
-    nada malo. Y escribir SIEMPRE (haya migrado algo o no) reescribiría
-    prefs.json en cada arranque sin motivo.
+    Without this save, a user upgrading from v1.3.0 who never opens the
+    Shortcuts window never ends up with the "shortcuts" key in their
+    prefs.json: today that's harmless because resolve() recomputes the same
+    thing by reading the old keys on every launch, but the day a future
+    version stops reading them, that user loses their configuration without
+    having done anything wrong. And writing ALWAYS (whether anything was
+    migrated or not) would rewrite prefs.json on every launch for no reason.
     """
     if not shortcuts.migrate(prefs):
         return False
@@ -118,39 +118,39 @@ def _migrate_shortcuts_prefs(prefs: dict) -> bool:
 
 
 def apply_shortcut(hk, sid: str, fila: dict) -> tuple[bool, str]:
-    """Aplica un atajo al HotkeyManager. Devuelve (ok, mensaje en inglés).
+    """Applies a shortcut to the HotkeyManager. Returns (ok, message in English).
 
-    A nivel de módulo y no como método para poder testearla: instanciar
-    VoooxlyApp construye menús de AppKit y eso no corre en un test.
+    At module level and not as a method so it can be tested: instantiating
+    VoooxlyApp builds AppKit menus and that doesn't run in a test.
 
-    Nunca lanza: la llama la ventana de Shortcuts, que es código de AppKit, y
-    una excepción sin capturar ahí se lleva la app entera por delante.
+    Never raises: it's called by the Shortcuts window, which is AppKit code,
+    and an uncaught exception there takes the whole app down with it.
     """
     try:
         if sid == "dictation":
             tecla = (fila.get("keys") or [""])[0]
             delay_ms = int(fila.get("delay_ms") or 0)
-            # El guard es la ventana de "mantén la tecla N ms antes de que
-            # arranque el dictado" (evita que un ⌘C dispare grabación). Antes
-            # se activaba SOLO si la tecla lo necesitaba por diseño
-            # (keys.needs_guard: izquierdas sí, derechas no), así que el
-            # slíder se ignoraba por completo en el ⌘ derecho aunque el
-            # usuario le pusiera un delay (punto 2 del feedback). Ahora el
-            # delay es elección del usuario en cualquier tecla: needs_guard
-            # sigue decidiendo el DEFAULT (izquierdas → 400), pero un delay>0
-            # lo activa siempre. needs_guard se mantiene por separado para
-            # que una tecla izquierda con delay 0 no pierda su guarda.
+            # The guard is the "hold the key for N ms before dictation
+            # starts" window (keeps a ⌘C from triggering a recording). It
+            # used to activate ONLY if the key needed it by design
+            # (keys.needs_guard: left keys yes, right keys no), so the
+            # slider was ignored entirely on the right ⌘ even if the
+            # user set a delay on it (feedback point 2). Now the
+            # delay is the user's choice on any key: needs_guard
+            # still decides the DEFAULT (left keys → 400), but a delay>0
+            # always enables it. needs_guard is kept separate so that
+            # a left key with delay 0 doesn't lose its guard.
             ok = hk.reconfigure(
                 toggle_key=tecla,
                 toggle_mode=fila.get("style", "hold"),
                 guard=keys.needs_guard(tecla) or delay_ms > 0,
-                # El hotkey trabaja en SEGUNDOS; la ventana y prefs.json en ms.
+                # The hotkey works in SECONDS; the window and prefs.json in ms.
                 guard_delay=float(delay_ms) / 1000.0,
             )
         else:
             ok = hk.rebind(sid, list(fila.get("keys") or []))
     except Exception:
-        log.exception("No pude aplicar el atajo %s", sid)
+        log.exception("Couldn't apply shortcut %s", sid)
         return False, "Something went wrong applying that shortcut."
     if not ok:
         return False, "That key collides with another shortcut, so the previous one is still active."
@@ -158,10 +158,10 @@ def apply_shortcut(hk, sid: str, fila: dict) -> tuple[bool, str]:
 
 
 def check_now_message(status: str, info: dict | None, local: str) -> tuple[str, str]:
-    """(title, message) para el resultado de un 'Check for updates…' manual.
+    """(title, message) for the result of a manual 'Check for updates…'.
 
-    Pure: el cableado UI la llama desde _check_now y le pasa lo que devolvió
-    updates.check_status(). Sin info -> error o al día según status.
+    Pure: the UI wiring calls it from _check_now and hands it whatever
+    updates.check_status() returned. No info -> error or up to date per status.
     """
     if status == updates.UPDATE_AVAILABLE and info:
         ver = info["version"]
@@ -180,16 +180,16 @@ def check_now_message(status: str, info: dict | None, local: str) -> tuple[str, 
 
 
 def apply_ai_selection(cfg, sel) -> None:
-    """Aplica la elección al config VIVO (aquí sí toca: es configurar la app).
+    """Applies the choice to the LIVE config (here it's right to: this is configuring the app).
 
-    A nivel de módulo y no como método para poder testearla sin instanciar
-    VoooxlyApp (mismo motivo que ai_menu_labels/ai_engine_title: AppKit no
-    corre en pytest).
+    At module level and not as a method so it can be tested without
+    instantiating VoooxlyApp (same reason as ai_menu_labels/ai_engine_title:
+    AppKit doesn't run in pytest).
 
-    A diferencia de _probe(), que no debe tocar el singleton, este ES el
-    momento de escribirlo: el usuario acaba de elegir. La ruta depende del
-    kind — mismo branching que _probe y por el mismo motivo (los presets
-    OpenAI-compatibles comparten llm.openai.*).
+    Unlike _probe(), which must not touch the singleton, this IS the
+    moment to write it: the user just made a choice. The path depends on the
+    kind — same branching as _probe and for the same reason (the
+    OpenAI-compatible presets share llm.openai.*).
     """
     if sel is None:
         return
@@ -198,26 +198,26 @@ def apply_ai_selection(cfg, sel) -> None:
     if sel.provider.kind == "ollama":
         cfg._set_path("llm.ollama.host", sel.base_url)
     elif sel.base_url:
-        # Claude no tiene base_url propia (el SDK de anthropic gestiona su
-        # endpoint solo, base_url == "" por diseño en providers.py): escribir
-        # aquí incondicionalmente dejaba llm.openai.base_url = "" en vivo cada
-        # vez que se conectaba o restauraba Claude, rompiendo la ruta
-        # OpenAI-compatible hasta el próximo proveedor openai-kind conectado.
+        # Claude has no base_url of its own (the anthropic SDK manages its
+        # endpoint by itself, base_url == "" by design in providers.py):
+        # writing here unconditionally left llm.openai.base_url = "" live
+        # every time Claude was connected or restored, breaking the
+        # OpenAI-compatible path until the next openai-kind provider connected.
         cfg._set_path("llm.openai.base_url", sel.base_url)
 
 
 def _record_token_usage(refiner, prefs) -> None:
-    """Cuenta los tokens del último refino remoto, si los hubo.
+    """Counts the tokens of the last remote refine, if there was one.
 
-    A nivel de módulo (mismo motivo que apply_ai_selection: poder testear sin
-    instanciar VoooxlyApp) y porque _process la llama DESPUÉS de
-    output.deliver() a propósito: contar tokens es puro best-effort para que
-    quien use un free tier vea cuánto lleva gastado, y NUNCA puede impedir ni
-    preceder el pegado. Antes, ai_settings.load(self._prefs) corría dentro
-    del try/except de _process y ANTES de deliver(); si lanzaba (un
-    prefs.json corrupto, por ejemplo), _process abortaba al catch-all y el
-    texto ya refinado no llegaba a pegarse — perder el dictado del usuario
-    por un fallo al contar tokens es el peor desenlace posible aquí.
+    At module level (same reason as apply_ai_selection: to be testable
+    without instantiating VoooxlyApp) and because _process calls it AFTER
+    output.deliver() on purpose: counting tokens is pure best-effort so
+    whoever uses a free tier can see how much they've spent, and it can NEVER
+    prevent or precede the paste. Before, ai_settings.load(self._prefs) ran
+    inside _process's try/except and BEFORE deliver(); if it raised (a
+    corrupt prefs.json, for example), _process aborted to the catch-all and
+    the already-refined text never got pasted — losing the user's dictation
+    over a token-counting failure is the worst possible outcome here.
     """
     try:
         usados = getattr(refiner, "last_usage", None)
@@ -228,7 +228,7 @@ def _record_token_usage(refiner, prefs) -> None:
         sel = ai_settings.load(prefs)
         stats.bump_tokens(usados, sel.provider.name if sel else "")
     except Exception:
-        log.debug("No pude contar tokens tras el pegado", exc_info=True)
+        log.debug("Couldn't count tokens after pasting", exc_info=True)
 
 
 class VoooxlyApp(rumps.App):
@@ -236,15 +236,15 @@ class VoooxlyApp(rumps.App):
         cfg = get_config()
         self.cfg = cfg
         self.mode = cfg.get("app.default_mode", "ordenar")
-        # "auto" -> idioma del sistema de quien use la app, no el del autor.
+        # "auto" -> the system language of whoever uses the app, not the author's.
         self.language = resolve_language(cfg.get("app.language", None))
         self.stt_model = cfg.get("stt.model")
         self.stt_lang = resolve_language(cfg.get("stt.language", None))
-        # Toda transición de la grabación va por el gate (ver recgate.py):
-        # start/stop/cancel llegan desde hilos del hotkey sin orden garantizado
-        # y un stop que adelanta al arranque no puede perderse.
+        # Every recording transition goes through the gate (see recgate.py):
+        # start/stop/cancel arrive from hotkey threads with no guaranteed order
+        # and a stop that outruns the start-up cannot be lost.
         self._gate = recgate.RecordingGate()
-        # Esc durante grabación/procesado: descartar el dictado sin pegar nada.
+        # Esc while recording/processing: discard the dictation, paste nothing.
         self._cancel = threading.Event()
         self._recorder: audio.Recorder | None = None
         self._overlay = Overlay(cfg.get("app.overlay_position", "bottom-right"))
@@ -254,19 +254,19 @@ class VoooxlyApp(rumps.App):
         self._partial_running = threading.Event()
         self._prefs = _load_prefs()
         self._sounds = bool(self._prefs.get("sounds", cfg.get("app.sounds", True)))
-        self._snd_cache: dict = {}   # NSSound vivos mientras suenan (si no, dealloc a mitad)
+        self._snd_cache: dict = {}   # NSSounds kept alive while playing (else, dealloc mid-sound)
         self._history: collections.deque[str] = collections.deque(maxlen=HISTORY_SIZE)
-        # Separado de _history porque _search_history reemplaza el contenido
-        # de la deque con hits de búsqueda (self._history[0] deja de ser "lo
-        # último dictado"). _correct_last necesita el dictado real, no el hit
-        # más relevante de una búsqueda.
+        # Kept separate from _history because _search_history replaces the
+        # deque's content with search hits (self._history[0] stops being "the
+        # last dictation"). _correct_last needs the real dictation, not the
+        # most relevant hit of a search.
         self._last_dictation: str | None = None
-        # Auto-learn: lo último pegado (para comparar al PRÓXIMO dictado) y la
-        # nota "✨ Aprendido" pendiente de mostrar cuando el HUD quede libre.
+        # Auto-learn: the last text pasted (to compare on the NEXT dictation) and
+        # the "✨ Learned" note pending display for when the HUD becomes free.
         self._pending_learn: str | None = None
         self._learned_note: str | None = None
-        # Diccionario (config + personal) → initial prompt de Whisper (sesga
-        # hacia esas grafías). Whisper solo usa ~224 tokens: se recorta.
+        # Dictionary (config + personal) → Whisper initial prompt (biases it
+        # toward those spellings). Whisper only uses ~224 tokens: it gets trimmed.
         self.stt_prompt = self._build_stt_prompt()
 
         icon_path = self._asset("menubar.png")
@@ -277,24 +277,24 @@ class VoooxlyApp(rumps.App):
         self._timer_seq = 0
         super().__init__(
             name="Voooxly",
-            icon=icon_path,          # glyph template (se adapta a claro/oscuro)
+            icon=icon_path,          # template glyph (adapts to light/dark)
             title=None if self._has_icon else "🎙",
             template=True,
-            quit_button=None,        # rumps añade un "Quit" propio si no se anula
-        )                            # (usamos el nuestro, que apaga server/hotkey)
-        # Se resuelve ANTES de _build_menu(): el ítem de Shortcuts marca el
-        # estado inicial leyendo self._dictation_key/self._toggle_mode, así
-        # que tienen que existir antes de construir esos NSMenuItem.
+            quit_button=None,        # rumps adds its own "Quit" unless overridden
+        )                            # (we use ours, which shuts down server/hotkey)
+        # Resolved BEFORE _build_menu(): the Shortcuts item sets its
+        # initial state by reading self._dictation_key/self._toggle_mode, so
+        # they have to exist before those NSMenuItems are built.
         _migrate_shortcuts_prefs(self._prefs)
         self._shortcuts = shortcuts.resolve(self._prefs, cfg)
         dic = self._shortcuts["dictation"]
         tecla, modo = dic["keys"][0], dic["style"]
         self._toggle_mode = modo
         self._dictation_key = tecla
-        # Idioma de la UI (menú y diálogos): override manual en config.yaml o,
-        # por defecto, el primer idioma preferido del sistema. i18n.py no toca
-        # AppKit a nivel de módulo, así que resolvemos NSLocale aquí y le
-        # pasamos ya la cadena resuelta.
+        # UI language (menu and dialogs): manual override in config.yaml or,
+        # by default, the system's first preferred language. i18n.py doesn't
+        # touch AppKit at module level, so we resolve NSLocale here and hand
+        # it the already-resolved string.
         ui_lang = cfg.get("app.ui_language", None)
         if not ui_lang:
             try:
@@ -318,14 +318,14 @@ class VoooxlyApp(rumps.App):
             on_cancel=self.cancel_record,
             latch_keys=self._shortcuts["latch"]["keys"],
             on_latch=self._on_latch,
-            # Ver apply_shortcut: el delay es elección del usuario en cualquier
-            # tecla, no solo en las que needs_guard dice que lo necesitan.
+            # See apply_shortcut: the delay is the user's choice on any
+            # key, not only the ones needs_guard says need it.
             toggle_guard=keys.needs_guard(tecla) or int(dic.get("delay_ms") or 0) > 0,
             guard_delay=float(dic.get("delay_ms") or 0) / 1000.0,
         )
 
     def _on_latch(self):
-        log.info("Latch: grabación fijada, tap en la tecla de dictado para terminar.")
+        log.info("Latch: recording pinned, tap the dictation key to finish.")
         try:
             self._overlay.update("🔒 Hands-free — tap the dictation key to finish")
         except Exception:
@@ -347,7 +347,7 @@ class VoooxlyApp(rumps.App):
                 return c
         return None
 
-    # ---------- menú ----------
+    # ---------- menu ----------
     def _build_menu(self):
         items = []
         for key, info in modes.modes_by_key().items():
@@ -370,27 +370,27 @@ class VoooxlyApp(rumps.App):
         self.ai.add(self.ai_test_item)
         self.stats_item = rumps.MenuItem(i18n.t("Usage stats…"), callback=self._show_stats)
         self.quit = rumps.MenuItem(i18n.t("Quit Voooxly"), callback=self._quit)
-        # Oculto hasta que el comprobador encuentre una versión nueva (ver _warmup).
+        # Hidden until the checker finds a new version (see _warmup).
         self.update_item = rumps.MenuItem(i18n.t("Update available"), callback=self._open_update)
         self.about_item = rumps.MenuItem(i18n.t("About Voooxly"), callback=self._show_about)
         self._update_url = ""
         self._update_version = ""
         self._update_downloading = False
-        # Re-chequeo periódico cada updates.CHECK_INTERVAL; HUD una vez por versión.
+        # Periodic re-check every updates.CHECK_INTERVAL; HUD once per version.
         self._update_timer: threading.Timer | None = None
         self._notified_update_version: str | None = None
         self._paused_players: list[str] = []
         self._mode_flash_seq = 0
         self._mic_warned = False
 
-        # Recent: los últimos dictados, clic = volver a copiarlos al portapapeles.
-        # Los items se PRE-crean ocultos: añadir/quitar items de un NSMenu desde el
-        # hilo de proceso sería inseguro; cambiar título/hidden funciona bien.
+        # Recent: the latest dictations, click = copy them to the clipboard again.
+        # Items are PRE-created hidden: adding/removing items of an NSMenu from the
+        # processing thread would be unsafe; changing title/hidden works fine.
         self.recent_parent = rumps.MenuItem(i18n.t("Recent"))
-        # "Corrige y aprende" (v1 del diccionario auto-aprendido, plan
-        # pre-lanzamiento): el usuario corrige el último dictado en un
-        # diálogo y las grafías cambiadas van al diccionario. La detección
-        # 100% automática (leer el campo de otra app) queda para H2.
+        # "Correct and learn" (v1 of the auto-learned dictionary, pre-launch
+        # plan): the user corrects the last dictation in a
+        # dialog and the changed spellings go into the dictionary. The 100%
+        # automatic detection (reading another app's field) is left for H2.
         self.correct_item = rumps.MenuItem(
             i18n.t("Correct last dictation…"), callback=self._correct_last
         )
@@ -410,7 +410,7 @@ class VoooxlyApp(rumps.App):
         self.sounds_item = rumps.MenuItem(i18n.t("Sounds"), callback=self._toggle_sounds)
         self.sounds_item.state = 1 if self._sounds else 0
         self.dict_item = rumps.MenuItem(i18n.t("Add to dictionary…"), callback=self._add_to_dictionary)
-        # Auto-learn: aprender de las correcciones hechas sobre el texto pegado.
+        # Auto-learn: learn from the corrections made to the pasted text.
         self.auto_learn_item = rumps.MenuItem(
             i18n.t("Learn from my corrections"), callback=self._toggle_auto_learn
         )
@@ -420,12 +420,12 @@ class VoooxlyApp(rumps.App):
         settings.add(self.dict_item)
         settings.add(self.auto_learn_item)
 
-        # Submenú "Shortcuts" en el PRIMER nivel (feedback v1.6 de Jeff: los
-        # atajos son lo más importante de la app y estaban enterrados en
-        # Settings): una fila por atajo con su binding real — clic en
-        # cualquiera abre la ventana — y "Customize…" al final. Los títulos
-        # los decide shortcuts.menu_summary (puro, probado) y se refrescan al
-        # aplicar un cambio desde la ventana (_apply_shortcut).
+        # "Shortcuts" submenu at the TOP level (Jeff's v1.6 feedback: the
+        # shortcuts are the most important part of the app and were buried in
+        # Settings): one row per shortcut with its real binding — clicking
+        # any of them opens the window — and "Customize…" at the end. The titles
+        # are decided by shortcuts.menu_summary (pure, tested) and refresh when
+        # a change is applied from the window (_apply_shortcut).
         self.shortcuts_menu = rumps.MenuItem(i18n.t("Shortcuts"))
         self._shortcut_rows: dict[str, rumps.MenuItem] = {}
         for sid, texto in shortcuts.menu_summary(self._shortcuts):
@@ -436,8 +436,8 @@ class VoooxlyApp(rumps.App):
         self.shortcuts_item = rumps.MenuItem(i18n.t("Customize…"), callback=self._open_shortcuts)
         self.shortcuts_menu.add(self.shortcuts_item)
 
-        # Idioma de dictado: Auto (con lock aprendido visible), Español, English.
-        # Los nombres de idioma son endónimos: no se traducen.
+        # Dictation language: Auto (with the learned lock visible), Español, English.
+        # Language names are endonyms: they don't get translated.
         self.lang_menu = rumps.MenuItem(i18n.t("Dictation language"))
         self._lang_items = {}
         for code, label in (("auto", i18n.t("Auto")), ("es", "Español"), ("en", "English")):
@@ -447,7 +447,7 @@ class VoooxlyApp(rumps.App):
         self._refresh_lang_menu()
 
         self.search_item = rumps.MenuItem(i18n.t("Search history…"), callback=self._search_history)
-        # La guía de uso (feedback v1.6: muchas funciones, ninguna guía).
+        # The usage guide (v1.6 feedback: lots of features, no guide).
         self.guide_item = rumps.MenuItem(i18n.t("How to use Voooxly…"), callback=self._show_guide)
 
         self.menu = [
@@ -468,8 +468,8 @@ class VoooxlyApp(rumps.App):
             self.update_item,
             self.quit,
         ]
-        # setHidden_ debe ir DESPUÉS de asignar self.menu: hasta entonces rumps no
-        # ha creado el NSMenuItem real y el ocultado se pierde.
+        # setHidden_ must come AFTER assigning self.menu: until then rumps hasn't
+        # created the real NSMenuItem and the hiding is lost.
         self.update_item._menuitem.setHidden_(True)
         self._refresh_title()
 
@@ -488,7 +488,7 @@ class VoooxlyApp(rumps.App):
         def cb(_sender):
             self._prefs["stt_language"] = code
             if code == "auto":
-                # Volver a Auto reinicia el aprendizaje: racha y lock fuera.
+                # Going back to Auto resets the learning: streak and lock go.
                 self._prefs["lang_streak"] = []
                 self._prefs["stt_lang_lock"] = None
             _save_prefs(self._prefs)
@@ -496,7 +496,7 @@ class VoooxlyApp(rumps.App):
         return cb
 
     def _refresh_lang_menu(self):
-        """Check en el idioma activo; el ítem Auto enseña el lock aprendido."""
+        """Check on the active language; the Auto item shows the learned lock."""
         try:
             sel = self._prefs.get("stt_language", "auto")
             lock = self._prefs.get("stt_lang_lock")
@@ -513,9 +513,9 @@ class VoooxlyApp(rumps.App):
         if key not in modes.MODES:
             return
         self.mode = key
-        # mi.state es AppKit sobre NSMenuItem; set_mode se llama también desde el
-        # hotkey Ctrl+Shift+M (hilo de fondo), no solo desde el menú → va por el
-        # main o crashea con el menú abierto (mismo SIGTRAP que _refresh_title).
+        # mi.state is AppKit on NSMenuItem; set_mode is also called from the
+        # Ctrl+Shift+M hotkey (background thread), not only from the menu → goes
+        # through main or it crashes with the menu open (same SIGTRAP as _refresh_title).
         def apply():
             for k, mi in self.mode_items.items():
                 mi.state = 1 if k == key else 0
@@ -525,21 +525,21 @@ class VoooxlyApp(rumps.App):
         self._flash_mode()
 
     def _flash_mode(self):
-        """Flash del HUD con el modo recién activado (nombre + posición + hint).
+        """HUD flash with the just-activated mode (name + position + hint).
 
-        Sin esto, ciclar con Ctrl+Shift+M es a ciegas: 9 modos y ninguna pista
-        de en cuál has caído. Se auto-oculta a los ~1.4s; ciclar rápido solo
-        renueva el timer (el seq más nuevo manda) y un dictado en curso tiene
-        prioridad sobre el flash.
+        Without this, cycling with Ctrl+Shift+M is blind: 9 modes and no clue
+        which one you landed on. It auto-hides after ~1.4s; cycling fast only
+        renews the timer (the newest seq wins) and a dictation in progress
+        takes priority over the flash.
         """
         if not self._show_overlay or not getattr(self._overlay, "_built", False):
             log.debug(
-                "flash: descartado (show_overlay=%s, built=%s)",
+                "flash: discarded (show_overlay=%s, built=%s)",
                 self._show_overlay, getattr(self._overlay, "_built", None),
             )
             return
         if self._gate.state != "IDLE":
-            return  # el HUD está ocupado con un dictado
+            return  # the HUD is busy with a dictation
         self._mode_flash_seq += 1
         seq = self._mode_flash_seq
 
@@ -549,12 +549,12 @@ class VoooxlyApp(rumps.App):
                 self._overlay.show(body, title=title)
                 time.sleep(1.4)
                 if self._mode_flash_seq != seq:
-                    return  # hubo otro cambio de modo: su flash manda
+                    return  # another mode change happened: its flash wins
                 if self._gate.state != "IDLE":
-                    return  # empezó un dictado: su flujo gestiona el HUD
+                    return  # a dictation started: its flow manages the HUD
                 self._overlay.hide()
             except Exception:
-                log.warning("Flash de modo falló", exc_info=True)
+                log.warning("Mode flash failed", exc_info=True)
 
         threading.Thread(target=_do, daemon=True).start()
 
@@ -567,34 +567,34 @@ class VoooxlyApp(rumps.App):
         self.set_mode(keys[(i + 1) % len(keys)])
 
     def _on_main(self, fn):
-        """Ejecuta fn en el hilo principal. AppKit NO es thread-safe: escribir
-        el título de la barra o de un NSMenuItem desde un hilo de grabación/
-        proceso mientras un menú está ABIERTO reflowa la ventana del popup desde
-        el hilo equivocado y aborta con SIGTRAP (EXC_BREAKPOINT). Todo write de
-        .title pasa por aquí. Si un menú está abierto el runloop está en
-        tracking y el update se aplica al cerrarlo: se ve con un instante de
-        retraso, pero nunca crashea."""
+        """Runs fn on the main thread. AppKit is NOT thread-safe: writing the
+        title of the bar or of an NSMenuItem from a recording/processing
+        thread while a menu is OPEN reflows the popup window from the wrong
+        thread and aborts with SIGTRAP (EXC_BREAKPOINT). Every write of
+        .title goes through here. If a menu is open the runloop is in
+        tracking and the update applies when it closes: it shows up an
+        instant late, but it never crashes."""
         if threading.current_thread() is threading.main_thread():
             try:
                 fn()
             except Exception:
-                log.debug("update de título falló", exc_info=True)
+                log.debug("title update failed", exc_info=True)
             return
         try:
             from PyObjCTools import AppHelper
 
             AppHelper.callAfter(fn)
         except Exception:
-            log.debug("no pude encolar update de título en el main thread", exc_info=True)
+            log.debug("couldn't enqueue title update on the main thread", exc_info=True)
 
     def _refresh_title(self):
         label = modes.MODES.get(self.mode, {}).get("label", "Voooxly")
         state = self._gate.state
-        # Barra de menú: glyph template en reposo; grabando = punto rojo +
-        # cronómetro (lo lleva _rec_timer); procesando = glyph + "…".
+        # Menu bar: template glyph while idle; recording = red dot +
+        # stopwatch (handled by _rec_timer); processing = glyph + "…".
         if state == "RECORDING" and self._rec_icon:
             self._swap_icon(rec=True)
-            set_bar = False   # el cronómetro (_start_rec_timer) es dueño del título
+            set_bar = False   # the stopwatch (_start_rec_timer) owns the title
         else:
             self._swap_icon(rec=False)
             set_bar = True
@@ -604,9 +604,9 @@ class VoooxlyApp(rumps.App):
         state_en = {"IDLE": "ready", "RECORDING": "recording", "PROCESSING": "processing"}
         status = f"{i18n.t('Mode')}: {label} · {i18n.t(state_en.get(state, state))}"
 
-        # AppKit desde el hilo de grabación mata la app con el menú abierto: se
-        # marshala. El icono ya lo hacía (_swap_icon); los títulos NO — ese era
-        # el bug del SIGTRAP a los 60s con el menú desplegado.
+        # AppKit from the recording thread kills the app with the menu open: it
+        # gets marshaled. The icon already was (_swap_icon); the titles were NOT
+        # — that was the SIGTRAP-at-60s bug with the menu unfolded.
         def apply():
             if set_bar:
                 self.title = bar
@@ -615,8 +615,8 @@ class VoooxlyApp(rumps.App):
         self._on_main(apply)
 
     def _swap_icon(self, rec: bool):
-        """Cambia el icono de la barra en el main thread (AppKit no es
-        thread-safe y _refresh_title llega desde hilos de grabación)."""
+        """Swaps the bar icon on the main thread (AppKit is not
+        thread-safe and _refresh_title arrives from recording threads)."""
         if not self._has_icon or rec == self._rec_shown or (rec and not self._rec_icon):
             return
         self._rec_shown = rec
@@ -626,7 +626,7 @@ class VoooxlyApp(rumps.App):
                 self.template = not rec
                 self.icon = self._rec_icon if rec else self._idle_icon
             except Exception:
-                log.debug("No pude cambiar el icono de la barra", exc_info=True)
+                log.debug("Couldn't change the bar icon", exc_info=True)
 
         try:
             from PyObjCTools import AppHelper
@@ -636,7 +636,7 @@ class VoooxlyApp(rumps.App):
             apply()
 
     def _start_rec_timer(self):
-        """Cronómetro 0:07 junto al punto rojo mientras se graba."""
+        """A 0:07 stopwatch next to the red dot while recording."""
         self._timer_seq += 1
         seq = self._timer_seq
         t0 = time.monotonic()
@@ -647,14 +647,14 @@ class VoooxlyApp(rumps.App):
                     break
                 s = int(time.monotonic() - t0)
                 txt = f" {s // 60}:{s % 60:02d}"
-                # Este hilo escribía self.title directo: AppKit desde hilo de
-                # fondo. Marshalado al main como el resto (ver _on_main).
+                # This thread used to write self.title directly: AppKit from a
+                # background thread. Marshaled to main like the rest (see _on_main).
                 self._on_main(lambda txt=txt: setattr(self, "title", txt))
                 time.sleep(1.0)
 
         threading.Thread(target=run, daemon=True).start()
 
-    # ---------- grabación ----------
+    # ---------- recording ----------
     def toggle_record(self):
         state = self._gate.state
         if state == "IDLE":
@@ -662,27 +662,27 @@ class VoooxlyApp(rumps.App):
         elif state == "RECORDING":
             self._stop_record(force=True)
         elif state == "STARTING":
-            # Segundo tap mientras el arranque sigue en su hilo: queda anotado
-            # y _start_record lo aplica en cuanto el recorder esté abierto.
+            # Second tap while the start-up is still on its thread: it gets noted
+            # and _start_record applies it as soon as the recorder is open.
             self._gate.request_stop()
 
     def start_record(self):
-        """Push-to-talk: tecla pulsada -> empieza a grabar (si está IDLE)."""
+        """Push-to-talk: key pressed -> start recording (if IDLE)."""
         self._begin_record(auto_stop=False)
 
     def _begin_record(self, auto_stop: bool):
-        # try_begin reserva IDLE→STARTING de forma atómica: dos press seguidos
-        # ya no pueden abrir dos recorders (el primero quedaba huérfano con el
-        # micro abierto — la mitad del bug de Jeff).
+        # try_begin reserves IDLE→STARTING atomically: two presses in a row
+        # can no longer open two recorders (the first was left orphaned with
+        # the mic open — half of Jeff's bug).
         if not self._gate.try_begin():
             return
         try:
             self._start_record(auto_stop=auto_stop)
         except Exception:
-            log.exception("Error arrancando la grabación (se resetea a IDLE)")
-            # Si el recorder llegó a abrir el stream antes de reventar, hay
-            # que cerrarlo: volver a IDLE con el micro abierto sería el mismo
-            # micro-encendido-para-siempre que este gate existe para evitar.
+            log.exception("Error starting recording (reset to IDLE)")
+            # If the recorder got as far as opening the stream before blowing
+            # up, it must be closed: going back to IDLE with the mic open would
+            # be the same mic-on-forever that this gate exists to prevent.
             try:
                 if self._recorder:
                     self._recorder.stop()
@@ -692,12 +692,12 @@ class VoooxlyApp(rumps.App):
             self._refresh_title()
 
     def stop_record(self):
-        """Push-to-talk: tecla soltada -> termina la grabación.
+        """Push-to-talk: key released -> finish the recording.
 
-        Si el release adelanta al arranque (tap rápido), el gate lo anota y
-        _start_record lo aplica al terminar: antes ese stop era un no-op y la
-        grabación quedaba huérfana hasta audio.max_duration — el micro
-        "encendido constantemente" (la otra mitad del bug de Jeff).
+        If the release outruns the start-up (quick tap), the gate notes it and
+        _start_record applies it when done: before, that stop was a no-op and
+        the recording was left orphaned until audio.max_duration — the mic
+        "constantly on" (the other half of Jeff's bug).
         """
         if self._gate.request_stop() != "stop":
             return
@@ -707,40 +707,40 @@ class VoooxlyApp(rumps.App):
             log.exception("Error en stop_record")
 
     def cancel_record(self):
-        """Esc: descarta el dictado en curso (grabando o procesando). No pega nada.
+        """Esc: discards the dictation in progress (recording or processing). Pastes nothing.
 
-        Se dispara con CADA Esc del sistema, así que el no-op cuando está IDLE
-        tiene que ser inmediato y sin efectos.
+        It fires on EVERY system Esc, so the no-op while IDLE
+        has to be immediate and side-effect free.
         """
         state = self._gate.state
         if state == "IDLE":
             return
         self._cancel.set()
-        log.info("Dictado cancelado por el usuario (estado %s).", state)
+        log.info("Dictation cancelled by user (state %s).", state)
         if self._gate.request_stop() == "stop":
             try:
-                self._stop_record(force=True)  # dispara _on_stop, que verá _cancel
+                self._stop_record(force=True)  # triggers _on_stop, which will see _cancel
             except Exception:
-                log.exception("Error cancelando la grabación")
-        # "deferred": _start_record cerrará al terminar el arranque y _on_stop
-        # verá _cancel. "no": está PROCESSING y _process ya consulta _cancel.
+                log.exception("Error cancelling recording")
+        # "deferred": _start_record will close once the start-up finishes and
+        # _on_stop will see _cancel. "no": it's PROCESSING and _process already checks _cancel.
 
     def _start_record(self, auto_stop: bool = True):
-        """Arranca el recorder. Solo lo llama _begin_record, con el gate en STARTING."""
+        """Starts the recorder. Only called by _begin_record, with the gate in STARTING."""
         self._cancel.clear()
-        # Auto-learn: es AHORA (el usuario vuelve a dictar) cuando se lee una
-        # única vez el campo donde pegamos, en un hilo aparte que jamás
-        # retrasa la grabación. Un solo intento por pegado: pending se vacía ya.
+        # Auto-learn: it's NOW (the user dictates again) that the field we
+        # pasted into gets read exactly once, on a separate thread that never
+        # delays the recording. One attempt per paste: pending is emptied now.
         pending, self._pending_learn = self._pending_learn, None
         if pending and self._prefs.get("auto_learn", True):
             try:
                 threading.Thread(target=self._auto_learn_check, args=(pending,), daemon=True).start()
             except Exception:
-                # Ni el caso imposible (no poder crear el hilo) puede tocar la grabación.
-                log.debug("auto-learn: no pude lanzar el hilo", exc_info=True)
-        # Push-to-talk (auto_stop=False): el usuario controla el fin con la tecla,
-        # desactivamos el auto-stop por silencio para que no cierre al pausar a pensar.
-        # Menú/toggle (auto_stop=True): la grabación se cierra sola tras el silencio.
+                # Not even the impossible case (failing to spawn the thread) may touch the recording.
+                log.debug("auto-learn: couldn't spawn the thread", exc_info=True)
+        # Push-to-talk (auto_stop=False): the user controls the end with the key,
+        # we disable the silence auto-stop so it doesn't close when they pause to think.
+        # Menu/toggle (auto_stop=True): the recording closes by itself after silence.
         silence = self.cfg.get("audio.silence_to_stop", 1.2)
         if not auto_stop:
             silence = 9999.0
@@ -754,23 +754,23 @@ class VoooxlyApp(rumps.App):
         self._recorder = audio.Recorder(acfg)
         if self._show_overlay:
             self._overlay.show("Speak now.", title="● Listening")
-        # hilo de partials: re-transcribe la ventana reciente
+        # partials thread: re-transcribes the recent window
         self._partial_running.set()
         self._partial_thread = threading.Thread(target=self._partial_loop, daemon=True)
         self._partial_thread.start()
         self._recorder.start(on_stop=self._on_stop)
-        # Con el stream ya abierto somos RECORDING de verdad. Si durante el
-        # arranque llegó un stop o un Esc (tap rápido), se aplica AQUÍ mismo:
-        # antes ese evento caía en un no-op y la grabación quedaba huérfana.
+        # With the stream open we're truly RECORDING. If a stop or an Esc
+        # arrived during the start-up (quick tap), it's applied RIGHT HERE:
+        # before, that event fell into a no-op and the recording was left orphaned.
         if self._gate.begin_done():
-            log.info("El stop adelantó al arranque (tap rápido): se cierra ya.")
+            log.info("Stop overtook the start (quick tap): closing now.")
             self._stop_record(force=True)
             return
         self._refresh_title()
         self._start_rec_timer()
-        self._play_sound("Pop")     # "te escucho"
-        # Pausar la música (Spotify/Music) mientras dictas. En hilo aparte:
-        # osascript tarda 100-300ms y no debe retrasar la captura del micro.
+        self._play_sound("Pop")     # "I'm listening"
+        # Pause the music (Spotify/Music) while you dictate. On a separate thread:
+        # osascript takes 100-300ms and must not delay the mic capture.
         if self.cfg.get("audio.pause_media", True):
             threading.Thread(target=self._pause_media, daemon=True).start()
         log.info("Grabando…")
@@ -780,8 +780,8 @@ class VoooxlyApp(rumps.App):
             self._paused_players = media.pause_playing()
         except Exception:
             self._paused_players = []
-        # Pulsación ultracorta: si el dictado terminó mientras pausábamos,
-        # _on_stop ya pasó y nadie más va a reanudar. Hazlo aquí.
+        # Ultra-short press: if the dictation ended while we were pausing,
+        # _on_stop already went by and nobody else will resume. Do it here.
         if self._gate.state != "RECORDING":
             self._resume_media()
 
@@ -805,7 +805,7 @@ class VoooxlyApp(rumps.App):
                 break
             try:
                 a = self._recorder.get_recent_audio()
-                # sin señal suficiente no se transcribe: Whisper alucina con silencio
+                # without enough signal we don't transcribe: Whisper hallucinates on silence
                 if len(a) / audio.SR < 0.4 or audio.rms_of(a) < self._min_rms():
                     continue
                 text = stt.transcribe(a, self.stt_model, self._stt_language(), self.stt_prompt)
@@ -818,11 +818,11 @@ class VoooxlyApp(rumps.App):
         return float(self.cfg.get("audio.min_rms", 50))
 
     def _stt_language(self) -> str | None:
-        """Idioma efectivo para el STT: modo > menú > config > lock aprendido.
+        """Effective language for STT: mode > menu > config > learned lock.
 
-        El modo puede forzar el suyo (p.ej. Traducir EN→ES dicta en inglés);
-        el lock lo aprende langlock tras 3 dictados consecutivos en el mismo
-        idioma y ahorra ~1,1s de auto-detección por dictado (medido)."""
+        A mode can force its own (e.g. Translate EN→ES dictates in English);
+        the lock is learned by langlock after 3 consecutive dictations in the
+        same language and saves ~1.1s of auto-detection per dictation (measured)."""
         mode_lang = modes.MODES.get(self.mode, {}).get("stt_lang")
         if mode_lang:
             return mode_lang
@@ -833,13 +833,13 @@ class VoooxlyApp(rumps.App):
 
     def _on_stop(self, audio_buf, duration: float):
         self._partial_running.clear()
-        # La música vuelve en cuanto el micro se cierra: el refino puede seguir
-        # unos segundos, pero el usuario ya no está hablando.
+        # The music comes back as soon as the mic closes: the refine may go on
+        # for a few seconds, but the user is no longer speaking.
         self._resume_media()
         if self._cancel.is_set():
             threading.Thread(target=self._finish_cancel, daemon=True).start()
             return
-        self._play_sound("Tink")    # "recibido, procesando"
+        self._play_sound("Tink")    # "got it, processing"
         rec = self._recorder
         had_speech = rec.had_speech if rec else False
         speech_ratio = rec.speech_ratio if rec else 0.0
@@ -853,32 +853,32 @@ class VoooxlyApp(rumps.App):
         ).start()
 
     def _flash(self, msg: str, secs: float = 1.6, title: str | None = None):
-        """Mensaje breve en el HUD (el finally de _process lo cierra después)."""
+        """Brief message on the HUD (the finally of _process closes it afterwards)."""
         try:
             self._overlay.show(msg, title=title)
             time.sleep(secs)
         except Exception:
             pass
 
-    # ---------- avisos al usuario ----------
-    # rumps.notification (NSUserNotification) NO entrega nada en macOS 26: la app
-    # ni siquiera llega a registrarse en el Centro de Notificaciones y los avisos
-    # se descartan en silencio. Todo aviso sale por uno de estos dos caminos,
-    # ambos verificados con screencapture/CGWindowList:
-    #   _alert() → NSAlert modal, para info que el usuario ha pedido y quiere leer.
-    #   _hud()   → HUD efímero, para eventos de fondo que NO deben robar el foco.
+    # ---------- user notices ----------
+    # rumps.notification (NSUserNotification) delivers NOTHING on macOS 26: the app
+    # never even gets registered in Notification Center and the notices are
+    # silently discarded. Every notice goes out through one of these two paths,
+    # both verified with screencapture/CGWindowList:
+    #   _alert() → modal NSAlert, for info the user asked for and wants to read.
+    #   _hud()   → ephemeral HUD, for background events that must NOT steal focus.
 
     def _alert(self, title: str, message: str = ""):
-        """Modal para info pedida por el usuario. No bloquea al que llama."""
+        """Modal for info the user asked for. Doesn't block the caller."""
 
         def show():
             try:
                 rumps.alert(title=title, message=message, ok="OK")
             except Exception:
-                log.warning("No pude mostrar el alert %r", title, exc_info=True)
+                log.warning("Couldn't show alert %r", title, exc_info=True)
 
-        # NSAlert solo puede correr en el main thread; los callbacks de menú ya
-        # están en él, pero _warmup y las descargas llegan desde hilos daemon.
+        # NSAlert can only run on the main thread; menu callbacks are already
+        # on it, but _warmup and the downloads arrive from daemon threads.
         if threading.current_thread() is threading.main_thread():
             show()
         else:
@@ -887,16 +887,16 @@ class VoooxlyApp(rumps.App):
 
                 AppHelper.callAfter(show)
             except Exception:
-                log.warning("No pude encolar el alert %r", title, exc_info=True)
+                log.warning("Couldn't enqueue alert %r", title, exc_info=True)
 
     def _hud(self, msg: str, title: str | None = None, secs: float = 2.0):
-        """Aviso efímero en el HUD, sin bloquear ni robar el foco.
+        """Ephemeral notice on the HUD, without blocking or stealing focus.
 
-        Comparte contador con el flash de modo: el mensaje más nuevo manda y un
-        dictado en curso tiene prioridad (su flujo gestiona el HUD).
+        Shares the counter with the mode flash: the newest message wins and a
+        dictation in progress takes priority (its flow manages the HUD).
         """
         if not self._show_overlay or not getattr(self._overlay, "_built", False):
-            log.info("HUD no disponible, aviso solo al log: %s — %s", title or "", msg)
+            log.info("HUD unavailable, logging only: %s — %s", title or "", msg)
             return
         self._mode_flash_seq += 1
         seq = self._mode_flash_seq
@@ -908,17 +908,17 @@ class VoooxlyApp(rumps.App):
                 self._overlay.show(msg, title=title)
                 time.sleep(secs)
                 if self._mode_flash_seq != seq:
-                    return  # llegó un aviso más nuevo: manda el suyo
+                    return  # a newer notice arrived: that one wins
                 if self._gate.state != "IDLE":
-                    return  # empezó un dictado
+                    return  # a dictation started
                 self._overlay.hide()
             except Exception:
-                log.warning("Aviso en el HUD falló", exc_info=True)
+                log.warning("HUD notice failed", exc_info=True)
 
         threading.Thread(target=_do, daemon=True).start()
 
     def _finish_cancel(self):
-        """Cierre visual de un dictado cancelado con Esc."""
+        """Visual wrap-up of a dictation canceled with Esc."""
         self._play_sound("Basso")
         self._flash("(canceled — nothing pasted)", 0.9)
         self._reset_idle()
@@ -927,61 +927,61 @@ class VoooxlyApp(rumps.App):
         t0 = time.monotonic()
         try:
             if audio_buf is None or len(audio_buf) == 0:
-                log.info("Grabación descartada (muy corta).")
+                log.info("Recording discarded (too short).")
                 self._flash("(too short)", 1.0)
                 return
-            # 0) guardas: nunca mandar silencio a Whisper (alucina "Gracias"/"Thank you").
-            # Dos silencios distintos: RMS≈0 es silencio DIGITAL (permiso TCC
-            # denegado o micro muteado — hay que avisar, pero solo una vez por
-            # sesión); RMS bajo pero no nulo es una sala tranquila con alguien
-            # que no habló — descarte discreto sin notificación del sistema.
+            # 0) guards: never send silence to Whisper (it hallucinates "Gracias"/"Thank you").
+            # Two distinct silences: RMS≈0 is DIGITAL silence (TCC permission
+            # denied or mic muted — must warn, but only once per
+            # session); low but nonzero RMS is a quiet room with someone
+            # who didn't speak — discreet discard with no system notification.
             level = audio.rms_of(audio_buf)
             if level < self._min_rms():
                 if level < 3.0 and not self._mic_warned:
                     self._mic_warned = True
                     log.warning(
-                        "Micrófono sin señal (RMS=%.0f). ¿Permiso de Micrófono concedido?", level
+                        "Microphone with no signal (RMS=%.0f). Microphone permission granted?", level
                     )
                     self._flash("🎤 No signal from the microphone", 2.5)
                 else:
-                    log.info("Descartado: sin voz (RMS=%.0f).", level)
+                    log.info("Discarded: no voice (RMS=%.0f).", level)
                     self._flash("(no speech — nothing pasted)", 1.2)
                 return
-            self._mic_warned = False  # audio sano: si el micro muere luego, re-avisar
+            self._mic_warned = False  # healthy audio: if the mic dies later, warn again
             if not had_speech:
-                log.info("Sin voz detectada por VAD (RMS=%.0f).", level)
+                log.info("No voice detected by VAD (RMS=%.0f).", level)
                 self._flash("(no speech detected)", 1.2)
                 return
-            # 1) transcripción final
+            # 1) final transcription
             stt_t0 = time.monotonic()
             transcript = stt.transcribe(
                 audio_buf, self.stt_model, self._stt_language(), self.stt_prompt
             )
             stt_t1 = time.monotonic()
             log.info(
-                "Transcripción (%.1fs, RMS=%.0f, voz=%.0f%%): %s",
+                "Transcription (%.1fs, RMS=%.0f, voice=%.0f%%): %s",
                 duration, level, speech_ratio * 100, transcript,
             )
             if self._cancel.is_set():
-                log.info("Cancelado tras la transcripción; nada pegado.")
+                log.info("Cancelled after transcription; nothing pasted.")
                 self._flash("(canceled — nothing pasted)", 0.9)
                 return
             if not transcript:
-                # Distinguir "no dijiste nada" de "el motor STT está caído":
-                # con voz detectada por el VAD y el server sin responder, el
-                # problema es del motor y reintentar en unos segundos funciona.
+                # Distinguish "you said nothing" from "the STT engine is down":
+                # with speech detected by the VAD and the server not responding,
+                # the problem is the engine's and retrying in a few seconds works.
                 if had_speech and not stt.server_ready():
-                    log.warning("STT sin transcripción con voz detectada: server caído.")
+                    log.warning("STT with no transcription but voice detected: server down.")
                     self._flash("⚠️ Speech engine restarting — try again in a moment", 2.2)
                 else:
                     self._flash("(no speech detected)", 1.2)
                 return
             if stt.looks_hallucinated(transcript, speech_ratio):
-                log.warning("Descartada como alucinación de Whisper: %r", transcript)
+                log.warning("Discarded as Whisper hallucination: %r", transcript)
                 self._flash("(didn't catch that — say it again)", 1.5)
                 return
-            # Auto-lock de idioma: solo aprende mientras este dictado salió SIN
-            # idioma fijado (ni modo, ni menú, ni config, ni lock previo).
+            # Language auto-lock: only learns while this dictation went out WITHOUT
+            # a fixed language (no mode, no menu, no config, no previous lock).
             if self._stt_language() is None:
                 try:
                     streak, lock = langlock.update_lock(
@@ -994,44 +994,44 @@ class VoooxlyApp(rumps.App):
                         self._prefs["stt_lang_lock"] = lock
                         _save_prefs(self._prefs)
                         if lock:
-                            log.info("Idioma de dictado fijado automáticamente: %s", lock)
+                            log.info("Dictation language pinned automatically: %s", lock)
                             self._on_main(self._refresh_lang_menu)
                 except Exception:
                     pass
-            # Enseñar ya lo transcrito: la espera del refino (2-6s) se entiende
-            # mejor viendo el texto que con un "Processing…" opaco.
+            # Show the transcription right away: the refine wait (2-6s) is easier
+            # to understand seeing the text than with an opaque "Processing…".
             self._overlay.show(transcript, title="✦ Polishing")
-            # 2) refino por modo (si falla, cae a la transcripción cruda: nunca bloquea)
-            # Fast-lane: dictados cortos en modos marcados se pegan tal cual —
-            # Whisper ya puntúa bien frases breves y ahorramos 2-6s de LLM.
+            # 2) per-mode refine (on failure, falls back to the raw transcription: never blocks)
+            # Fast-lane: short dictations in flagged modes get pasted as-is —
+            # Whisper already punctuates short sentences well and we save 2-6s of LLM.
             fast_words = int(self.cfg.get("llm.fast_lane_words", 9))
             n_words = len(transcript.split())
-            # refiner sólo se instancia en la rama que de verdad llama a refine():
-            # el aviso de más abajo lo consulta con getattr(refiner, ...), así
-            # que en fast-lane (refiner=None) simplemente no dispara — nunca un
-            # flag rancio de un dictado anterior.
+            # refiner is only instantiated on the branch that actually calls refine():
+            # the notice further down checks it with getattr(refiner, ...), so
+            # in fast-lane (refiner=None) it simply doesn't fire — never a
+            # stale flag from a previous dictation.
             refiner = None
-            # Igual que refiner=None: sólo se pone a True dentro de la rama
-            # que de verdad llama a refine(), así que en fast-lane queda
-            # inerte (nunca un aviso de un dictado anterior).
+            # Same as refiner=None: it's only set to True inside the branch
+            # that actually calls refine(), so in fast-lane it stays
+            # inert (never a notice from a previous dictation).
             refine_crashed = False
             if (
                 fast_words > 0
                 and modes.MODES.get(self.mode, {}).get("fast_lane")
                 and n_words <= fast_words
             ):
-                log.info("Fast-lane (%d palabras): sin refino LLM.", n_words)
+                log.info("Fast-lane (%d words): no LLM refine.", n_words)
                 final = transcript
             else:
                 refiner = refine.Refiner(self.cfg)
                 try:
                     final = refiner.refine(transcript, self.mode, self.language)
                 except Exception:
-                    log.exception("Refinado falló; uso transcripción cruda")
+                    log.exception("Refine failed; using raw transcription")
                     final = transcript
-                    # Red de seguridad: un bug de refino no pierde el dictado
-                    # (se pega crudo), pero eso NO puede pasar en silencio —
-                    # el usuario tiene que enterarse igual que con last_fallback.
+                    # Safety net: a refine bug doesn't lose the dictation
+                    # (it's pasted raw), but that must NOT happen silently —
+                    # the user has to find out just like with last_fallback.
                     refine_crashed = True
             final = final or transcript
             ref_t1 = time.monotonic()
@@ -1041,77 +1041,77 @@ class VoooxlyApp(rumps.App):
                 int((ref_t1 - stt_t1) * 1000),
                 int((ref_t1 - stt_t0) * 1000),
             )
-            # Reemplazos del diccionario personal: corrección determinista de
-            # las grafías que Whisper sigue fallando aunque estén en el prompt.
+            # Personal dictionary replacements: deterministic correction of the
+            # spellings Whisper keeps getting wrong even when they're in the prompt.
             try:
                 final = dictionary.apply(final)
             except Exception:
-                log.debug("dictionary.apply falló; sigo sin reemplazos", exc_info=True)
+                log.debug("dictionary.apply failed; continuing without replacements", exc_info=True)
             if self._cancel.is_set():
-                log.info("Cancelado durante el refino; nada pegado.")
+                log.info("Cancelled during refine; nothing pasted.")
                 self._flash("(canceled — nothing pasted)", 0.9)
                 return
             self._last_result = final
             self._push_history(final)
             stats.bump(len(final.split()), duration)
             log.info("Final (+%.1fs): %s", time.monotonic() - t0, final)
-            # 3) entregar
+            # 3) deliver
             auto_paste = bool(self.cfg.get("output.auto_paste", True))
             copy = bool(self.cfg.get("output.copy_to_clipboard", True))
-            # Modos con estructura Markdown: segundo sabor HTML en el
-            # portapapeles para que Mail/Gmail/Notion peguen títulos y
-            # listas renderizados (las apps de texto plano ni lo ven).
+            # Modes with Markdown structure: a second HTML flavor on the
+            # clipboard so Mail/Gmail/Notion paste headings and
+            # lists rendered (plain-text apps don't even see it).
             html = None
             if modes.MODES.get(self.mode, {}).get("rich_paste"):
                 try:
                     html = richtext.markdown_to_html(final)
                 except Exception:
-                    log.debug("markdown_to_html falló; pego solo texto plano", exc_info=True)
+                    log.debug("markdown_to_html failed; pasting plain text only", exc_info=True)
             status = output.deliver(final, auto_paste=auto_paste, copy=copy, html=html)
-            # Auto-learn comparará ESTE texto con lo que quede en el campo
-            # cuando el usuario vuelva a dictar (ver _start_record).
+            # Auto-learn will compare THIS text with whatever is left in the
+            # field when the user dictates again (see _start_record).
             self._pending_learn = final
-            # Tokens del LLM remoto, si lo hubo — SIEMPRE después de entregar:
-            # nada en este camino puede impedir ni preceder el pegado (ver
-            # _record_token_usage). getattr porque en fast-lane refiner es
-            # None — el mismo patrón que el aviso de last_fallback más abajo.
+            # Remote LLM tokens, if any — ALWAYS after delivering:
+            # nothing on this path may prevent or precede the paste (see
+            # _record_token_usage). getattr because in fast-lane refiner is
+            # None — the same pattern as the last_fallback notice below.
             _record_token_usage(refiner, self._prefs)
-            # El texto ya se pegó (con o sin refino): este aviso solo informa
-            # que la IA no actuó y se pegó la transcripción cruda por un fallo
-            # (red caída, proveedor roto..., o el catch-all de arriba si
-            # refine() lanzó algo que ni siquiera Refiner supo manejar). Los
-            # caminos deliberados (modo literal, fast-lane, backend "none")
-            # no dejan ni last_fallback ni refine_crashed puestos.
+            # The text is already pasted (refined or not): this notice only says
+            # the AI didn't act and the raw transcription was pasted due to a
+            # failure (network down, broken provider..., or the catch-all above
+            # if refine() threw something not even Refiner knew how to handle).
+            # The deliberate paths (literal mode, fast-lane, "none" backend)
+            # leave neither last_fallback nor refine_crashed set.
             if refine_crashed or getattr(refiner, "last_fallback", None):
                 self._flash(
                     "Your words were pasted as-is.", 2.2,
                     title="⚠ AI didn't answer",
                 )
             if auto_paste and status == "copied":
-                # El pegado falló pero el texto SÍ está en el portapapeles:
-                # sin este aviso el usuario ve que "no pasa nada" y lo pierde.
+                # The paste failed but the text IS on the clipboard:
+                # without this notice the user sees "nothing happens" and loses it.
                 self._flash("Press ⌘V to paste it where you need it.", 2.2, title="✓ Copied")
             else:
-                # mostrar resultado breve y cerrar
+                # show the result briefly and close
                 self._overlay.show(final, title="✓ Pasted")
                 time.sleep(1.6)
         except Exception:
-            log.exception("Error procesando dictado")
+            log.exception("Error processing dictation")
         finally:
             self._reset_idle()
-        # Con el gate ya IDLE, el aviso de lo aprendido durante ESTE dictado
-        # (ver _auto_learn_check) por fin puede pintarse sin que _hud lo trague.
+        # With the gate already IDLE, the notice of what was learned during THIS
+        # dictation (see _auto_learn_check) can finally paint without _hud eating it.
         note, self._learned_note = self._learned_note, None
         if note:
             self._hud(note, title=i18n.t("✨ Learned"))
 
     def _auto_learn_check(self, pasted: str) -> None:
-        """Compara lo pegado con lo que quedó en el campo y aprende. Best-effort total.
+        """Compares what was pasted with what's left in the field and learns. Fully best-effort.
 
-        Corre en un hilo daemon lanzado al iniciar el siguiente dictado; el
-        texto del campo no se persiste ni se loguea — solo los pares aprendidos
-        van al diccionario. El aviso se difiere a _learned_note porque en este
-        momento el gate está grabando y _hud lo descartaría.
+        Runs on a daemon thread launched when the next dictation starts; the
+        field's text is neither persisted nor logged — only the learned pairs
+        go into the dictionary. The notice is deferred to _learned_note because
+        at this moment the gate is recording and _hud would discard it.
         """
         try:
             from . import axfield, learn
@@ -1136,25 +1136,25 @@ class VoooxlyApp(rumps.App):
         self._gate.idle()
         self._refresh_title()
 
-    # ---------- historial ----------
+    # ---------- history ----------
     def _save_history_on(self) -> bool:
         return bool(self.cfg.get("app.save_history", True))
 
     def _push_history(self, text: str):
         self._history.appendleft(text)
         self._last_dictation = text
-        # deshace un filtro de búsqueda previo. Se llama desde el hilo de
-        # _process (fondo): el write del título del NSMenuItem va por el main.
+        # undoes a previous search filter. Called from the _process
+        # thread (background): the NSMenuItem title write goes through main.
         self._on_main(lambda: setattr(self.recent_parent, "title", i18n.t("Recent")))
         self._refresh_recent()
         if self._save_history_on():
             history.append(text, self.mode)
 
     def _refresh_recent(self):
-        """Vuelca self._history al submenú Recent. Se llama desde el hilo de
-        _process y de _warmup (fondo): mutar title/setHidden_ de un NSMenuItem
-        con el menú abierto crashea (SIGTRAP), así que TODO va por _on_main.
-        (Solo actualiza NSMenuItems ya creados; añadir/quitar no se hace aquí.)"""
+        """Dumps self._history into the Recent submenu. Called from the _process
+        and _warmup threads (background): mutating an NSMenuItem's title/setHidden_
+        with the menu open crashes (SIGTRAP), so EVERYTHING goes through _on_main.
+        (Only updates already-created NSMenuItems; adding/removing isn't done here.)"""
         def apply():
             try:
                 self._recent_empty._menuitem.setHidden_(len(self._history) > 0)
@@ -1166,7 +1166,7 @@ class VoooxlyApp(rumps.App):
                     else:
                         mi._menuitem.setHidden_(True)
             except Exception:
-                log.debug("No pude refrescar el submenú Recent", exc_info=True)
+                log.debug("Couldn't refresh the Recent submenu", exc_info=True)
         self._on_main(apply)
 
     def _search_history(self, _sender):
@@ -1193,8 +1193,8 @@ class VoooxlyApp(rumps.App):
                 i18n.t('Nothing matches "{query}".').format(query=query),
             )
             return
-        # Los resultados se sirven en el propio submenú Recent (clic = copiar);
-        # el siguiente dictado lo devuelve a "Recent" normal.
+        # The results are served in the Recent submenu itself (click = copy);
+        # the next dictation returns it to plain "Recent".
         self._history.clear()
         for t in reversed(hits):
             self._history.appendleft(t)
@@ -1220,15 +1220,15 @@ class VoooxlyApp(rumps.App):
                 if t not in terms:
                     terms.append(t)
         except Exception:
-            log.debug("No pude leer el diccionario personal", exc_info=True)
+            log.debug("Couldn't read the personal dictionary", exc_info=True)
         return ", ".join(t for t in terms if t)[:600] or None
 
     def _correct_last(self, _sender):
-        """Corrige el último dictado y aprende las grafías cambiadas.
+        """Corrects the last dictation and learns the changed spellings.
 
-        rumps.Window es modal y va en el main thread (callback de menú, ya
-        estamos). El texto corregido se recopia al portapapeles: el motivo
-        nº1 para corregir es volver a pegarlo bien.
+        rumps.Window is modal and runs on the main thread (menu callback,
+        we're already there). The corrected text is re-copied to the clipboard:
+        the #1 reason to correct is pasting it right again.
         """
         if not self._last_dictation:
             self._alert(i18n.t("Nothing to correct"), i18n.t("Dictate something first."))
@@ -1253,16 +1253,16 @@ class VoooxlyApp(rumps.App):
         descs = learn.learn_from(original, corrected)
         try:
             self._last_dictation = corrected
-            # Si _history está en modo búsqueda (_search_history la rellenó
-            # con hits), [0] no es este dictado: no lo pisamos.
+            # If _history is in search mode (_search_history filled it
+            # with hits), [0] isn't this dictation: we don't overwrite it.
             if self._history and self._history[0] == original:
                 self._history[0] = corrected
                 self._refresh_recent()
             output.copy_to_clipboard(corrected)
         except Exception:
-            log.debug("No pude recopiar la corrección", exc_info=True)
+            log.debug("Couldn't re-copy the correction", exc_info=True)
         if descs:
-            self.stt_prompt = self._build_stt_prompt()  # sesga ya el siguiente
+            self.stt_prompt = self._build_stt_prompt()  # biases the next one already
             self._hud("\n".join(descs), title="✓ Learned")
         else:
             self._hud("Copied — no new spellings to learn.", title="✓ Corrected")
@@ -1286,15 +1286,15 @@ class VoooxlyApp(rumps.App):
         except ValueError as e:
             self._alert(i18n.t("Not added"), str(e))
             return
-        self.stt_prompt = self._build_stt_prompt()  # sesga ya el próximo dictado
+        self.stt_prompt = self._build_stt_prompt()  # biases the next dictation already
         self._hud(desc, title="✓ Added to dictionary")
 
     def _install_launch_agent(self) -> bool:
         try:
             os.makedirs(os.path.dirname(LAUNCH_AGENT), exist_ok=True)
             with open(LAUNCH_AGENT, "wb") as f:
-                # `open -a` en vez del binario directo: no duplica instancia
-                # si Voooxly ya está corriendo y sobrevive a que muevan el .app
+                # `open -a` instead of the binary directly: doesn't duplicate the
+                # instance if Voooxly is already running and survives the .app being moved
                 plistlib.dump(
                     {
                         "Label": "com.eduardocrovetto.voooxly",
@@ -1305,21 +1305,21 @@ class VoooxlyApp(rumps.App):
                 )
             return True
         except Exception:
-            log.exception("No pude crear el LaunchAgent")
+            log.exception("Couldn't create the LaunchAgent")
             return False
 
     def _apply_login_default(self):
-        """Start at login viene activado de fábrica, UNA sola vez.
+        """Start at login ships enabled from the factory, exactly ONCE.
 
-        Una app de hotkey solo sirve si está corriendo: si el usuario reinicia
-        y Voooxly no arranca, el hotkey "no funciona". Si el usuario lo desactiva
-        en Settings, el flag en prefs evita re-activárselo jamás.
+        A hotkey app is only useful while it's running: if the user reboots
+        and Voooxly doesn't start, the hotkey "doesn't work". If the user turns
+        it off in Settings, the flag in prefs prevents ever re-enabling it on them.
         """
         if self._prefs.get("login_default_applied"):
             return
         if not os.path.exists(LAUNCH_AGENT) and self._install_launch_agent():
             self.login_item.state = 1
-            log.info("Start at login activado por defecto (primera ejecución).")
+            log.info("Start at login enabled by default (first run).")
         self._prefs["login_default_applied"] = True
         _save_prefs(self._prefs)
 
@@ -1330,7 +1330,7 @@ class VoooxlyApp(rumps.App):
             except FileNotFoundError:
                 pass
             except Exception:
-                log.exception("No pude quitar el LaunchAgent")
+                log.exception("Couldn't remove the LaunchAgent")
                 return
             sender.state = 0
         else:
@@ -1346,8 +1346,8 @@ class VoooxlyApp(rumps.App):
             self._play_sound("Pop")
 
     def _open_shortcuts(self, _sender):
-        """Abre la ventana de Shortcuts. Callback de menú de rumps → ya está en
-        el hilo principal, que es el único donde se puede crear un NSWindow."""
+        """Opens the Shortcuts window. rumps menu callback → already on the
+        main thread, which is the only one where an NSWindow can be created."""
         from . import settings_window
 
         if getattr(self, "_shortcuts_win", None) is not None:
@@ -1361,7 +1361,7 @@ class VoooxlyApp(rumps.App):
         self._shortcuts_win.show()
 
     def _apply_shortcut(self, sid: str, fila: dict) -> tuple[bool, str]:
-        """on_change de la ventana: aplica al hotkey y persiste si cuela."""
+        """The window's on_change: applies to the hotkey and persists if it sticks."""
         ok, msg = apply_shortcut(self._hotkey, sid, fila)
         if not ok:
             return False, msg
@@ -1375,8 +1375,8 @@ class VoooxlyApp(rumps.App):
         return True, ""
 
     def _refresh_shortcut_rows(self):
-        """Re-pinta los bindings del submenú Shortcuts de la barra. Los títulos
-        de NSMenuItem son AppKit: por el hilo principal, como todo repintado."""
+        """Repaints the bindings of the bar's Shortcuts submenu. NSMenuItem
+        titles are AppKit: through the main thread, like every repaint."""
         def apply():
             for sid, texto in shortcuts.menu_summary(self._shortcuts):
                 mi = self._shortcut_rows.get(sid)
@@ -1385,8 +1385,8 @@ class VoooxlyApp(rumps.App):
         self._on_main(apply)
 
     def _show_guide(self, _sender):
-        """Abre la guía de uso. Callback de menú de rumps → hilo principal,
-        el único donde guide.py puede crear su NSWindow."""
+        """Opens the usage guide. rumps menu callback → main thread,
+        the only one where guide.py can create its NSWindow."""
         from . import guide
 
         guide.show_guide(self._shortcuts)
@@ -1402,21 +1402,21 @@ class VoooxlyApp(rumps.App):
                 snd = NSSound.soundNamed_(name)
                 if snd is None:
                     return
-                snd.setVolume_(0.35)   # sutil, estilo Wispr
+                snd.setVolume_(0.35)   # subtle, Wispr-style
                 self._snd_cache[name] = snd
-            snd.stop()   # por si sigue sonando de la vez anterior
+            snd.stop()   # in case it's still playing from last time
             snd.play()
         except Exception:
             pass
 
-    # ---------- acciones de menú ----------
+    # ---------- menu actions ----------
     def _update_ai_item(self, force: bool = True) -> str:
-        """Marca el proveedor activo en el submenú. Devuelve su clave.
+        """Marks the active provider in the submenu. Returns its key.
 
-        Los writes de AppKit (mi.state, self.ai.title) van por _on_main: esto se
-        llama desde el hilo _warmup (detección inicial + keepalive cada N min),
-        no solo desde callbacks de menú. detect_backend (red) se queda en el hilo
-        llamante para devolver el valor de forma síncrona."""
+        The AppKit writes (mi.state, self.ai.title) go through _on_main: this is
+        called from the _warmup thread (initial detection + keepalive every N min),
+        not only from menu callbacks. detect_backend (network) stays on the calling
+        thread so the value is returned synchronously."""
         from . import ai_settings
 
         sel = ai_settings.load(self._prefs)
@@ -1436,8 +1436,8 @@ class VoooxlyApp(rumps.App):
         return ret
 
     def _apply_ai_selection(self, sel) -> None:
-        """Delegado fino: la lógica vive en apply_ai_selection (nivel de
-        módulo) para poder testearla sin instanciar VoooxlyApp."""
+        """Thin delegate: the logic lives in apply_ai_selection (module
+        level) so it can be tested without instantiating VoooxlyApp."""
         apply_ai_selection(self.cfg, sel)
 
     def _make_provider_cb(self, prov_key: str):
@@ -1446,12 +1446,12 @@ class VoooxlyApp(rumps.App):
         return cb
 
     def _connect_ai_from_onboarding(self):
-        """Selector de proveedor para el paso "Connect AI" del onboarding, que
-        delega en _connect_provider (flujo probado: pide key, valida, guarda en
-        llavero + prefs). Lo conectado persiste tras el relanzamiento de la app.
+        """Provider picker for the onboarding's "Connect AI" step, which
+        delegates to _connect_provider (proven flow: asks for the key, validates,
+        saves to keychain + prefs). What's connected persists across the app relaunch.
 
-        Nadie tiene IA en el primer arranque, así que aquí no hay "test": es
-        conectar. Es opcional; el onboarding deja claro que el dictado va sin ella.
+        Nobody has AI on first launch, so there's no "test" here: it's
+        connecting. It's optional; the onboarding makes clear dictation works without it.
         """
         from AppKit import NSAlert, NSPopUpButton
         from Foundation import NSMakeRect
@@ -1476,13 +1476,13 @@ class VoooxlyApp(rumps.App):
         self._connect_provider(keys[popup.indexOfSelectedItem()])
 
     def _choose_model(self, prov, actual: str | None) -> str | None:
-        """Selector de modelo del proveedor: la lista curada de providers.py.
+        """Provider model picker: the curated list from providers.py.
 
-        Feedback v1.4 ("seleccionar internamente un modelo específico cuando se
-        elige una opción, como cloud"): antes conectar un proveedor imponía su
-        default sin preguntar. El default va primero y preseleccionado (o el
-        modelo que el usuario ya tenía guardado, si sigue en la lista).
-        Devuelve el modelo elegido, o None si canceló.
+        v1.4 feedback ("internally select a specific model when an option
+        is chosen, like cloud"): connecting a provider used to impose its
+        default without asking. The default goes first and preselected (or the
+        model the user already had saved, if it's still in the list).
+        Returns the chosen model, or None if canceled.
         """
         from AppKit import NSAlert, NSPopUpButton
         from Foundation import NSMakeRect
@@ -1506,7 +1506,7 @@ class VoooxlyApp(rumps.App):
         return prov.models[popup.indexOfSelectedItem()]
 
     def _connect_provider(self, prov_key: str):
-        """Pide lo que falte, valida contra el proveedor y guarda si funciona."""
+        """Asks for whatever is missing, validates against the provider and saves if it works."""
         from . import ai_settings, keychain, providers
 
         prov = providers.get(prov_key)
@@ -1526,11 +1526,11 @@ class VoooxlyApp(rumps.App):
                 return
 
         if prov.kind == "ollama":
-            # El modelo no se presupone: se le pregunta a SU Ollama (Task 5).
-            # El host tampoco: llm.ollama.host puede venir de la config del
-            # usuario o de VOOOXLY_LLM_OLLAMA_HOST (Ollama remoto), y hay que
-            # sondear ESE host — y guardarlo como base_url de la selección,
-            # para que lo probado sea exactamente lo que queda persistido.
+            # The model isn't assumed: THEIR Ollama gets asked (Task 5).
+            # Neither is the host: llm.ollama.host may come from the user's
+            # config or from VOOOXLY_LLM_OLLAMA_HOST (remote Ollama), and THAT
+            # host is the one to probe — and to save as the selection's base_url,
+            # so that what was tested is exactly what gets persisted.
             base_url = (
                 self.cfg.get("llm.ollama.host", "")
                 or base_url
@@ -1555,9 +1555,9 @@ class VoooxlyApp(rumps.App):
                 return
             model = resp.text.strip()
 
-        # La key solo se pide si el llavero no la tiene: quien ya conectó una
-        # vez no tiene que volver a pegarla para cambiar de modelo (feedback
-        # de Eduardo: el diálogo salía siempre, con la key ya guardada).
+        # The key is only asked for if the keychain doesn't have it: whoever
+        # already connected once doesn't have to paste it again to switch
+        # models (Eduardo's feedback: the dialog always showed, key already saved).
         api_key = None
         pedida = False
         if prov.needs_key:
@@ -1574,9 +1574,9 @@ class VoooxlyApp(rumps.App):
         sel = ai_settings.Selection(prov, base_url, model)
         ok, msg = refine.validate(sel, api_key)
         if not ok and prov.needs_key and not pedida:
-            # La key guardada puede estar caducada o revocada: se pide una
-            # nueva UNA vez y se revalida — sin esto el usuario quedaría en
-            # un bucle donde el fallo se repite y no hay forma de cambiarla.
+            # The saved key may be expired or revoked: a new one is asked
+            # for ONCE and revalidated — without this the user would be stuck
+            # in a loop where the failure repeats and there's no way to change it.
             nueva = self._pedir_key(prov, reintento=True)
             if nueva:
                 api_key = nueva
@@ -1587,16 +1587,16 @@ class VoooxlyApp(rumps.App):
 
         key_guardada = True
         if prov.needs_key and api_key:
-            # set_key puede devolver False (llavero que rechaza la escritura):
-            # la sesión sigue funcionando porque la key ya está exportada y
-            # validada, pero al reiniciar desaparecería en silencio. Seguimos
-            # adelante (castigar dos veces al usuario no arregla el llavero)
-            # y cambiamos el alert final por un aviso honesto.
+            # set_key can return False (a keychain refusing the write):
+            # the session keeps working because the key is already exported and
+            # validated, but on restart it would vanish silently. We push
+            # ahead (punishing the user twice doesn't fix the keychain)
+            # and swap the final alert for an honest notice.
             key_guardada = keychain.set_key(prov.key, api_key)
         self._prefs = ai_settings.save(self._prefs, prov.key, base_url, model)
         _save_prefs(self._prefs)
-        # Sin esto, hasta el siguiente reinicio la app dictaría con la config
-        # vieja: prefs.json solo se lee al arrancar. "Connected ✓" y luego nada.
+        # Without this, until the next restart the app would dictate with the
+        # old config: prefs.json is only read at startup. "Connected ✓" and then nothing.
         self._apply_ai_selection(ai_settings.load(self._prefs))
         refine.detect_backend(self.cfg, force=True)
         self._update_ai_item(force=False)
@@ -1611,11 +1611,11 @@ class VoooxlyApp(rumps.App):
             )
 
     def _pedir_key(self, prov, reintento=False):
-        """Diálogo de API key. None = canceló; "" = pulsó Connect en blanco.
+        """API key dialog. None = canceled; "" = pressed Connect while blank.
 
-        Solo se muestra si el llavero no tenía key para este proveedor — o,
-        con reintento=True, si la guardada acaba de fallar la validación y
-        hay que dar la oportunidad de pegar una nueva.
+        Only shown if the keychain had no key for this provider — or,
+        with reintento=True, if the saved one just failed validation and
+        the chance to paste a new one must be given.
         """
         msg = (
             f"The saved key for {prov.name} didn't work. Paste a new one:"
@@ -1643,7 +1643,7 @@ class VoooxlyApp(rumps.App):
         self._alert("Connection OK" if ok else "Connection failed", msg)
 
     def _reset_to_auto(self, _sender):
-        """Devuelve el control a la cascada de auto-detección."""
+        """Returns control to the auto-detection cascade."""
         from . import ai_settings
 
         for clave in (ai_settings.CLAVE_PROVEEDOR, ai_settings.CLAVE_BASE_URL,
@@ -1662,13 +1662,13 @@ class VoooxlyApp(rumps.App):
         threading.Thread(target=self._download_update, daemon=True).start()
 
     def _maybe_prompt_update(self, info: dict) -> None:
-        """Pop-up "Update available" con Download now / Later.
+        """The "Update available" pop-up with Download now / Later.
 
-        Una sola vez por versión, persistido en prefs (should_prompt): quien
-        elige "Later" no vuelve a ver el alert en cada arranque — solo cuando
-        salga una versión más nueva. El ítem de menú queda siempre como vía
-        para instalar más tarde. Quien llama debe dejar antes _update_url y
-        _update_version puestos: "Download now" delega en _open_update.
+        Once per version, persisted in prefs (should_prompt): whoever
+        picks "Later" doesn't see the alert again on every launch — only when
+        a newer version comes out. The menu item always remains as the way
+        to install later. The caller must leave _update_url and
+        _update_version set beforehand: "Download now" delegates to _open_update.
         """
         if not updates.should_prompt(info, self._prefs.get("update_prompted_version")):
             return
@@ -1680,22 +1680,22 @@ class VoooxlyApp(rumps.App):
 
         def ask():
             try:
-                # rumps.alert: 1 = botón ok ("Download now"), 0 = cancel.
+                # rumps.alert: 1 = ok button ("Download now"), 0 = cancel.
                 if rumps.alert(title=i18n.t("Update available"), message=body,
                                ok=i18n.t("Download now"), cancel=i18n.t("Later")) == 1:
                     self._open_update(None)
             except Exception:
-                log.warning("No pude mostrar el pop-up de update", exc_info=True)
+                log.warning("Couldn't show the update pop-up", exc_info=True)
 
-        # NSAlert solo puede correr en el main thread; esto llega desde
-        # _warmup o el timer periódico (hilos daemon).
+        # NSAlert can only run on the main thread; this arrives from
+        # _warmup or the periodic timer (daemon threads).
         self._on_main(ask)
 
     def _download_update(self):
-        # Descarga el DMG a ~/Downloads y ofrece instalarlo solo (feedback
-        # v1.6: nada de arrastrar a Applications). Si la descarga falla, se
-        # abre la URL en el navegador (el comportamiento de siempre) para no
-        # dejar al usuario tirado.
+        # Downloads the DMG to ~/Downloads and offers to install it by itself
+        # (v1.6 feedback: no dragging into Applications). If the download fails,
+        # the URL opens in the browser (the behavior of old) so the user
+        # isn't left stranded.
         version = self._update_version or "latest"
         self._hud("The menu bar icon shows progress.", title=f"⏬ Downloading Voooxly {version}")
         try:
@@ -1712,15 +1712,15 @@ class VoooxlyApp(rumps.App):
             subprocess.run(["open", self._update_url], check=False)
 
     def _offer_install(self, dmg_path):
-        """Tras la descarga: instalar y relanzar en un clic.
+        """After the download: install and relaunch in one click.
 
-        Quien elige "Later" conserva el DMG en ~/Downloads y el ítem de menú
-        sigue ahí como vía de vuelta."""
+        Whoever picks "Later" keeps the DMG in ~/Downloads and the menu item
+        stays there as the way back."""
         ver = self._update_version or "latest"
 
         def ask():
             try:
-                # rumps.alert: 1 = botón ok ("Install and relaunch"), 0 = cancel.
+                # rumps.alert: 1 = ok button ("Install and relaunch"), 0 = cancel.
                 if rumps.alert(
                     title=i18n.t("Update downloaded"),
                     message=f"Voooxly {ver} is ready. Install it and relaunch "
@@ -1729,17 +1729,17 @@ class VoooxlyApp(rumps.App):
                 ) == 1:
                     self._install_update(dmg_path)
             except Exception:
-                log.warning("No pude ofrecer la instalación", exc_info=True)
+                log.warning("Couldn't offer the install", exc_info=True)
 
-        # NSAlert solo corre en el main thread; venimos del hilo de descarga.
+        # NSAlert only runs on the main thread; we come from the download thread.
         self._on_main(ask)
 
     def _install_update(self, dmg_path):
-        """Monta el DMG, deja el script de swap corriendo FUERA del bundle y
-        se quita de en medio: el script espera a que muramos, reemplaza el
-        .app (con backup) y relanza. Si no se puede preparar (dev sin bundle,
-        DMG raro, hdiutil caído), se cae al flujo manual de siempre: abrir el
-        DMG y ofrecer cerrar la app para el arrastre."""
+        """Mounts the DMG, leaves the swap script running OUTSIDE the bundle
+        and gets out of the way: the script waits for us to die, replaces the
+        .app (with a backup) and relaunches. If it can't be staged (dev with no
+        bundle, weird DMG, hdiutil down), falls back to the manual flow of old:
+        open the DMG and offer to quit the app for the drag."""
 
         def work():
             script = None
@@ -1747,7 +1747,7 @@ class VoooxlyApp(rumps.App):
                 script = updates.stage_install(
                     dmg_path, self._bundle_path(), os.getpid())
             except Exception:
-                log.warning("No pude preparar la instalación", exc_info=True)
+                log.warning("Couldn't prepare the install", exc_info=True)
             if script:
                 subprocess.Popen(["/bin/bash", str(script)],
                                  start_new_session=True)
@@ -1756,12 +1756,12 @@ class VoooxlyApp(rumps.App):
                 subprocess.run(["open", str(dmg_path)], check=False)
                 self._offer_quit_to_install()
 
-        # hdiutil tarda segundos: fuera del main thread para no congelar el menú.
+        # hdiutil takes seconds: off the main thread so the menu doesn't freeze.
         threading.Thread(target=work, daemon=True).start()
 
     @staticmethod
     def _bundle_path():
-        """Ruta del .app instalado, o None fuera de un bundle (dev)."""
+        """Path of the installed .app, or None outside a bundle (dev)."""
         try:
             from AppKit import NSBundle
 
@@ -1771,21 +1771,21 @@ class VoooxlyApp(rumps.App):
 
                 return Path(p)
         except Exception:
-            log.debug("No pude resolver el bundle", exc_info=True)
+            log.debug("Couldn't resolve the bundle", exc_info=True)
         return None
 
     def _offer_quit_to_install(self):
-        """Tras abrir el DMG, ofrece cerrar Voooxly para dejarse reemplazar.
+        """After opening the DMG, offers to quit Voooxly so it can be replaced.
 
-        Finder no pisa una app en marcha ("el ítem está en uso"): la retienen
-        el propio proceso y el whisper-server que corre DENTRO del bundle.
-        _quit para ambos, así que aceptar aquí es lo que hace posible el
-        arrastre a Applications.
+        Finder won't overwrite a running app ("the item is in use"): it's held
+        by the process itself and by the whisper-server running INSIDE the
+        bundle. _quit stops both, so accepting here is what makes the drag
+        to Applications possible.
         """
 
         def ask():
             try:
-                # rumps.alert: 1 = botón ok ("Quit now"), 0 = cancel.
+                # rumps.alert: 1 = ok button ("Quit now"), 0 = cancel.
                 if rumps.alert(
                     title=i18n.t("Update downloaded"),
                     message="Drag Voooxly into Applications to replace this "
@@ -1796,13 +1796,13 @@ class VoooxlyApp(rumps.App):
                 ) == 1:
                     self._quit(None)
             except Exception:
-                log.warning("No pude ofrecer el cierre para instalar", exc_info=True)
+                log.warning("Couldn't prompt to quit for install", exc_info=True)
 
-        # NSAlert solo corre en el main thread; venimos del hilo de descarga.
+        # NSAlert only runs on the main thread; we come from the download thread.
         self._on_main(ask)
 
     def _show_about(self, _sender):
-        """Diálogo About: icono, versión y un botón para comprobar updates."""
+        """About dialog: icon, version and a button to check for updates."""
         from AppKit import (
             NSAlert,
             NSAlertFirstButtonReturn,
@@ -1823,7 +1823,7 @@ class VoooxlyApp(rumps.App):
             self._check_now(None)
 
     def _check_now(self, _sender):
-        """Check manual (vía el botón de About). Offload a hilo; alert con el resultado."""
+        """Manual check (via the About button). Offloaded to a thread; alert with the result."""
         def _work():
             status, info = updates.check_status()
             def _on_done():
@@ -1847,7 +1847,7 @@ class VoooxlyApp(rumps.App):
         threading.Thread(target=_work, daemon=True).start()
 
     def _schedule_update_check(self):
-        """Re-chequeo cada updates.CHECK_INTERVAL. Se reagenda a sí mismo; cancelable."""
+        """Re-check every updates.CHECK_INTERVAL. Reschedules itself; cancelable."""
         self._update_timer = threading.Timer(
             updates.CHECK_INTERVAL, self._periodic_update_check
         )
@@ -1855,8 +1855,8 @@ class VoooxlyApp(rumps.App):
         self._update_timer.start()
 
     def _periodic_update_check(self):
-        # Silencioso salvo la primera vez que aparece una versión nueva: HUD
-        # efímero (una vez por versión) + el ítem de menú. Fallos de red: log.
+        # Silent except the first time a new version shows up: ephemeral
+        # HUD (once per version) + the menu item. Network failures: log.
         try:
             info = updates.check()
             if info:
@@ -1871,12 +1871,12 @@ class VoooxlyApp(rumps.App):
                 self._on_main(_show)
                 if updates.should_notify(info, self._notified_update_version):
                     self._notified_update_version = ver
-                    # Antes: HUD efímero que era fácil no ver. Ahora un pop-up
-                    # de verdad (feedback v1.4), con su propia gate por versión
-                    # persistida para no repetirse entre arranques.
+                    # Before: an ephemeral HUD that was easy to miss. Now a real
+                    # pop-up (v1.4 feedback), with its own persisted per-version
+                    # gate so it doesn't repeat across launches.
                     self._maybe_prompt_update(info)
         except Exception:
-            log.debug("re-chequeo periódico falló (ignorado)", exc_info=True)
+            log.debug("periodic re-check failed (ignored)", exc_info=True)
         finally:
             self._schedule_update_check()
 
@@ -1898,45 +1898,45 @@ class VoooxlyApp(rumps.App):
 
     # ---------- lifecycle ----------
     def run(self):
-        # Crea NSApplication en el main thread ANTES de iniciar pynput: el Listener
-        # de pynput llama a TIS/TSM desde su hilo y si compite con la inicialización
-        # de NSApplication (que también toca TSM) macOS aborta con SIGABRT.
+        # Create NSApplication on the main thread BEFORE starting pynput: pynput's
+        # Listener calls TIS/TSM from its thread and if it races the initialization
+        # of NSApplication (which also touches TSM) macOS aborts with SIGABRT.
         from AppKit import NSApplication
 
         _ = NSApplication.sharedApplication()
-        # Construye ya el Controller de pynput: su __init__ consulta TIS/TSM y
-        # hacerlo luego, desde el hilo de _process, compite con el listener del
-        # hotkey y HIToolbox mata el proceso (SIGTRAP, incapturable). Aquí no hay
-        # más hilos todavía y estamos en el main thread, que es donde TSM quiere.
+        # Build pynput's Controller right now: its __init__ queries TIS/TSM and
+        # doing it later, from the _process thread, races the hotkey's listener
+        # and HIToolbox kills the process (SIGTRAP, uncatchable). No other
+        # threads exist yet and we're on the main thread, which is where TSM wants it.
         output.warmup()
-        # La key vive en el llavero; los backends la leen de os.environ. Sin este
-        # puente la conexión se pierde en cada reinicio.
+        # The key lives in the keychain; the backends read it from os.environ. Without
+        # this bridge the connection is lost on every restart.
         try:
             from . import ai_settings, keychain
 
             sel = ai_settings.load(self._prefs)
             if sel and sel.provider.needs_key:
                 refine.export_key(sel, keychain.get_key(sel.provider.key))
-            # Mismo helper que usa _connect_provider: escribir llm.openai.base_url
-            # incondicionalmente aquí era el mismo bug de rutas por kind que la
-            # revisión cazó en _probe (Task 4), repetido en el arranque.
+            # Same helper _connect_provider uses: writing llm.openai.base_url
+            # unconditionally here was the same per-kind path bug the
+            # review caught in _probe (Task 4), repeated at startup.
             self._apply_ai_selection(sel)
         except Exception:
-            log.warning("No pude restaurar el proveedor guardado", exc_info=True)
-        # Construye el overlay en el main thread ANTES de cualquier dictado:
-        # NSPanel solo puede instanciarse aquí (AppKit lanza si se hace desde el hilo
-        # del hotkey al pulsar la tecla de dictado).
+            log.warning("Couldn't restore the saved provider", exc_info=True)
+        # Build the overlay on the main thread BEFORE any dictation:
+        # NSPanel can only be instantiated here (AppKit throws if it's done from
+        # the hotkey thread when the dictation key is pressed).
         if self._show_overlay:
             try:
                 self._overlay.build()
             except Exception as e:
                 log.warning("No se pudo construir el overlay: %s", e)
-        # Primer arranque (o permiso revocado): el asistente explica qué falta y
-        # guía cada paso. Va aquí, en el main thread, porque NSWindow no puede
-        # instanciarse fuera de él. No bloquea: la ventana convive con la app.
-        # needs_setup() sondea permisos (micro, Accesibilidad): se llama UNA vez
-        # y se reutiliza. Por defecto True para que un fallo del sondeo deje la
-        # limpieza en paz en vez de soltar un alert sobre un arranque ya roto.
+        # First launch (or revoked permission): the assistant explains what's
+        # missing and guides each step. It goes here, on the main thread, because
+        # NSWindow can't be instantiated off it. Non-blocking: the window coexists
+        # with the app. needs_setup() probes permissions (mic, Accessibility): it's
+        # called ONCE and reused. Defaults to True so a probe failure leaves the
+        # cleanup alone instead of dropping an alert on an already-broken startup.
         needs_setup = True
         try:
             needs_setup = setup_checks.needs_setup()
@@ -1946,10 +1946,10 @@ class VoooxlyApp(rumps.App):
                 show_onboarding(on_finish=self._on_onboarding_done,
                                 on_connect_ai=self._connect_ai_from_onboarding)
         except Exception as e:
-            log.warning("No pude mostrar el onboarding: %s", e)
-        # Setup ya completo: si el DMG del instalador sigue montado, ofrecemos
-        # expulsarlo y mandarlo a la papelera. Va aquí, en el main thread, que es
-        # lo que exige el NSAlert. Pregunta una sola vez (flag en prefs).
+            log.warning("Couldn't show onboarding: %s", e)
+        # Setup already complete: if the installer's DMG is still mounted, we offer
+        # to eject it and send it to the trash. It goes here, on the main thread,
+        # which is what NSAlert demands. Asks a single time (flag in prefs).
         if not needs_setup:
             from AppKit import NSBundle
 
@@ -1957,12 +1957,12 @@ class VoooxlyApp(rumps.App):
 
             maybe_clean_up(self._prefs, _save_prefs,
                            str(NSBundle.mainBundle().bundlePath()))
-        # "What's new": el primer arranque de una versión recién estrenada
-        # cuenta qué cambió (feedback v1.6 de Jeff: se actualizaba y no se
-        # sabía qué era nuevo). El Timer da 1.5 s de aire para no solaparse
-        # con el arranque; _alert ya sabe encolar al main thread. La marca
-        # last_run_version se persiste también en instalaciones frescas para
-        # que la PRÓXIMA versión sí enseñe sus notas.
+        # "What's new": the first launch of a freshly released version
+        # tells what changed (Jeff's v1.6 feedback: it updated and you couldn't
+        # tell what was new). The Timer gives 1.5 s of air to avoid overlapping
+        # the startup; _alert already knows how to queue onto the main thread.
+        # The last_run_version mark is persisted on fresh installs too so
+        # that the NEXT version does show its notes.
         try:
             cur = updates.current_version()
             if not needs_setup and updates.should_show_whats_new(self._prefs, cur):
@@ -1976,24 +1976,25 @@ class VoooxlyApp(rumps.App):
                 self._prefs["last_run_version"] = cur
                 _save_prefs(self._prefs)
         except Exception:
-            log.warning("No pude preparar el What's new", exc_info=True)
-        # arranca whisper-server en background para que el primer dictado no pague el coste
+            log.warning("Couldn't prepare What's new", exc_info=True)
+        # start whisper-server in the background so the first dictation doesn't pay the cost
         threading.Thread(target=self._warmup, daemon=True).start()
         self._hotkey.start()
         super().run()
 
     def _on_onboarding_done(self):
-        """Relanza la app como proceso NUEVO al cerrar el onboarding.
+        """Relaunches the app as a NEW process when the onboarding closes.
 
-        En run() el listener de pynput arranca ANTES de que se conceda
-        Accesibilidad: sin ese permiso el CGEventTap no se crea y no llegan
-        eventos globales. Conceder el permiso a mitad — o incluso rearrancar el
-        listener in-process (stop+start) — NO basta: macOS no re-evalúa el
-        permiso de Accesibilidad para el event tap dentro del mismo proceso.
-        Lo confirma el usuario: tras reabrir la app (proceso nuevo) dicta; el
-        rearranque in-process, no. La forma fiable es relanzar la app: con el
-        permiso ya persistido en TCC, el proceso nuevo crea un event tap válido
-        y el hotkey funciona sin más. Solo pasa en el primer arranque.
+        In run() the pynput listener starts BEFORE Accessibility is
+        granted: without that permission the CGEventTap isn't created and no
+        global events arrive. Granting the permission midway — or even restarting
+        the listener in-process (stop+start) — is NOT enough: macOS doesn't
+        re-evaluate the Accessibility permission for the event tap within the
+        same process. The user confirms it: after reopening the app (new process)
+        it dictates; the in-process restart doesn't. The reliable way is to
+        relaunch the app: with the permission already persisted in TCC, the new
+        process creates a valid event tap and the hotkey just works. Only
+        happens on the first launch.
         """
         import subprocess
         from AppKit import NSBundle
@@ -2001,32 +2002,32 @@ class VoooxlyApp(rumps.App):
         relanzado = False
         try:
             bundle = str(NSBundle.mainBundle().bundlePath())
-            # Solo relanzamos si vamos como .app (instalado). En dev (python -m)
-            # bundlePath() no es un .app y `open -n` haría algo raro.
+            # We only relaunch when running as a .app (installed). In dev (python -m)
+            # bundlePath() isn't a .app and `open -n` would do something weird.
             if bundle.endswith(".app"):
                 subprocess.Popen(["open", "-n", bundle])
                 relanzado = True
-                # un instante para que launchd registre el nuevo proceso y salir
+                # a moment for launchd to register the new process, then exit
                 threading.Timer(0.5, self._quit_for_relaunch).start()
         except Exception:
-            log.warning("No pude relanzar Voooxly tras el onboarding", exc_info=True)
+            log.warning("Couldn't relaunch Voooxly after onboarding", exc_info=True)
 
         if not relanzado:
-            # Fallback (dev sin bundle): rearrancar el listener in-process. No
-            # es tan fiable como relanzar, pero al menos lo intenta.
+            # Fallback (dev with no bundle): restart the listener in-process. Not
+            # as reliable as relaunching, but at least it tries.
             try:
                 self._hotkey.stop()
                 self._hotkey.start()
                 log.info("Hotkey rearrancado in-process (modo dev).")
             except Exception:
-                log.warning("No pude rearrancar el hotkey", exc_info=True)
+                log.warning("Couldn't restart hotkeys", exc_info=True)
 
     def _quit_for_relaunch(self):
-        # terminate() toca AppKit: va por el hilo principal.
+        # terminate() touches AppKit: goes through the main thread.
         self._on_main(lambda: rumps.quit_application())
 
     def _warmup(self):
-        # 0) modelo de voz: si no está, se descarga solo con progreso en el icono
+        # 0) speech model: if it's missing, it downloads itself with progress on the icon
         try:
             if not stt.find_model():
                 self._alert(
@@ -2035,7 +2036,7 @@ class VoooxlyApp(rumps.App):
                 )
 
                 def _dl_progress(pct: int):
-                    # corre en el hilo de _warmup: el título va por el main.
+                    # runs on the _warmup thread: the title goes through main.
                     self._on_main(lambda p=pct: setattr(self, "title", f"⏬ {p}%"))
 
                 ok_model = stt.ensure_model(progress_cb=_dl_progress)
@@ -2048,7 +2049,7 @@ class VoooxlyApp(rumps.App):
                         "Check your connection and relaunch Voooxly.",
                     )
         except Exception as e:
-            log.warning("Auto-descarga de modelo falló: %s", e)
+            log.warning("Model auto-download failed: %s", e)
             self._refresh_title()
         # 1) whisper-server
         try:
@@ -2057,26 +2058,26 @@ class VoooxlyApp(rumps.App):
             ok = stt.start_server(threads=threads, port=port)
             if not ok:
                 log.warning(
-                    "whisper-server no arrancó. Verifica 'brew install whisper-cpp' "
-                    "y el modelo en ~/.voooxly/models/ (ver README)."
+                    "whisper-server didn't start. Verify 'brew install whisper-cpp' "
+                    "and the model in ~/.voooxly/models/ (see README)."
                 )
         except Exception as e:
-            log.warning("Warmup STT falló (se intentará al primer uso): %s", e)
-        # 2) detección del motor LLM disponible
+            log.warning("STT warmup failed (will try on first use): %s", e)
+        # 2) detection of the available LLM engine
         try:
             self._update_ai_item(force=True)
         except Exception:
             pass
-        # 3) aviso de versión nueva (silencioso si no hay red o el appcast falla)
+        # 3) new-version notice (silent if there's no network or the appcast fails)
         try:
             info = updates.check()
             if info:
                 self._update_url = info["url"]
                 self._update_version = info["version"]
-                # Si ya hay novedad al arranque, la contamos como "avisada" para
-                # que el re-chequeo periódico no repita el aviso 24 h después
-                # por la misma versión: ese aviso es para versiones que
-                # aparecen NUEVAS mientras la app está abierta.
+                # If there's already news at startup, we count it as "notified" so
+                # the periodic re-check doesn't repeat the notice 24 h later
+                # for the same version: that notice is for versions that
+                # show up NEW while the app is open.
                 self._notified_update_version = info["version"]
                 ver = info["version"]
 
@@ -2085,20 +2086,20 @@ class VoooxlyApp(rumps.App):
                     self.update_item._menuitem.setHidden_(False)
 
                 self._on_main(_show_update)
-                # Pop-up al detectar la novedad (feedback v1.4): antes el
-                # arranque solo mostraba el ítem de menú y nadie se enteraba.
+                # Pop-up upon detecting the news (v1.4 feedback): before, the
+                # startup only showed the menu item and nobody noticed.
                 self._maybe_prompt_update(info)
         except Exception:
             pass
         finally:
-            # El re-chequeo periódico debe armarse tanto si el check de
-            # arranque tuvo éxito como si falló (sin red / appcast caído):
-            # si va al `except` y `_schedule_update_check()` queda dentro del
-            # `try`, el timer 24 h nunca se arrancaría y las versiones que
-            # aparecen con la app abierta pasarían inadvertidas hasta el
-            # siguiente reinicio.
+            # The periodic re-check must be armed whether the startup
+            # check succeeded or failed (no network / appcast down):
+            # if it goes to the `except` and `_schedule_update_check()` sits
+            # inside the `try`, the 24 h timer would never start and versions
+            # that show up while the app is open would go unnoticed until the
+            # next restart.
             self._schedule_update_check()
-        # 4) sembrar Recent con el historial persistente de sesiones anteriores
+        # 4) seed Recent with the persistent history from previous sessions
         try:
             if self._save_history_on() and not self._history:
                 for t in reversed(history.load(HISTORY_SIZE)):
@@ -2108,10 +2109,10 @@ class VoooxlyApp(rumps.App):
                     self._refresh_recent()
         except Exception:
             pass
-        # Keepalive: en Macs con poca RAM macOS pagina el modelo (~1.6GB) tras
-        # inactividad y el siguiente dictado paga 10-19s de vuelta a memoria.
-        # Un ping de 0.4s de silencio cada N min lo mantiene caliente (~0.3s de
-        # coste). stt.keepalive_min: 0 lo desactiva.
+        # Keepalive: on low-RAM Macs macOS pages out the model (~1.6GB) after
+        # inactivity and the next dictation pays 10-19s to get back into memory.
+        # A 0.4s silence ping every N min keeps it warm (~0.3s of
+        # cost). stt.keepalive_min: 0 disables it.
         try:
             mins = float(self.cfg.get("stt.keepalive_min", 4))
         except (TypeError, ValueError):
@@ -2127,8 +2128,8 @@ class VoooxlyApp(rumps.App):
                 continue
             try:
                 stt.transcribe(ping, self.stt_model, "es")
-                # re-detección barata: si el usuario arrancó Ollama después de
-                # abrir Voooxly, el menú se entera solo
+                # cheap re-detection: if the user started Ollama after
+                # opening Voooxly, the menu finds out on its own
                 self._update_ai_item(force=True)
             except Exception:
                 pass

@@ -1,12 +1,12 @@
-"""alt_gr es, en macOS, la MISMA tecla física que alt_r — pynput colapsa
-Key.alt_gr en Key.alt_r (mismo virtual keycode, enum.Enum los une en un solo
-miembro; verificado contra el pynput del proyecto: `Key.alt_gr is Key.alt_r`
-y `Key.alt_gr.name == "alt_r"`).
+"""alt_gr is, on macOS, the SAME physical key as alt_r — pynput collapses
+Key.alt_gr into Key.alt_r (same virtual keycode, enum.Enum merges them into a
+single member; verified against the project's pynput: `Key.alt_gr is Key.alt_r`
+and `Key.alt_gr.name == "alt_r"`).
 
-Antes de este fix, configurar alt_gr como tecla de dictado la dejaba muda:
-_canon() no la traducía, así que la tecla configurada ("alt_gr") nunca casaba
-con el nombre que el teclado reporta de verdad ("alt_r") y la grabación no
-arrancaba jamás — sin error, sin log, nada.
+Before this fix, configuring alt_gr as the dictation key left it mute:
+_canon() did not translate it, so the configured key ("alt_gr") never matched
+the name the keyboard actually reports ("alt_r") and the recording never
+started — no error, no log, nothing.
 """
 import threading
 
@@ -31,17 +31,17 @@ def _mk(on_start, on_stop, guard=False):
     )
 
 
-def test_alt_gr_configurado_arranca_con_la_tecla_que_pynput_reporta_de_verdad():
-    # Lo que pulsa el usuario es la tecla física AltGr/Option derecha; lo que
-    # pynput entrega al listener es keyboard.Key.alt_r. Sin la traducción en
-    # _canon, esta pulsación nunca casaba con "alt_gr" y no pasaba nada.
+def test_configured_alt_gr_starts_with_the_key_pynput_actually_reports():
+    # What the user presses is the physical AltGr/right Option key; what
+    # pynput delivers to the listener is keyboard.Key.alt_r. Without the
+    # translation in _canon, this press never matched "alt_gr" and nothing happened.
     started = threading.Event()
     hk = _mk(started.set, lambda: None)
     hk._on_press(keyboard.Key.alt_r)
     assert started.wait(2.0), "alt_gr configurado no arrancó con la tecla real (alt_r)"
 
 
-def test_alt_gr_para_al_soltar():
+def test_alt_gr_stops_on_release():
     started, stopped = threading.Event(), threading.Event()
     hk = _mk(started.set, stopped.set)
     hk._on_press(keyboard.Key.alt_r)
@@ -51,10 +51,10 @@ def test_alt_gr_para_al_soltar():
 
 
 def test_hotkey_importa_el_alias_de_keys_en_vez_de_duplicarlo():
-    # Fix 3: hotkey._ALIAS_MISMA_TECLA y keys._ALIAS_MISMA_TECLA eran dos
-    # literales {"alt_gr": "alt_r"} separados que nada mantenía sincronizados
-    # — la misma clase de bug que ya dejó una vez la tecla de dictado muda
-    # (ver el docstring de este archivo). `is` y no `==`: dos dicts iguales
-    # pero distintos seguirían pudiendo divergir en el futuro; el import
-    # comparte el mismo objeto.
+    # Fix 3: hotkey._ALIAS_MISMA_TECLA and keys._ALIAS_MISMA_TECLA were two
+    # separate {"alt_gr": "alt_r"} literals that nothing kept in sync
+    # — the same class of bug that once already left the dictation key mute
+    # (see this file's docstring). `is` and not `==`: two equal but distinct
+    # dicts could still diverge in the future; the import shares the same
+    # object.
     assert hotkey._ALIAS_MISMA_TECLA is keys._ALIAS_MISMA_TECLA

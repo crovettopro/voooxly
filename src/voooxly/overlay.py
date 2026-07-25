@@ -1,17 +1,17 @@
-"""Overlay HUD: ventana flotante con título de estado + cuerpo, estilo Wispr.
+"""Overlay HUD: floating window with a status title + body, Wispr-style.
 
-GOTCHA macOS 26: un NSPanel (borderless O con título) NUNCA llega al window
-server — isVisible=True pero CGWindowList no lo lista y no se pinta ni un
-píxel (verificado con capturas). Un NSWindow borderless sí se compone, con
-capa CALayer oscura redondeada (el blur NSVisualEffectView era parte de la
-receta fantasma). No volver a NSPanel.
+macOS 26 GOTCHA: an NSPanel (borderless OR titled) NEVER reaches the window
+server — isVisible=True but CGWindowList doesn't list it and not a single
+pixel gets painted (verified with captures). A borderless NSWindow does get
+composed, with a dark rounded CALayer (the NSVisualEffectView blur was part
+of the ghost recipe). Do not go back to NSPanel.
 
-Diseño: título corto con glyph acentuado por color (● rojo grabando, ✦ ámbar
-procesando, ✓ teal pegado, ❯ teal al cambiar de modo) + cuerpo atenuado. La
-ventana crece/encoge con el contenido, anclada abajo-derecha.
+Design: short title with a color-accented glyph (● red recording, ✦ amber
+processing, ✓ teal pasted, ❯ teal on mode change) + dimmed body. The
+window grows/shrinks with the content, anchored bottom-right.
 
-Debe construirse en el main thread (runloop de rumps); show/update/hide se
-pueden llamar desde cualquier hilo (AppHelper.callAfter hace el dispatch).
+Must be built on the main thread (rumps runloop); show/update/hide can
+be called from any thread (AppHelper.callAfter does the dispatch).
 """
 from __future__ import annotations
 
@@ -48,12 +48,12 @@ MIN_H = 52
 MAX_H = 300
 MARGIN = 24
 
-# Color del glyph inicial del título según lo que anuncia
+# Color of the title's leading glyph according to what it announces
 _ACCENTS = {
-    "●": (0.91, 0.26, 0.24),   # grabando — rojo
-    "✦": (0.82, 0.54, 0.13),   # procesando — ámbar (--signal de la marca)
-    "✓": (0.18, 0.64, 0.55),   # hecho — teal (--resolved de la marca)
-    "❯": (0.18, 0.64, 0.55),   # cambio de modo — teal
+    "●": (0.91, 0.26, 0.24),   # recording — red
+    "✦": (0.82, 0.54, 0.13),   # processing — amber (the brand's --signal)
+    "✓": (0.18, 0.64, 0.55),   # done — teal (the brand's --resolved)
+    "❯": (0.18, 0.64, 0.55),   # mode change — teal
 }
 
 
@@ -67,9 +67,9 @@ class Overlay:
         self._title = ""
         self._body = ""
 
-    # --- ciclo de vida (main thread) ---
+    # --- lifecycle (main thread) ---
     def build(self):
-        """Construye el NSWindow. DEBE llamarse desde el main thread, una vez."""
+        """Builds the NSWindow. MUST be called from the main thread, once."""
         self._build()
 
     def _build(self):
@@ -115,9 +115,9 @@ class Overlay:
         self._label = label
         self._built = True
 
-    # --- API pública (cualquier hilo) ---
+    # --- public API (any thread) ---
     def show(self, text: str = "", title: str | None = None) -> None:
-        """Muestra el HUD. `title` fija la línea de estado; None la quita."""
+        """Shows the HUD. `title` sets the status line; None removes it."""
         if not _HAVE_PYOBJC or not self._built:
             return
         self._title = title or ""
@@ -126,7 +126,7 @@ class Overlay:
         AppHelper.callAfter(self._render, True)
 
     def update(self, text: str) -> None:
-        """Actualiza el cuerpo conservando el título (p.ej. parciales en vivo)."""
+        """Updates the body keeping the title (e.g. live partials)."""
         if not _HAVE_PYOBJC or not self._visible:
             return
         self._body = text or ""
@@ -138,12 +138,12 @@ class Overlay:
         self._visible = False
         AppHelper.callAfter(self._do_hide)
 
-    # --- render (siempre en main thread) ---
+    # --- render (always on the main thread) ---
     def _do_hide(self):
         try:
             self._win.orderOut_(None)
         except Exception:
-            log.debug("hide falló", exc_info=True)
+            log.debug("hide failed", exc_info=True)
 
     def _attributed(self):
         text = NSMutableAttributedString.alloc().init()
@@ -183,7 +183,7 @@ class Overlay:
             return
         try:
             attr = self._attributed()
-            # altura del texto a ancho fijo → la ventana se ajusta al contenido
+            # text height at fixed width → the window fits the content
             bounds = attr.boundingRectWithSize_options_(
                 (W - 2 * PAD_X, 100000), 1  # NSStringDrawingUsesLineFragmentOrigin
             )
@@ -197,7 +197,7 @@ class Overlay:
             elif self.position == "center":
                 x = frame.origin.x + (frame.size.width - W) / 2
                 y = frame.origin.y + (frame.size.height - win_h) / 2
-            else:  # bottom-right (anclada abajo: crece hacia arriba)
+            else:  # bottom-right (anchored at the bottom: grows upward)
                 x = frame.origin.x + frame.size.width - W - MARGIN
                 y = frame.origin.y + MARGIN
 
@@ -207,4 +207,4 @@ class Overlay:
             if reorder:
                 self._win.orderFrontRegardless()
         except Exception:
-            log.debug("render del overlay falló", exc_info=True)
+            log.debug("overlay render failed", exc_info=True)

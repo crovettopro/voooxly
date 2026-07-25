@@ -1,5 +1,5 @@
-"""llm.custom_rules: las reglas personales del usuario deben llegar al system
-prompt de cualquier modo (menos Verbatim) y no aparecer cuando están vacías.
+"""llm.custom_rules: the user's personal rules must reach the system
+prompt of every mode (except Verbatim) and not appear when they are empty.
 """
 from unittest.mock import patch
 
@@ -33,12 +33,12 @@ def test_las_reglas_personales_llegan_al_prompt():
     assert "Never use semicolons. Spell it Ucademy." in system
 
 
-def test_sin_reglas_no_se_añade_la_seccion():
+def test_no_rules_no_section_added():
     assert "Personal rules" not in _refine_capturing_system(_Cfg())
     assert "Personal rules" not in _refine_capturing_system(_Cfg({"llm.custom_rules": "   "}))
 
 
-def test_verbatim_ignora_las_reglas_y_el_llm():
+def test_verbatim_ignores_rules_and_llm():
     cfg = _Cfg({"llm.custom_rules": "whatever"})
     with patch.object(Refiner, "_ollama", side_effect=AssertionError("no debe llamarse")):
         out = Refiner(cfg).refine("tal cual", "literal", None)

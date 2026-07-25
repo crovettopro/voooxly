@@ -1,14 +1,14 @@
-"""Pausa la música mientras dictas y la reanuda al terminar.
+"""Pauses the music while you dictate and resumes it when done.
 
-Solo se toca lo que estaba SONANDO: si Spotify estaba en pausa, en pausa se
-queda; si no está abierto, no se abre (por eso el 'is running' va primero:
-un tell a una app cerrada la lanzaría). AppleScript sobre Spotify y Music
-cubre a casi todo el mundo sin frameworks privados (MediaRemote se rompe en
-cada versión de macOS); la primera vez macOS pide permiso de Automatización
-para cada reproductor, una sola vez.
+Only what was actually PLAYING is touched: if Spotify was paused, it stays
+paused; if it isn't open, it isn't launched (that's why the 'is running' check
+goes first: a tell to a closed app would launch it). AppleScript over Spotify
+and Music covers almost everyone without private frameworks (MediaRemote breaks
+on every macOS release); the first time, macOS asks for Automation permission
+for each player, once.
 
-Todo es best-effort: un reproductor que no responde jamás debe estorbar al
-dictado.
+Everything is best-effort: a player that doesn't respond must never get in the
+way of dictation.
 """
 from __future__ import annotations
 
@@ -47,23 +47,23 @@ def _osascript(script: str) -> str:
 
 
 def pause_playing() -> list[str]:
-    """Pausa los reproductores que estén sonando; devuelve cuáles, para resume()."""
+    """Pauses the players that are currently sounding; returns which ones, for resume()."""
     paused: list[str] = []
     for app in PLAYERS:
         try:
             if _osascript(_PAUSE_IF_PLAYING.format(app=app)) == "paused":
                 paused.append(app)
         except Exception as e:
-            log.debug("No pude pausar %s: %s", app, e)
+            log.debug("Couldn't pause %s: %s", app, e)
     if paused:
-        log.info("Música pausada durante el dictado: %s", ", ".join(paused))
+        log.info("Music paused during dictation: %s", ", ".join(paused))
     return paused
 
 
 def resume(players: list[str]) -> None:
-    """Reanuda SOLO los reproductores que pause_playing() pausó."""
+    """Resumes ONLY the players that pause_playing() paused."""
     for app in players:
         try:
             _osascript(_RESUME.format(app=app))
         except Exception as e:
-            log.debug("No pude reanudar %s: %s", app, e)
+            log.debug("Couldn't resume %s: %s", app, e)

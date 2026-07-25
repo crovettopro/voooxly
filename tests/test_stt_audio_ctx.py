@@ -1,34 +1,34 @@
-"""audio_ctx proporcional al audio: la mejora del 51% medida en el experimento.
+"""audio_ctx proportional to the audio: the 51% improvement measured in the experiment.
 
-Dos reglas de oro, ambas medidas en este Mac:
-1. Dictados largos NO llevan audio_ctx (contexto corto sobre audio largo =
-   alucinación en bucle, reproducido con 19s de audio).
-2. SOLO múltiplos de 256: los kernels Metal de whisper.cpp solo van rápidos
-   alineados (309/320/384 → ~4s; 256/512/768/1024 → <1.1s, mismo texto).
+Two golden rules, both measured on this Mac:
+1. Long dictations get NO audio_ctx (short context over long audio =
+   looping hallucination, reproduced with 19s of audio).
+2. ONLY multiples of 256: whisper.cpp's Metal kernels are only fast when
+   aligned (309/320/384 → ~4s; 256/512/768/1024 → <1.1s, same text).
 """
 from voooxly.stt import audio_ctx_for
 
 
 def test_dictado_corto_recibe_el_multiplo_superior():
-    # 4s * 75 = 300 frames → siguiente múltiplo de 256 = 512
+    # 4s * 75 = 300 frames → next multiple of 256 = 512
     assert audio_ctx_for(4.0) == 512
 
 
 def test_suelo_de_256_para_dictados_minimos():
-    assert audio_ctx_for(1.0) == 256   # 75 frames → primer escalón
+    assert audio_ctx_for(1.0) == 256   # 75 frames → first step
     assert audio_ctx_for(0.5) == 256
-    assert audio_ctx_for(3.4) == 256   # 255 frames: justo bajo el escalón
+    assert audio_ctx_for(3.4) == 256   # 255 frames: just below the step
 
 
 def test_dictado_largo_no_lleva_audio_ctx():
-    # 17.07s*75 ≈ 1281 → escalón 1536 > 1280 → contexto completo
+    # 17.07s*75 ≈ 1281 → step 1536 > 1280 → full context
     assert audio_ctx_for(17.1) is None
     assert audio_ctx_for(60.0) is None
     assert audio_ctx_for(300.0) is None
 
 
 def test_tope_de_1280_todavia_aplica():
-    # 17.0s * 75 = 1275 → escalón 1280, el máximo permitido
+    # 17.0s * 75 = 1275 → step 1280, the maximum allowed
     assert audio_ctx_for(17.0) == 1280
 
 

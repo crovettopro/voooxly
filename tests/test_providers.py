@@ -1,10 +1,10 @@
-"""Catálogo de proveedores: datos puros, sin red."""
+"""Provider catalog: pure data, no network."""
 
 from voooxly import providers
 
-# Lista curada del MVP: cinco proveedores, ni uno más.
+# Curated MVP list: five providers, not one more.
 ESPERADOS = ("claude", "openai", "gemini", "groq", "ollama")
-# Retirados a propósito al simplificar el menú: no deben reaparecer.
+# Retired on purpose when simplifying the menu: they must not reappear.
 RETIRADOS = ("openrouter", "deepseek", "mistral", "together", "xai", "custom")
 
 
@@ -39,7 +39,7 @@ def test_todo_lo_que_no_es_ollama_ni_claude_usa_el_camino_openai():
 
 
 def test_los_presets_con_url_fija_la_traen_rellena():
-    # Proveedores con base_url no vacía: pintar la URL exacta.
+    # Providers with a non-empty base_url: spell out the exact URL.
     urls = {
         "ollama": "http://localhost:11434",
         "openai": "https://api.openai.com/v1",
@@ -48,38 +48,38 @@ def test_los_presets_con_url_fija_la_traen_rellena():
     }
     for key, expected in urls.items():
         assert providers.get(key).base_url == expected, key
-    # Claude gestiona su endpoint por el SDK de anthropic: base_url vacía por diseño.
+    # Claude manages its endpoint through the anthropic SDK: empty base_url by design.
     assert providers.get("claude").base_url == ""
 
 
-def test_ollama_es_el_ultimo_para_de_enfatizarlo_en_el_menu():
-    # El orden de inserción ES el del menú: el gratis primero, Ollama al final.
+def test_ollama_is_last_to_emphasize_it_in_menu():
+    # Insertion order IS the menu order: the free one first, Ollama last.
     orden = list(providers.PROVIDERS)
     assert orden[0] == "groq"
     assert orden[-1] == "ollama"
 
 
-# --- modelos curados por proveedor (feedback v1.4: elegir modelo al conectar) ---
+# --- curated models per provider (v1.4 feedback: pick model on connect) ---
 
-def test_cada_proveedor_cloud_trae_modelos_curados_y_el_default_es_el_primero():
+def test_each_cloud_provider_brings_curated_models_and_default_is_first():
     for key in ("claude", "openai", "gemini", "groq"):
         prov = providers.get(key)
         assert len(prov.models) >= 2, key
         assert prov.default_model == prov.models[0], key
-        assert len(prov.models) == len(set(prov.models)), key  # sin repetidos
+        assert len(prov.models) == len(set(prov.models)), key  # no duplicates
 
 
 def test_ollama_no_presupone_modelos():
-    # Sus modelos se le preguntan a SU servidor (list_ollama_models), nunca a
-    # una lista fija: fijar una presupondría cuál tiene instalado el usuario.
+    # Its models are asked of ITS server (list_ollama_models), never taken
+    # from a fixed list: fixing one would presume what the user has installed.
     prov = providers.get("ollama")
     assert prov.models == ()
     assert prov.default_model == ""
 
 
 def test_los_defaults_son_los_modelos_excelentes_de_la_v15():
-    """Anti-regresión de la revisión de modelos (2026-07): un downgrade
-    accidental del default degradaría todos los modos en silencio."""
+    """Anti-regression from the model review (2026-07): an accidental
+    downgrade of the default would silently degrade every mode."""
     assert providers.get("claude").default_model == "claude-sonnet-5"
     assert providers.get("openai").default_model == "gpt-5.6-luna"
     assert providers.get("gemini").default_model == "gemini-3.6-flash"
@@ -96,9 +96,9 @@ def test_todas_las_etiquetas_son_distintas():
 
 
 def test_groq_va_primero_y_dice_que_es_gratis():
-    # Es el único gratis de la lista: ponerlo detrás de tres de pago hacía
-    # que nadie lo encontrara, que es justo la vía más rápida para probar la
-    # IA sin sacar la tarjeta.
+    # It is the only free one on the list: putting it behind three paid ones
+    # meant nobody found it, and it is precisely the fastest way to try the
+    # AI without pulling out a card.
     from voooxly import providers
     assert list(providers.PROVIDERS)[0] == "groq"
     assert providers.PROVIDERS["groq"].note == "free"

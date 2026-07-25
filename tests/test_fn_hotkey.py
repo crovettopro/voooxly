@@ -1,9 +1,9 @@
-"""La tecla fn (🌐), estilo Wispr Flow: pynput SÍ entrega su flagsChanged
-(vk 63) pero, al no estar en su tabla _MODIFIER_FLAGS, `is_press` sale siempre
-0 y las DOS transiciones — pulsar y soltar — llegan como on_release. El manager
-la endereza preguntando al sistema si el bit fn sigue bajado (_fn_down) y
-enrutando esa "release" disfrazada al press. Aquí _fn_down se dobla: en un
-test no hay tecla física que pulsar.
+"""The fn key (🌐), Wispr Flow style: pynput DOES deliver its flagsChanged
+(vk 63) but, since it is missing from its _MODIFIER_FLAGS table, `is_press`
+always comes out 0 and BOTH transitions — press and release — arrive as
+on_release. The manager straightens it out by asking the system whether the fn
+bit is still down (_fn_down) and routing that disguised "release" to the
+press. Here _fn_down is stubbed: in a test there is no physical key to press.
 """
 import threading
 
@@ -30,25 +30,25 @@ def _mk(on_start, on_stop):
     )
 
 
-def test_norm_reconoce_el_keycode_de_fn():
+def test_norm_recognizes_fn_keycode():
     assert hotkey._norm(FN) == "fn"
 
 
-def test_mantener_fn_dicta_y_soltarla_para(monkeypatch):
+def test_holding_fn_dictates_and_releasing_stops(monkeypatch):
     started, stopped = threading.Event(), threading.Event()
     hk = _mk(started.set, stopped.set)
     monkeypatch.setattr(hotkey, "_fn_down", lambda: True)
-    hk._on_release(FN)                    # el press llega disfrazado de release
+    hk._on_release(FN)                    # the press arrives disguised as a release
     assert started.wait(2.0), "pulsar fn no arrancó el dictado"
     assert not stopped.is_set()
     monkeypatch.setattr(hotkey, "_fn_down", lambda: False)
-    hk._on_release(FN)                    # la release de verdad
+    hk._on_release(FN)                    # the real release
     assert stopped.wait(2.0), "soltar fn no paró el dictado"
 
 
 def test_la_captura_ve_fn_como_pulsacion(monkeypatch):
-    # La ventana de Shortcuts captura por el MISMO listener: fn tiene que
-    # llegarle como tecla pulsada o no se podría asignar nunca.
+    # The Shortcuts window captures through the SAME listener: fn has to
+    # reach it as a pressed key or it could never be assigned.
     capturas = []
     hk = _mk(lambda: None, lambda: None)
     hk.begin_capture(capturas.append)
@@ -57,10 +57,10 @@ def test_la_captura_ve_fn_como_pulsacion(monkeypatch):
     assert capturas and capturas[-1] == ["fn"]
 
 
-def test_una_release_de_fn_sin_bit_no_arranca_nada(monkeypatch):
-    # Release huérfana (el press se perdió, p.ej. arrancando la app con fn ya
-    # pulsada): sin el bit fn bajado sigue el camino normal de release y no
-    # dispara ningún arranque fantasma.
+def test_fn_release_without_bit_starts_nothing(monkeypatch):
+    # Orphan release (the press was lost, e.g. launching the app with fn
+    # already held): without the fn bit down it follows the normal release
+    # path and fires no phantom start.
     started = threading.Event()
     hk = _mk(started.set, lambda: None)
     monkeypatch.setattr(hotkey, "_fn_down", lambda: False)

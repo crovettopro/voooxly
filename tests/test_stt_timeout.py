@@ -1,13 +1,13 @@
-"""El timeout de /inference tiene que escalar con el audio, no ser fijo.
+"""The /inference timeout has to scale with the audio, not be fixed.
 
-30s bastaba cuando el tope de grabación era 60s (nunca se vio un timeout en
-producción con esa combinación), pero con dictados de hasta 5 min (ver
-audio.max_duration) transcribir puede tardar más que eso: el POST expira, el
-`except Exception` de transcribe() lo traga y el dictado entero se pierde sin
-pegar nada — el mismo bug que arregló subir el tope de grabación, un paso más
-adelante en la cadena. Estos tests fijan que el timeout crece con la duración
-del audio, con piso de 30s (no regresionar dictados cortos) y techo duro (no
-colgar la app para siempre si el server está muerto).
+30s was enough when the recording cap was 60s (a timeout was never seen in
+production with that combination), but with dictations of up to 5 min (see
+audio.max_duration) transcribing can take longer than that: the POST times
+out, transcribe()'s `except Exception` swallows it and the whole dictation is
+lost without pasting anything — the same bug that raising the recording cap
+fixed, one step further down the chain. These tests pin that the timeout grows
+with the audio duration, with a 30s floor (do not regress short dictations)
+and a hard ceiling (do not hang the app forever if the server is dead).
 """
 from __future__ import annotations
 
@@ -32,8 +32,8 @@ class _FakeResponse:
 
 @pytest.fixture(autouse=True)
 def _servidor_listo(monkeypatch):
-    # Nos saltamos el arranque real del whisper-server: a estos tests solo
-    # les interesa qué timeout recibe requests.post.
+    # We skip the real whisper-server startup: these tests only care
+    # about which timeout requests.post receives.
     ready = threading.Event()
     ready.set()
     monkeypatch.setattr(stt, "_server_ready", ready)
@@ -52,7 +52,7 @@ def test_un_dictado_largo_recibe_un_timeout_mayor_a_30s(monkeypatch):
         return _FakeResponse()
 
     monkeypatch.setattr(requests, "post", fake_post)
-    stt.transcribe(_audio_de(300.0))  # 5 min: el máximo de audio.max_duration
+    stt.transcribe(_audio_de(300.0))  # 5 min: the audio.max_duration maximum
     assert capturados[0] > 30, (
         "300s de audio deben pedir más de los 30s fijos de antes: si no, un "
         "dictado largo real puede expirar y perderse igual que antes de "
@@ -60,7 +60,7 @@ def test_un_dictado_largo_recibe_un_timeout_mayor_a_30s(monkeypatch):
     )
 
 
-def test_el_timeout_escala_proporcional_a_la_duracion(monkeypatch):
+def test_timeout_scales_proportionally_to_duration(monkeypatch):
     capturados = []
 
     def fake_post(url, files=None, data=None, timeout=None):
@@ -71,8 +71,8 @@ def test_el_timeout_escala_proporcional_a_la_duracion(monkeypatch):
     stt.transcribe(_audio_de(60.0))
     stt.transcribe(_audio_de(300.0))
     corto, largo = capturados
-    # 300s es 5x más audio que 60s: el timeout tiene que crecer con ello, no
-    # quedarse plano (eso sería el mismo bug con un número distinto).
+    # 300s is 5x more audio than 60s: the timeout has to grow with it, not
+    # stay flat (that would be the same bug with a different number).
     assert largo > corto
 
 
@@ -91,7 +91,7 @@ def test_un_dictado_corto_no_baja_del_piso_de_30s(monkeypatch):
     )
 
 
-def test_el_timeout_tiene_un_techo(monkeypatch):
+def test_timeout_has_a_ceiling(monkeypatch):
     capturados = []
 
     def fake_post(url, files=None, data=None, timeout=None):
@@ -99,13 +99,13 @@ def test_el_timeout_tiene_un_techo(monkeypatch):
         return _FakeResponse()
 
     monkeypatch.setattr(requests, "post", fake_post)
-    # Muy por encima de audio.max_duration: un server colgado no puede dejar
-    # la app esperando sin fin pase lo que pase con la duración del audio.
+    # Far above audio.max_duration: a hung server must not leave the app
+    # waiting forever no matter what happens with the audio duration.
     stt.transcribe(_audio_de(3600.0))
     assert capturados[0] <= 200, "el timeout tiene que estar acotado por un techo duro"
 
 
-def test_el_reintento_tras_connectionerror_usa_el_mismo_timeout_escalado(monkeypatch):
+def test_retry_after_connectionerror_uses_same_scaled_timeout(monkeypatch):
     capturados = []
     intentos = {"n": 0}
 
@@ -126,15 +126,15 @@ def test_el_reintento_tras_connectionerror_usa_el_mismo_timeout_escalado(monkeyp
     )
 
 
-def test_el_yaml_expone_piso_y_techo_del_timeout_de_transcripcion():
+def test_yaml_exposes_floor_and_ceiling_of_transcription_timeout():
     cfg = load_config()
     assert cfg.get("stt.transcribe_timeout_floor", 0) >= 30
     assert cfg.get("stt.transcribe_timeout_ceiling", 0) >= 150
 
 
 class _CfgFloorPorEncimaDelTecho:
-    """Config con floor > ceiling: un error de tecleo en config.yaml, no un
-    caso exótico — nada impide hoy que alguien invierta los dos valores."""
+    """Config with floor > ceiling: a typo in config.yaml, not an exotic
+    case — nothing today prevents someone from swapping the two values."""
 
     def get(self, path, default=None):
         if path == "stt.transcribe_timeout_floor":
@@ -144,12 +144,12 @@ class _CfgFloorPorEncimaDelTecho:
         return default
 
 
-def test_un_floor_por_encima_del_techo_no_baja_del_piso_prometido(monkeypatch):
-    # Fix 4: min(ceiling, max(floor, scaled)) con floor > ceiling devuelve
-    # ceiling (30s) pese a que el piso prometía al menos 200s — exactamente
-    # por debajo de lo que el propio floor garantiza. Sin el clamp, una
-    # config con los dos valores invertidos deja timeouts más cortos que el
-    # piso configurado, silenciosamente.
+def test_floor_above_ceiling_does_not_drop_below_promised_floor(monkeypatch):
+    # Fix 4: min(ceiling, max(floor, scaled)) with floor > ceiling returns
+    # ceiling (30s) even though the floor promised at least 200s — exactly
+    # below what the floor itself guarantees. Without the clamp, a config
+    # with the two values swapped leaves timeouts shorter than the
+    # configured floor, silently.
     import voooxly.config as config_mod
 
     monkeypatch.setattr(config_mod, "get_config", lambda: _CfgFloorPorEncimaDelTecho())

@@ -1,7 +1,7 @@
-"""Guardado de API keys en el llavero de macOS.
+"""Storing API keys in the macOS keychain.
 
-Tests de integración: tocan el llavero real. Usan una cuenta con prefijo
-"pytest-" y la borran en el fixture, para no ensuciar las claves del usuario.
+Integration tests: they touch the real keychain. They use an account with the
+"pytest-" prefix and delete it in the fixture, so as not to pollute the user's keys.
 """
 
 import pytest
@@ -27,7 +27,7 @@ def test_cuenta_inexistente_da_none():
     assert keychain.get_key("pytest-no-existe-jamas") is None
 
 
-def test_sobrescribir_reemplaza_el_valor():
+def test_overwrite_replaces_value():
     keychain.set_key(CUENTA, "primera")
     keychain.set_key(CUENTA, "segunda")
     assert keychain.get_key(CUENTA) == "segunda"
@@ -40,6 +40,6 @@ def test_borrar_deja_la_cuenta_vacia():
 
 
 def test_secreto_con_acentos_y_simbolos():
-    """Las keys son ASCII, pero un base_url o un pegado accidental no tienen por qué."""
+    """Keys are ASCII, but a base_url or an accidental paste need not be."""
     keychain.set_key(CUENTA, "clavé-ñ-€-🔑")
     assert keychain.get_key(CUENTA) == "clavé-ñ-€-🔑"

@@ -1,12 +1,12 @@
-"""Speech-to-text con whisper.cpp (servidor HTTP persistente, Metal en Apple Silicon).
+"""Speech-to-text with whisper.cpp (persistent HTTP server, Metal on Apple Silicon).
 
-Arquitectura: lanzamos `whisper-server` como subprocess al arrancar la app. El modelo
-se carga UNA vez y se queda en memoria. Las transcripciones (partials y final) se piden
-por HTTP POST /inference con un wav — así cada transcripción es rápida (~0.3–0.8s) sin
-re-cargar modelo y sin torch.
+Architecture: we launch `whisper-server` as a subprocess when the app starts. The model
+is loaded ONCE and stays in memory. Transcriptions (partials and final) are requested
+over HTTP POST /inference with a wav — so each transcription is fast (~0.3–0.8s) with no
+model re-load and no torch.
 
-Sin dependencia de Python pesado: whisper.cpp es un binario nativo con aceleración Metal
-(CoreML/ANE opcional si se descarga el encoder .mlmodelc).
+No heavy Python dependency: whisper.cpp is a native binary with Metal acceleration
+(optional CoreML/ANE if the .mlmodelc encoder is downloaded).
 """
 from __future__ import annotations
 
@@ -30,49 +30,49 @@ _server_proc: subprocess.Popen | None = None
 _server_lock = threading.Lock()
 _server_url: str = "http://127.0.0.1:8080"
 _server_ready = threading.Event()
-# El onboarding y el warmup pueden pedir el modelo a la vez: sin esto, dos
-# descargas escribirían sobre el mismo .part y lo dejarían corrupto.
+# The onboarding and the warmup can request the model at the same time: without
+# this, two downloads would write over the same .part and leave it corrupt.
 _download_lock = threading.Lock()
 
-# Con tope de grabación de 60s, un timeout fijo de 30s en /inference nunca
-# dio problemas en producción — eso acota el peor caso real de whisper.cpp
-# (large-v3-turbo, Metal) a un RTF <= 0.5 (30s de cómputo por 60s de audio).
-# Al escalar el timeout con la duración mantenemos ESE MISMO ratio en vez de
-# inventar un número nuevo: a los 300s de audio.max_duration da 150s, muy por
-# debajo del techo de abajo. (whisper.cpp con Metal en Apple Silicon suele ir
-# bastante más rápido que esto en la práctica — el propio warmup de este
-# módulo mide ~0.3-0.8s en ventanas de 5s, RTF ~0.06-0.16 — así que 0.5 deja
-# margen de sobra para arranque en frío del modelo, CPU/GPU compartida con
-# otras apps o Macs más modestos.)
+# With a 60s recording cap, a fixed 30s timeout on /inference never caused
+# problems in production — that bounds whisper.cpp's real worst case
+# (large-v3-turbo, Metal) at an RTF <= 0.5 (30s of compute per 60s of audio).
+# By scaling the timeout with the duration we keep THAT SAME ratio instead of
+# inventing a new number: at audio.max_duration's 300s it gives 150s, well
+# below the ceiling further down. (whisper.cpp with Metal on Apple Silicon
+# usually runs quite a bit faster than this in practice — this module's own
+# warmup measures ~0.3-0.8s on 5s windows, RTF ~0.06-0.16 — so 0.5 leaves
+# ample margin for a cold model start, CPU/GPU shared with
+# other apps or more modest Macs.)
 _TRANSCRIBE_TIMEOUT_PER_SECOND = 0.5
-# Piso: igual que el timeout fijo de antes, para que un dictado corto contra
-# un server encallado siga fallando rápido — no regresionar el caso que ya
-# funcionaba bien.
+# Floor: same as the old fixed timeout, so a short dictation against a
+# stalled server keeps failing fast — don't regress the case that already
+# worked fine.
 _TRANSCRIBE_TIMEOUT_FLOOR = 30.0
-# Techo duro: a los 300s de audio.max_duration el cálculo de arriba da 150s,
-# por debajo de esto — en la práctica no debería activarse nunca. Está aquí
-# como red de seguridad si audio.max_duration sube en el futuro o el cálculo
-# se desvía: un server colgado no puede dejar la app esperando sin fin.
+# Hard ceiling: at audio.max_duration's 300s the calculation above gives 150s,
+# below this — in practice it should never kick in. It's here as a safety
+# net in case audio.max_duration goes up in the future or the calculation
+# drifts: a hung server cannot leave the app waiting forever.
 _TRANSCRIBE_TIMEOUT_CEILING = 180.0
 
-# El encoder de Whisper procesa SIEMPRE una ventana de 30s (1500 frames, 50/s),
-# dure lo que dure el audio real. `audio_ctx` por petición recorta esa ventana:
-# -51% de latencia medida en dictados cortos con CERO divergencia de texto
-# (scratchpad/latency-experiments.md). El margen 1.5x (75 frames/s) y el corte
-# existen porque un contexto menor que el audio corrompe el final en bucle de
-# alucinación — reproducido en el experimento con 19s de audio.
+# Whisper's encoder ALWAYS processes a 30s window (1500 frames, 50/s),
+# however long the real audio is. Per-request `audio_ctx` trims that window:
+# -51% measured latency on short dictations with ZERO text divergence
+# (scratchpad/latency-experiments.md). The 1.5x margin (75 frames/s) and the
+# cutoff exist because a context smaller than the audio corrupts the ending
+# into a hallucination loop — reproduced in the experiment with 19s of audio.
 #
-# SOLO múltiplos de 256: los kernels Metal de whisper.cpp 1.9.1 solo van
-# rápidos con el contexto alineado (medido en este Mac: 309/320/384 → ~4s;
-# 256/512/768/1024 → 0.4-1.1s, mismo audio y mismo texto). Por encima de 1280
-# el siguiente escalón útil ya casi es la ventana completa: contexto nativo.
+# ONLY multiples of 256: the Metal kernels of whisper.cpp 1.9.1 are only
+# fast with the context aligned (measured on this Mac: 309/320/384 → ~4s;
+# 256/512/768/1024 → 0.4-1.1s, same audio and same text). Above 1280 the
+# next useful step is already almost the full window: native context.
 _AUDIO_CTX_FRAMES_PER_S = 75
 _AUDIO_CTX_STEP = 256
 _AUDIO_CTX_MAX = 1280
 
 
 def audio_ctx_for(duration_s: float) -> int | None:
-    """Frames de contexto para el encoder, o None (= contexto completo)."""
+    """Context frames for the encoder, or None (= full context)."""
     import math
 
     if duration_s <= 0:
@@ -83,13 +83,13 @@ def audio_ctx_for(duration_s: float) -> int | None:
 
 
 def _transcribe_timeout(audio: np.ndarray) -> float:
-    """Timeout de /inference proporcional al audio, no fijo.
+    """/inference timeout proportional to the audio, not fixed.
 
-    Un timeout fijo bastaba cuando el tope de grabación era 60s. Con dictados
-    de hasta 5 min, transcribir puede tardar más que un fijo de 30s: el POST
-    expira, el `except Exception` de transcribe() lo traga y el dictado
-    entero se pierde sin pegar nada — el mismo bug que arregló subir el tope
-    de grabación, un paso más adelante en la cadena.
+    A fixed timeout was enough when the recording cap was 60s. With dictations
+    of up to 5 min, transcribing can take longer than a fixed 30s: the POST
+    times out, transcribe()'s `except Exception` swallows it and the whole
+    dictation is lost without pasting anything — the same bug that raising
+    the recording cap fixed, one step further down the chain.
     """
     from .config import get_config
 
@@ -97,15 +97,15 @@ def _transcribe_timeout(audio: np.ndarray) -> float:
     cfg = get_config()
     floor = cfg.get("stt.transcribe_timeout_floor", _TRANSCRIBE_TIMEOUT_FLOOR)
     ceiling = cfg.get("stt.transcribe_timeout_ceiling", _TRANSCRIBE_TIMEOUT_CEILING)
-    ceiling = max(ceiling, floor)  # floor invertido en config.yaml no puede prometer menos de sí mismo
+    ceiling = max(ceiling, floor)  # an inverted floor in config.yaml can't promise less than itself
     scaled = duration_s * _TRANSCRIBE_TIMEOUT_PER_SECOND
     return min(ceiling, max(floor, scaled))
 
 
 def _find_model() -> str | None:
-    # q5_0 primero: en Macs de 8GB el modelo sin cuantizar (1.5GB) se pagina
-    # tras inactividad y el siguiente dictado paga 10-19s; el cuantizado (~550MB)
-    # cabe holgado en RAM con calidad casi idéntica.
+    # q5_0 first: on 8GB Macs the unquantized model (1.5GB) gets paged out
+    # after inactivity and the next dictation pays 10-19s; the quantized one
+    # (~550MB) fits comfortably in RAM with nearly identical quality.
     candidates = [
         os.path.expanduser("~/.voooxly/models/ggml-large-v3-turbo-q5_0.bin"),
         os.path.expanduser("~/.voooxly/models/ggml-large-v3-turbo.bin"),
@@ -129,19 +129,19 @@ def find_model() -> str | None:
 
 
 def server_ready() -> bool:
-    """True si el whisper-server respondía la última vez que se le necesitó.
+    """True if the whisper-server responded the last time it was needed.
 
-    La UI lo usa para distinguir "no dijiste nada" de "el motor está caído":
-    mensajes distintos, remedios distintos.
+    The UI uses it to tell "you said nothing" apart from "the engine is down":
+    different messages, different remedies.
     """
     return _server_ready.is_set()
 
 
 def ensure_model(progress_cb=None) -> str | None:
-    """Devuelve la ruta del modelo, descargándolo si no existe (con progreso 0-100).
+    """Returns the model path, downloading it if it doesn't exist (0-100 progress).
 
-    Serializado: si dos hilos lo piden a la vez (onboarding + warmup), el segundo
-    espera y encuentra el modelo ya descargado en vez de duplicar la descarga.
+    Serialized: if two threads request it at once (onboarding + warmup), the second
+    waits and finds the model already downloaded instead of duplicating the download.
     """
     m = _find_model()
     if m:
@@ -151,7 +151,7 @@ def ensure_model(progress_cb=None) -> str | None:
 
 
 def _download_model(progress_cb=None) -> str | None:
-    # Re-comprobación dentro del lock: puede haberlo bajado quien lo tenía cogido.
+    # Re-check inside the lock: whoever held it may have downloaded it.
     m = _find_model()
     if m:
         return m
@@ -180,7 +180,7 @@ def _download_model(progress_cb=None) -> str | None:
         log.info("Modelo descargado (%.2f GB).", done / 1e9)
         return str(dst)
     except Exception as e:
-        log.error("Descarga de modelo falló: %s", e)
+        log.error("Model download failed: %s", e)
         try:
             tmp.unlink()
         except Exception:
@@ -189,8 +189,8 @@ def _download_model(progress_cb=None) -> str | None:
 
 
 def _which_server() -> str | None:
-    # 1º el whisper-server EMBEBIDO en el .app (vendor/whisper en el spec):
-    # el receptor no necesita Homebrew.
+    # 1st, the whisper-server EMBEDDED in the .app (vendor/whisper in the spec):
+    # the recipient doesn't need Homebrew.
     import sys
 
     meipass = getattr(sys, "_MEIPASS", None)
@@ -198,9 +198,9 @@ def _which_server() -> str | None:
         bundled = os.path.join(meipass, "whisper", "whisper-server")
         if os.path.exists(bundled) and os.access(bundled, os.X_OK):
             return bundled
-    # Las apps lanzadas por LaunchServices NO heredan el PATH del shell
-    # (/opt/homebrew/bin no está) — sin las rutas explícitas, el .app no
-    # encontraría whisper-server tras un reinicio del Mac.
+    # Apps launched by LaunchServices do NOT inherit the shell's PATH
+    # (/opt/homebrew/bin isn't there) — without the explicit paths, the .app
+    # wouldn't find whisper-server after a Mac restart.
     explicit = [
         os.path.expanduser("~/.voooxly/bin/whisper-server"),
         "/opt/homebrew/bin/whisper-server",
@@ -213,28 +213,28 @@ def _which_server() -> str | None:
 
 
 def start_server(model_path: str | None = None, threads: int = 4, port: int = 8080) -> bool:
-    """Arranca whisper-server en background. Idempotente. Devuelve True si está listo.
+    """Starts whisper-server in the background. Idempotent. Returns True if ready.
 
-    Si ya hay un servidor respondiendo en el puerto (p.ej. de un lanzamiento previo
-    que no se cerró), lo reaprovecha en vez de spawnar uno que no podría bindear.
+    If a server is already responding on the port (e.g. from a previous launch
+    that didn't close), it reuses it instead of spawning one that couldn't bind.
     """
     global _server_proc, _server_url
     with _server_lock:
         if _server_proc and _server_proc.poll() is None and _server_ready.is_set():
             return True
         _server_url = f"http://127.0.0.1:{port}"
-        # ¿hay ya alguien respondiendo en el puerto? reaprovéchalo
+        # is someone already responding on the port? reuse it
         if _probe(_server_url):
-            log.info("Reutilizando whisper-server ya activo en %s", _server_url)
+            log.info("Reusing whisper-server already active at %s", _server_url)
             _server_ready.set()
             return True
         server_bin = _which_server()
         if not server_bin:
-            log.error("whisper-server no encontrado. Instala: brew install whisper-cpp")
+            log.error("whisper-server not found. Install: brew install whisper-cpp")
             return False
         model = model_path or _find_model()
         if not model:
-            log.error("No hay modelo ggml en ~/.voooxly/models/. Descarga uno (ver README).")
+            log.error("No ggml model in ~/.voooxly/models/. Download one (see README).")
             return False
         _server_url = f"http://127.0.0.1:{port}"
         cmd = [
@@ -242,13 +242,14 @@ def start_server(model_path: str | None = None, threads: int = 4, port: int = 80
             "-m", model,
             "-t", str(threads),
             "--port", str(port),
-            "-l", "auto",  # auto-detección de idioma
+            "-l", "auto",  # language auto-detection
         ]
-        log.info("Arrancando whisper-server: %s", " ".join(cmd))
+        log.info("Starting whisper-server: %s", " ".join(cmd))
         env = os.environ.copy()
-        # server embebido: ggml busca sus backends (Metal/CPU .so) en una ruta
-        # compilada de Homebrew que no existe en otros Macs — GGML_BACKEND_PATH
-        # los redirige al directorio vendorizado si están colocados ahí.
+        # embedded server: ggml looks for its backends (Metal/CPU .so) in a
+        # compiled-in Homebrew path that doesn't exist on other Macs —
+        # GGML_BACKEND_PATH redirects them to the vendored directory if
+        # they're placed there.
         server_dir = os.path.dirname(server_bin)
         if any(f.startswith("libggml-") and f.endswith(".so")
                for f in os.listdir(server_dir) if os.path.isfile(os.path.join(server_dir, f))):
@@ -263,17 +264,17 @@ def start_server(model_path: str | None = None, threads: int = 4, port: int = 80
                 env=env,
             )
         except Exception as e:
-            log.exception("No pude arrancar whisper-server: %s", e)
+            log.exception("Couldn't start whisper-server: %s", e)
             return False
         threading.Thread(target=_reader, daemon=True).start()
-        # esperar a que el servidor responda
+        # wait for the server to respond
         ok = _wait_ready(timeout=60)
         _server_ready.set() if ok else _server_ready.clear()
         return ok
 
 
 def _reader():
-    # consume stderr del server para que no se bloquee el pipe
+    # consume the server's stderr so the pipe doesn't block
     global _server_proc
     while _server_proc and _server_proc.poll() is None:
         try:
@@ -285,7 +286,7 @@ def _reader():
 
 
 def _probe(url: str) -> bool:
-    """True si algo responde en la URL (GET rápido)."""
+    """True if something responds at the URL (quick GET)."""
     try:
         requests.get(url, timeout=1.5)
         return True
@@ -299,7 +300,7 @@ def _wait_ready(timeout: float = 60) -> bool:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if _server_proc and _server_proc.poll() is not None:
-            log.error("whisper-server murió al arrancar (code %s)", _server_proc.returncode)
+            log.error("whisper-server died on startup (code %s)", _server_proc.returncode)
             return False
         if _probe(_server_url):
             return True
@@ -337,15 +338,15 @@ def transcribe(
     language: str | None = None,
     prompt: str | None = None,
 ) -> str:
-    """Transcribe un array int16 16kHz pidiéndolo al whisper-server. Devuelve texto.
+    """Transcribes an int16 16kHz array by asking the whisper-server. Returns text.
 
-    `prompt` = diccionario personal (nombres propios, jerga): whisper lo usa como
-    initial prompt y sesga la transcripción hacia esas grafías.
+    `prompt` = personal dictionary (proper names, jargon): whisper uses it as the
+    initial prompt and biases the transcription towards those spellings.
     """
     if audio is None or len(audio) == 0:
         return ""
     if not (_server_ready.is_set() or start_server()):
-        log.error("Servidor STT no disponible.")
+        log.error("STT server unavailable.")
         return ""
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
         wav_path = tmp.name
@@ -359,16 +360,16 @@ def transcribe(
             data["language"] = language
         if prompt:
             data["prompt"] = prompt
-        # Mismo timeout en el intento inicial y en el reintento: un dictado
-        # largo tarda lo mismo en transcribirse en ambos, así que arreglar
-        # solo uno de los dos dejaría el bug vivo en el otro camino.
+        # Same timeout on the initial attempt and the retry: a long dictation
+        # takes the same to transcribe in both, so fixing only one of the
+        # two would leave the bug alive on the other path.
         timeout = _transcribe_timeout(audio)
         with open(wav_path, "rb") as f:
             files = {"file": ("audio.wav", f, "audio/wav")}
             try:
                 r = requests.post(f"{_server_url}/inference", files=files, data=data, timeout=timeout)
             except requests.exceptions.ConnectionError:
-                # reintenta arrancar el server una vez
+                # retry starting the server once
                 if start_server():
                     with open(wav_path, "rb") as f:
                         files = {"file": ("audio.wav", f, "audio/wav")}
@@ -380,7 +381,7 @@ def transcribe(
             return ""
         body = r.json()
         text = (body.get("text", "") or "").strip()
-        # colapsa saltos de línea/espacios múltiples: dictado es un solo enunciado
+        # collapse newlines/multiple spaces: a dictation is a single utterance
         import re
 
         return re.sub(r"\s+", " ", text).strip()
@@ -394,8 +395,8 @@ def transcribe(
             pass
 
 
-# Frases que Whisper "inventa" cuando el audio es silencio o casi silencio
-# (entrenado con vídeos: cierres tipo "Thank you." o créditos de subtituladores).
+# Phrases Whisper "makes up" when the audio is silence or near silence
+# (trained on videos: sign-offs like "Thank you." or subtitlers' credits).
 _HALLUCINATIONS = {
     "thank you", "thank you very much", "thanks for watching", "thank you for watching",
     "you",
@@ -411,15 +412,15 @@ def _norm_text(text: str) -> str:
     import unicodedata
 
     t = unicodedata.normalize("NFD", text.lower())
-    t = "".join(c for c in t if unicodedata.category(c) != "Mn")  # sin tildes
+    t = "".join(c for c in t if unicodedata.category(c) != "Mn")  # no accents
     return re.sub(r"[\W_]+", " ", t).strip()
 
 
 def looks_hallucinated(text: str, speech_ratio: float) -> bool:
-    """True si la transcripción huele a alucinación de Whisper sobre silencio.
+    """True if the transcription smells like a Whisper hallucination over silence.
 
-    Solo descartamos frases de la blacklist cuando el VAD apenas vio voz
-    (speech_ratio bajo): si el usuario dictó de verdad "gracias", se respeta.
+    We only discard blacklist phrases when the VAD barely saw speech
+    (low speech_ratio): if the user really dictated "gracias", it's respected.
     """
     norm = _norm_text(text)
     if not norm:
@@ -428,7 +429,7 @@ def looks_hallucinated(text: str, speech_ratio: float) -> bool:
 
 
 def warmup(model_id: str | None = None) -> None:
-    """Precarga: arranca el servidor y hace una transcripción vacía."""
+    """Preload: starts the server and does an empty transcription."""
     if start_server():
         transcribe(np.zeros(SR, dtype=np.int16))
 

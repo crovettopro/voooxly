@@ -1,9 +1,9 @@
-"""El cuerpo del POST a /chat/completions según el modelo.
+"""The body of the POST to /chat/completions depending on the model.
 
-El fallo real de Eduardo: gpt-5-mini devolvía 400 Bad Request mientras
-gpt-4.1-mini conectaba. Los modelos razonadores de OpenAI (gpt-5*, o1*, o3*,
-o4*) solo aceptan la temperature por defecto: mandarles otra es un 400. El
-payload vive en una función pura para que este contrato quede clavado aquí.
+Eduardo's real-world failure: gpt-5-mini returned 400 Bad Request while
+gpt-4.1-mini connected. OpenAI's reasoner models (gpt-5*, o1*, o3*, o4*)
+only accept the default temperature: sending them any other is a 400. The
+payload lives in a pure function so this contract stays pinned here.
 """
 from voooxly import refine
 
@@ -33,7 +33,7 @@ def test_el_payload_lleva_modelo_y_mensajes_en_orden():
 
 
 def test_un_modelo_que_solo_empieza_parecido_no_se_confunde():
-    # "o1" es prefijo peligroso: "olmo-7b" no es un razonador de OpenAI y
-    # quitarle la temperature cambiaría su salida en silencio.
+    # "o1" is a dangerous prefix: "olmo-7b" is not an OpenAI reasoner and
+    # stripping its temperature would silently change its output.
     assert "temperature" in _body("olmo-7b")
     assert "temperature" in _body("gpt-4o")

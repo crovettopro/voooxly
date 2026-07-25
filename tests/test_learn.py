@@ -1,8 +1,8 @@
-"""El diff de correcciones: de dos textos, los reemplazos que el usuario quiso.
+"""The corrections diff: from two texts, the replacements the user intended.
 
-Precisión sobre exhaustividad: un falso positivo mete un reemplazo malo que
-corrompe TODOS los dictados futuros (dictionary.apply es case-insensitive y
-global). Mejor perder una corrección que aprender una mentira.
+Precision over recall: a false positive introduces a bad replacement that
+corrupts ALL future dictations (dictionary.apply is case-insensitive and
+global). Better to miss a correction than to learn a lie.
 """
 from voooxly.learn import corrections
 
@@ -22,13 +22,13 @@ def test_ignora_textos_iguales():
 
 
 def test_ignora_cambios_solo_de_puntuacion():
-    # Coma añadida: no es una grafía que Whisper deba aprender.
+    # Added comma: not a spelling Whisper should learn.
     assert corrections("hola que tal", "hola, que tal") == []
 
 
 def test_ignora_reescrituras_grandes():
-    # Si el usuario reescribió la frase entera no hay "palabra corregida"
-    # que aprender: un segmento largo NO es un reemplazo de diccionario.
+    # If the user rewrote the whole sentence there is no "corrected word"
+    # to learn: a long segment is NOT a dictionary replacement.
     got = corrections(
         "manda el informe cuando puedas",
         "por favor envíame el documento final hoy mismo",
@@ -37,7 +37,7 @@ def test_ignora_reescrituras_grandes():
 
 
 def test_ignora_borrados_e_inserciones():
-    # Borrar o añadir palabras no enseña grafías.
+    # Deleting or adding words teaches no spellings.
     assert corrections("hola muy buenas tardes", "hola buenas tardes") == []
     assert corrections("hola buenas", "hola muy buenas") == []
 
@@ -53,16 +53,16 @@ from voooxly import dictionary
 from voooxly.learn import learn_from
 
 
-def test_learn_from_guarda_reemplazos_en_el_diccionario(tmp_path):
+def test_learn_from_saves_replacements_to_dictionary(tmp_path):
     d = tmp_path / "dictionary.json"
     descs = learn_from("uso boxli a diario", "uso Voooxly a diario", path=d)
     assert len(descs) == 1
     data = dictionary.load(d)
     assert data["replacements"]["boxli"] == "Voooxly"
-    assert "Voooxly" in data["words"]          # la grafía buena sesga el STT
+    assert "Voooxly" in data["words"]          # the good spelling biases the STT
 
 
-def test_learn_from_sin_cambios_no_toca_el_fichero(tmp_path):
+def test_learn_from_without_changes_does_not_touch_file(tmp_path):
     d = tmp_path / "dictionary.json"
     assert learn_from("igual", "igual", path=d) == []
     assert not d.exists()
@@ -71,6 +71,6 @@ def test_learn_from_sin_cambios_no_toca_el_fichero(tmp_path):
 def test_learn_from_nunca_lanza_con_diccionario_roto(tmp_path):
     d = tmp_path / "dictionary.json"
     d.write_text("{json roto", encoding="utf-8")
-    # dictionary.load ya tolera basura; learn_from debe heredar el best-effort.
+    # dictionary.load already tolerates garbage; learn_from must inherit the best-effort.
     descs = learn_from("uso boxli", "uso Voooxly", path=d)
-    assert descs  # aprendió igualmente (load devuelve dict vacío y add reescribe)
+    assert descs  # learned anyway (load returns an empty dict and add rewrites)

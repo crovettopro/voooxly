@@ -1,8 +1,8 @@
-"""La guía de uso (feedback v1.6): sections() es pura y no puede mentir.
+"""The usage guide (v1.6 feedback): sections() is pure and cannot lie.
 
-La ventana solo pinta lo que sections() decide, así que aquí se prueba lo que
-importa: que la guía enseña las teclas REALES del usuario y todos los modos
-del registro — no un texto congelado que se queda viejo en silencio.
+The window only renders what sections() decides, so what matters is tested
+here: that the guide shows the user's REAL keys and every mode in the
+registry — not a frozen text that silently goes stale.
 """
 from voooxly import guide, modes, shortcuts
 
@@ -18,7 +18,7 @@ def test_la_guia_ensena_la_tecla_de_dictado_de_fabrica():
     secciones = guide.sections(None)
     dictar = _cuerpo(secciones, "Dictate")
     assert "⌘ (right)" in dictar
-    assert dictar.startswith("Hold")          # estilo de fábrica: hold
+    assert dictar.startswith("Hold")          # factory style: hold
 
 
 def test_la_guia_ensena_la_tecla_del_usuario_no_la_de_fabrica():
@@ -36,8 +36,8 @@ def test_la_guia_explica_el_estilo_toggle_si_es_el_del_usuario():
 
 
 def test_la_guia_cuenta_todos_los_modos_del_registro():
-    """El "8 modes" del onboarding se quedó viejo en silencio al llegar el
-    noveno: la guía saca la cuenta Y la lista del registro real."""
+    """The onboarding's "8 modes" silently went stale when the ninth
+    arrived: the guide takes the count AND the list from the real registry."""
     secciones = guide.sections(None)
     n = len(modes.modes_by_key())
     titulo, cuerpo = next((t, c) for t, c in secciones if "modes" in t)
@@ -46,20 +46,20 @@ def test_la_guia_cuenta_todos_los_modos_del_registro():
         assert info["label"] in cuerpo
 
 
-def test_la_guia_cubre_cancel_y_hands_free_con_sus_teclas():
+def test_guide_covers_cancel_and_hands_free_with_their_keys():
     secciones = guide.sections(None)
     assert "esc" in _cuerpo(secciones, "Cancel")
     assert "⇧" in _cuerpo(secciones, "Hands-free")
 
 
 def test_los_atajos_de_la_guia_pasan_por_la_tabla_unica():
-    """Misma leyenda que el submenú y la ventana: si key_label cambia, la guía
-    cambia con él — nunca dos formas de escribir la misma tecla."""
+    """Same legend as the submenu and the window: if key_label changes, the
+    guide changes with it — never two ways of writing the same key."""
     estado = {"cancel": {"keys": ["esc"]}}
     assert shortcuts.key_label(["esc"]) in _cuerpo(guide.sections(estado), "Cancel")
 
 
-def test_la_guia_sale_en_espanol_cuando_toca():
+def test_guide_shows_in_spanish_when_appropriate():
     from voooxly import i18n
 
     i18n.set_lang("es")
@@ -71,10 +71,10 @@ def test_la_guia_sale_en_espanol_cuando_toca():
 
 
 def test_la_guia_sale_en_espanol_los_nueve_titulos():
-    """No solo el primer título (hallazgo de revisión #2): si un título nuevo
-    se cuela sin pasar por t(), o uno viejo pierde su traducción, esto lo
-    caza. '{n} modos' se construye igual que sections(): con el conteo
-    dinámico del registro, no un número congelado."""
+    """Not just the first title (review finding #2): if a new title sneaks
+    in without going through t(), or an old one loses its translation, this
+    catches it. '{n} modos' is built the same way as sections(): with the
+    registry's dynamic count, not a frozen number."""
     from voooxly import i18n
 
     i18n.set_lang("es")

@@ -1,10 +1,10 @@
-"""Cascada de auto-detección (detect_backend): qué cuenta como proveedor.
+"""Auto-detection cascade (detect_backend): what counts as a provider.
 
-Un Ollama alcanzable pero sin modelo configurado NO es un proveedor: Ollama.app
-autoarranca su servidor, y reclamarlo condenaba cada dictado a un 400 + aviso
-"AI didn't answer" para siempre (y tapaba las keys de entorno más abajo en la
-cascada). Hasta que el usuario lo conecte desde el menú, el pegado crudo debe
-seguir limpio y sin avisos.
+A reachable Ollama with no model configured is NOT a provider: Ollama.app
+auto-starts its server, and claiming it doomed every dictation to a 400 + an
+"AI didn't answer" warning forever (and shadowed the environment keys further
+down the cascade). Until the user connects it from the menu, the raw paste
+must stay clean and warning-free.
 """
 
 import requests
@@ -33,9 +33,9 @@ def _sin_keys_de_entorno(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
 
-def test_ollama_alcanzable_sin_modelo_configurado_no_es_proveedor(monkeypatch):
-    """Servidor arriba + llm.ollama.model vacío + sin keys → "none"."""
-    # monkeypatch restaura la caché del módulo al terminar: sin fugas entre tests.
+def test_reachable_ollama_without_configured_model_is_not_a_provider(monkeypatch):
+    """Server up + empty llm.ollama.model + no keys → "none"."""
+    # monkeypatch restores the module cache when done: no leaks between tests.
     monkeypatch.setattr(refine, "_detected", None)
     _servidor_ollama_alcanzable(monkeypatch)
     _sin_keys_de_entorno(monkeypatch)
@@ -44,10 +44,10 @@ def test_ollama_alcanzable_sin_modelo_configurado_no_es_proveedor(monkeypatch):
 
 
 def test_ollama_sin_modelo_deja_pasar_la_cascada_hasta_claude(monkeypatch):
-    """Servidor arriba + modelo vacío + ANTHROPIC_API_KEY → "claude".
+    """Server up + empty model + ANTHROPIC_API_KEY → "claude".
 
-    Antes la cascada se detenía en "ollama" por mera alcanzabilidad y una key
-    de entorno perfectamente funcional nunca llegaba a usarse.
+    Before, the cascade stopped at "ollama" on mere reachability and a
+    perfectly functional environment key never got used.
     """
     monkeypatch.setattr(refine, "_detected", None)
     _servidor_ollama_alcanzable(monkeypatch)
@@ -58,7 +58,7 @@ def test_ollama_sin_modelo_deja_pasar_la_cascada_hasta_claude(monkeypatch):
 
 
 def test_ollama_con_modelo_configurado_sigue_detectandose(monkeypatch):
-    """Servidor arriba + modelo configurado → "ollama", como siempre."""
+    """Server up + model configured → "ollama", as always."""
     monkeypatch.setattr(refine, "_detected", None)
     _servidor_ollama_alcanzable(monkeypatch)
     _sin_keys_de_entorno(monkeypatch)

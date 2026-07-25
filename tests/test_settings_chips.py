@@ -1,10 +1,10 @@
-"""El campo de chips estilo Wispr Flow y el Reset to defaults.
+"""The Wispr Flow-style chip field and the Reset to defaults.
 
-Del feedback de Eduardo (con capturas de Wispr): cada tecla del atajo es su
-PROPIO chip dentro de un campo con un lápiz ✎ al final; al capturar, lo que
-pulsas se refleja en vivo en el campo Y en el teclado; y un botón devuelve
-todo a fábrica. Los tests instancian el controlador de AppKit real, como el
-resto de tests de esta ventana.
+From Eduardo's feedback (with Wispr screenshots): each key of the shortcut is
+its OWN chip inside a field with a pencil ✎ at the end; while capturing, what
+you press is reflected live in the field AND on the keyboard; and a button
+returns everything to factory settings. The tests instantiate the real AppKit
+controller, like the rest of this window's tests.
 """
 from PyObjCTools import AppHelper
 
@@ -23,43 +23,43 @@ def _ctl(estado=None, on_change=None):
         estado or ESTADO, on_change or (lambda sid, fila: (True, "")))
 
 
-def test_chip_texts_da_un_chip_por_tecla():
+def test_chip_texts_gives_one_chip_per_key():
     assert settings_window.chip_texts(["ctrl", "shift", "m"]) == ["⌃", "⇧", "M"]
     assert settings_window.chip_texts(["fn"]) == ["fn"]
     assert settings_window.chip_texts([]) == []
 
 
-def test_cada_fila_pinta_un_chip_por_tecla_de_su_binding():
+def test_each_row_paints_one_chip_per_key_in_its_binding():
     c = _ctl()
     assert len(c._chips["cycle_mode"]) == 3
     assert len(c._chips["dictation"]) == 1
-    # El texto del chip sale de key_label tecla a tecla: la subvista única
-    # del keycap de theme lleva el glifo.
+    # The chip text comes from key_label key by key: the single subview
+    # of the theme keycap carries the glyph.
     textos = [chip.subviews()[0].stringValue() for chip in c._chips["cycle_mode"]]
     assert textos == ["⌃", "⇧", "M"]
     c.close()
 
 
-def test_cada_campo_lleva_su_lapiz():
-    # El lápiz ES la afordancia de editar (el "Change" de antes no se
-    # identificaba como acción): tiene que estar en las cuatro filas.
+def test_each_field_has_its_pencil():
+    # The pencil IS the edit affordance (the previous "Change" was not
+    # recognized as an action): it has to be on all four rows.
     c = _ctl()
     for sid in shortcuts.SHORTCUTS:
         assert c._pencils[sid].stringValue() == settings_window._PENCIL_TXT, sid
     c.close()
 
 
-def test_al_capturar_el_campo_muestra_el_placeholder_hasta_la_primera_tecla():
+def test_on_capture_field_shows_placeholder_until_first_key():
     c = _ctl()
     assert c._hints["dictation"].isHidden()
     c.begin_capture_("dictation")
     assert not c._hints["dictation"].isHidden()
-    assert c._chips["dictation"] == []          # sin teclas aún: campo vacío
-    assert c._hints["cancel"].isHidden()        # solo la fila en captura
+    assert c._chips["dictation"] == []          # no keys yet: empty field
+    assert c._hints["cancel"].isHidden()        # only the row being captured
     c.close()
 
 
-def test_la_fila_en_captura_se_resalta_entera():
+def test_row_being_captured_is_fully_highlighted():
     c = _ctl()
     c.begin_capture_("latch")
     assert c._rows["latch"].layer().backgroundColor() == theme.MODEL_BTN_BG.CGColor()
@@ -69,17 +69,18 @@ def test_la_fila_en_captura_se_resalta_entera():
     c.close()
 
 
-def test_lo_pulsado_se_refleja_en_chips_y_en_el_teclado(monkeypatch):
-    """El corazón del feedback: "si marco el shortcut que se refleje en el
-    teclado". Una letra suelta no valida como atajo de dictado (inutilizaría
-    el teclado entero), pero el chip X aparece en el campo y su casilla sube
-    a TEAL_DARK — el usuario VE que la pulsación llegó aunque no sea un
-    atajo válido, y la captura sigue armada para que lo intente de nuevo."""
+def test_what_was_pressed_reflects_in_chips_and_keyboard(monkeypatch):
+    """The heart of the feedback: "si marco el shortcut que se refleje en el
+    teclado". A lone letter does not validate as a dictation shortcut (it
+    would cripple the whole keyboard), but the X chip shows up in the field
+    and its key cell rises to TEAL_DARK — the user SEES that the press
+    arrived even if it is not a valid shortcut, and the capture stays
+    armed so they can try again."""
     monkeypatch.setattr(AppHelper, "callAfter", lambda fn, *a, **kw: fn(*a, **kw))
     c = _ctl()
     c.begin_capture_("dictation")
     c._on_captured_(["x"])
-    assert c._capturing == "dictation"          # validate rechazó: sigue armada
+    assert c._capturing == "dictation"          # validate rejected: still armed
     textos = [chip.subviews()[0].stringValue() for chip in c._chips["dictation"]]
     assert textos == ["X"]
     assert c._keys["x"].layer().backgroundColor() == theme.TEAL_DARK.CGColor()
@@ -87,7 +88,7 @@ def test_lo_pulsado_se_refleja_en_chips_y_en_el_teclado(monkeypatch):
     c.close()
 
 
-def test_una_captura_valida_deja_los_chips_del_binding_nuevo():
+def test_valid_capture_leaves_chips_of_new_binding():
     c = _ctl()
     c.begin_capture_("cancel")
     c.apply_capture_(["f13"])
@@ -97,7 +98,7 @@ def test_una_captura_valida_deja_los_chips_del_binding_nuevo():
     c.close()
 
 
-def test_reset_devuelve_los_cuatro_atajos_a_fabrica():
+def test_reset_returns_four_shortcuts_to_factory():
     cambiados = dict(
         ESTADO,
         dictation={"keys": ["f13"], "style": "hold", "delay_ms": 600},
@@ -108,13 +109,13 @@ def test_reset_devuelve_los_cuatro_atajos_a_fabrica():
     c.resetDefaults_(None)
     for sid, sc in shortcuts.SHORTCUTS.items():
         assert c._estado[sid]["keys"] == list(sc.default), sid
-    # cmd_r no necesita guarda: el delay de fábrica es 0, no los 600 de antes.
+    # cmd_r needs no guard: the factory delay is 0, not the earlier 600.
     assert c._estado["dictation"]["delay_ms"] == 0
     assert set(vistos) == set(shortcuts.SHORTCUTS)
     c.close()
 
 
-def test_reset_cancela_una_captura_a_medias():
+def test_reset_cancels_a_half_finished_capture():
     c = _ctl()
     c.begin_capture_("dictation")
     c.resetDefaults_(None)

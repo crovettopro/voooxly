@@ -1,6 +1,6 @@
-"""Un stream de CoreAudio colgado en abort()/close() no puede secuestrar el
-cierre de la grabación: _finalize debe terminar en ~3s igualmente y entregar
-_on_stop, o la app se queda en RECORDING para siempre (visto en real).
+"""A CoreAudio stream hung in abort()/close() cannot hijack the shutdown
+of the recording: _finalize must still finish in ~3s and deliver _on_stop,
+or the app stays in RECORDING forever (seen in the wild).
 """
 import threading
 import time
@@ -10,7 +10,7 @@ from voooxly import audio
 
 class _StreamColgado:
     def abort(self):
-        time.sleep(30)  # CoreAudio que nunca vuelve
+        time.sleep(30)  # CoreAudio that never comes back
 
     def close(self):
         pass
@@ -58,5 +58,5 @@ def test_finalize_es_idempotente():
     calls = []
     r._on_stop = lambda a, d: calls.append(1)
     r._finalize()
-    r._finalize()  # el guard _finalized evita el doble cierre
+    r._finalize()  # the _finalized guard prevents the double close
     assert calls == [1]

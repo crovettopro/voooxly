@@ -1,8 +1,8 @@
-"""Señal de degradación: el usuario debe saber cuándo la IA no actuó.
+"""Degradation signal: the user must know when the AI did not act.
 
-Directiva del dueño (2026-07-20): si no hay clave o el proveedor no funciona,
-avisar — y pegar igualmente lo que se pueda. El texto crudo por FALLO activa
-last_fallback; el texto crudo DELIBERADO (modo literal, sin backend) no.
+Owner directive (2026-07-20): if there is no key or the provider does not
+work, warn — and still paste whatever we can. Raw text due to FAILURE sets
+last_fallback; DELIBERATE raw text (literal mode, no backend) does not.
 """
 
 import sys
@@ -36,14 +36,14 @@ def _cfg_claude():
         "llm.claude.model": "claude-sonnet-5",
         "llm.claude.max_tokens": 1200,
         "llm.claude.timeout": 30,
-        # _claude cae a Ollama si falla: necesita también su propia config.
+        # _claude falls back to Ollama if it fails: it also needs its own config.
         "llm.ollama.host": "http://localhost:11434",
         "llm.ollama.model": "llama3.2",
         "llm.ollama.timeout": 5,
     })
 
 
-def test_fallo_de_red_marca_last_fallback_y_devuelve_crudo(monkeypatch):
+def test_network_failure_marks_last_fallback_and_returns_raw(monkeypatch):
     monkeypatch.setattr(requests, "post", lambda *a, **k: (_ for _ in ()).throw(
         requests.ConnectionError("sin red")))
     r = refine.Refiner(_cfg_ollama())
@@ -52,7 +52,7 @@ def test_fallo_de_red_marca_last_fallback_y_devuelve_crudo(monkeypatch):
     assert r.last_fallback
 
 
-def test_exito_deja_last_fallback_a_none(monkeypatch):
+def test_success_leaves_last_fallback_none(monkeypatch):
     class R:
         status_code = 200
         text = "{}"
@@ -64,21 +64,21 @@ def test_exito_deja_last_fallback_a_none(monkeypatch):
     assert r.last_fallback is None
 
 
-def test_modo_literal_no_marca_fallback():
+def test_literal_mode_does_not_mark_fallback():
     r = refine.Refiner(_cfg_ollama())
     assert r.refine("tal cual", "literal", "es") == "tal cual"
     assert r.last_fallback is None
 
 
-def test_backend_none_no_marca_fallback():
-    """Sin IA configurada el texto crudo es lo prometido, no un fallo."""
+def test_backend_none_does_not_mark_fallback():
+    """With no AI configured, raw text is what was promised, not a failure."""
     r = refine.Refiner(CfgFake({"llm.backend": "none"}))
     assert r.refine("hola", "ordenar", "es") == "hola"
     assert r.last_fallback is None
 
 
-def test_un_exito_despues_de_un_fallo_limpia_el_flag(monkeypatch):
-    """El flag es del ÚLTIMO refine(), no una alarma pegajosa."""
+def test_success_after_failure_clears_flag(monkeypatch):
+    """The flag belongs to the LAST refine(), not a sticky alarm."""
     monkeypatch.setattr(requests, "post", lambda *a, **k: (_ for _ in ()).throw(
         requests.ConnectionError("sin red")))
     r = refine.Refiner(_cfg_ollama())
@@ -95,15 +95,15 @@ def test_un_exito_despues_de_un_fallo_limpia_el_flag(monkeypatch):
     assert r.last_fallback is None
 
 
-def test_preludio_de_claude_roto_cae_a_ollama_y_marca_last_fallback(monkeypatch):
-    """El import de `anthropic` y la construcción del cliente viven DENTRO
-    del try de _claude. Un install roto (o cualquier fallo antes de llamar
-    a la API) tiene que seguir el mismo camino que un fallo de la API:
-    fallback a Ollama y last_fallback puesto — nunca una excepción que se
-    escape de refine() sin avisar al usuario."""
+def test_broken_claude_prelude_falls_back_to_ollama_and_marks_last_fallback(monkeypatch):
+    """The `anthropic` import and the client construction live INSIDE
+    _claude's try. A broken install (or any failure before calling the
+    API) has to follow the same path as an API failure: fallback to
+    Ollama and last_fallback set — never an exception escaping refine()
+    without warning the user."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
-    # sys.modules["anthropic"] = None hace que "import anthropic" lance
-    # ImportError, sin necesidad de que el paquete esté instalado o no.
+    # sys.modules["anthropic"] = None makes "import anthropic" raise
+    # ImportError, regardless of whether the package is installed or not.
     monkeypatch.setitem(sys.modules, "anthropic", None)
     monkeypatch.setattr(requests, "post", lambda *a, **k: (_ for _ in ()).throw(
         requests.ConnectionError("sin red")))
@@ -113,14 +113,14 @@ def test_preludio_de_claude_roto_cae_a_ollama_y_marca_last_fallback(monkeypatch)
     assert r.last_fallback
 
 
-def test_claude_explicito_sin_env_key_despacha_a_claude_igualmente(monkeypatch):
-    """Backend "claude" elegido explícitamente despacha SIEMPRE a _claude,
-    aunque ANTHROPIC_API_KEY no esté en el entorno (p.ej. la lectura del
-    llavero falló al arrancar). Antes, sin la variable, refine() se saltaba
-    la rama de Claude y llamaba a _ollama directamente: refinado en silencio
-    por el motor equivocado, o fallos atribuidos a Ollama. El camino
-    atribuido a Claude debe correr: _claude falla (import roto), cae a
-    _ollama, y el fallo de Ollama deja last_fallback puesto."""
+def test_explicit_claude_without_env_key_still_dispatches_to_claude(monkeypatch):
+    """An explicitly chosen "claude" backend ALWAYS dispatches to _claude,
+    even if ANTHROPIC_API_KEY is not in the environment (e.g. the keychain
+    read failed at startup). Before, without the variable, refine() skipped
+    the Claude branch and called _ollama directly: silently refined by the
+    wrong engine, or failures attributed to Ollama. The path attributed to
+    Claude must run: _claude fails (broken import), falls back to _ollama,
+    and the Ollama failure leaves last_fallback set."""
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setitem(sys.modules, "anthropic", None)
     monkeypatch.setattr(requests, "post", lambda *a, **k: (_ for _ in ()).throw(
@@ -141,10 +141,10 @@ def test_claude_explicito_sin_env_key_despacha_a_claude_igualmente(monkeypatch):
     assert r.last_fallback
 
 
-def test_preludio_de_claude_roto_en_modo_estricto_relanza(monkeypatch):
-    """En modo estricto (usado por _probe/validate) el mismo fallo debe
-    propagarse: tapar el hueco con Ollama escondería que ESTE candidato
-    (Claude) nunca respondió."""
+def test_broken_claude_prelude_in_strict_mode_reraises(monkeypatch):
+    """In strict mode (used by _probe/validate) the same failure must
+    propagate: papering over the gap with Ollama would hide that THIS
+    candidate (Claude) never answered."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     monkeypatch.setitem(sys.modules, "anthropic", None)
     monkeypatch.setattr(requests, "post", lambda *a, **k: (_ for _ in ()).throw(

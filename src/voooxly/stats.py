@@ -1,9 +1,9 @@
-"""Stats de uso: cuántos dictados, cuántas palabras, cuánto tecleo ahorrado.
+"""Usage stats: how many dictations, how many words, how much typing saved.
 
-Contadores acumulativos en ~/.voooxly/stats.json (no rota: son 3 números).
-El "typing saved" compara hablar (~150 wpm reales dictando) con teclear
-(~40 wpm de un tecleo medio): words/40 − words/150 minutos. Best-effort:
-unas stats rotas jamás estorban al dictado.
+Cumulative counters in ~/.voooxly/stats.json (no rotation: it's 3 numbers).
+The "typing saved" compares speaking (~150 real wpm dictating) with typing
+(~40 wpm of an average typist): words/40 − words/150 minutes. Best-effort:
+broken stats never get in the way of dictation.
 """
 from __future__ import annotations
 
@@ -27,8 +27,8 @@ def load(path: Path | None = None) -> dict:
             "dictations": int(data.get("dictations", 0)),
             "words": int(data.get("words", 0)),
             "seconds_recorded": float(data.get("seconds_recorded", 0.0)),
-            # Claves nuevas con default: un stats.json de una versión anterior
-            # se sigue leyendo entero en vez de perderse.
+            # New keys with a default: a stats.json from an older version
+            # still reads in full instead of being lost.
             "tokens": int(data.get("tokens", 0)),
             "token_provider": str(data.get("token_provider", "")),
         }
@@ -52,7 +52,7 @@ def bump(words: int, seconds: float, path: Path | None = None) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(s) + "\n", encoding="utf-8")
     except Exception as e:
-        log.debug("No pude actualizar las stats: %s", e)
+        log.debug("Couldn't update stats: %s", e)
 
 
 def bump_tokens(tokens: int, provider: str, path: Path | None = None) -> None:
@@ -70,7 +70,7 @@ def bump_tokens(tokens: int, provider: str, path: Path | None = None) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(s) + "\n", encoding="utf-8")
     except Exception as e:
-        log.debug("No pude actualizar los tokens: %s", e)
+        log.debug("Couldn't update tokens: %s", e)
 
 
 def summary(path: Path | None = None) -> str:
@@ -91,17 +91,17 @@ def summary(path: Path | None = None) -> str:
 
 
 def _formato_tokens(tokens: int) -> str:
-    """"k"/"M" según magnitud, sin que el redondeo desborde la escala.
+    """"k"/"M" by magnitude, without rounding overflowing the scale.
 
-    Redondear en "k" cerca de un millón (p.ej. 999.500 → 999.5k → "1000k" con
-    .0f) produce una escala que no existe: "1000k" debería ser "1M". Por eso
-    la promoción a M se decide DESPUÉS de redondear, no antes.
+    Rounding in "k" near a million (e.g. 999,500 → 999.5k → "1000k" with
+    .0f) produces a scale that doesn't exist: "1000k" should be "1M". That's
+    why the promotion to M is decided AFTER rounding, not before.
     """
     if tokens >= 1_000_000:
         return f"{tokens / 1_000_000:.1f}M"
     if tokens >= 1000:
         miles = round(tokens / 1000)
-        if miles >= 1000:  # el redondeo empujó a la escala de millón
+        if miles >= 1000:  # rounding pushed it into the million scale
             return f"{tokens / 1_000_000:.1f}M"
         return f"{miles}k"
     return f"{tokens}"

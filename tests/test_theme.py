@@ -1,10 +1,10 @@
-"""La paleta y los widgets base, compartidos entre las dos ventanas.
+"""The palette and base widgets, shared between the two windows.
 
-Se extraen de onboarding.py para que settings_window.py no los duplique: dos
-copias de la paleta se desincronizan en el primer retoque de marca y acabas
-con dos ventanas de colores distintos en la misma app.
+They are extracted from onboarding.py so settings_window.py does not duplicate
+them: two copies of the palette drift apart at the first brand tweak and you
+end up with two differently colored windows in the same app.
 
-Estos tests construyen objetos AppKit de verdad, como los de onboarding.
+These tests build real AppKit objects, like the onboarding ones.
 """
 from voooxly import theme
 
@@ -18,7 +18,7 @@ def test_la_paleta_de_marca_existe_entera():
         assert getattr(theme, nombre) is not None, nombre
 
 
-def test_hex_parsea_el_teal_de_marca():
+def test_hex_parses_brand_teal():
     c = theme.hex_("#107A69")
     assert abs(c.redComponent() - 0x10 / 255.0) < 0.01
     assert abs(c.greenComponent() - 0x7A / 255.0) < 0.01
@@ -33,8 +33,8 @@ def test_label_construye_un_campo_no_editable():
 
 
 def test_onboarding_sigue_usando_la_misma_paleta():
-    # El objetivo del refactor: una sola fuente de color. Si onboarding se
-    # quedara con una copia propia, este test lo caza.
+    # The refactor's goal: a single source of color. If onboarding kept
+    # a copy of its own, this test catches it.
     from voooxly import onboarding
 
     assert onboarding.TEAL is theme.TEAL

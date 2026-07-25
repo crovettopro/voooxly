@@ -1,7 +1,7 @@
-"""Auto-lock de idioma: fijar language= ahorra ~1,1s/dictado (medido).
+"""Language auto-lock: pinning language= saves ~1.1s/dictation (measured).
 
-Sesgo a precisión: en la duda, None — un lock equivocado transcribe mal
-TODOS los dictados siguientes; uno no puesto solo cuesta 1,1s.
+Biased toward precision: when in doubt, None — a wrong lock mistranscribes
+ALL subsequent dictations; a missing one only costs 1.1s.
 """
 from voooxly.langlock import LOCK_AFTER, detect_lang_es_en, update_lock
 

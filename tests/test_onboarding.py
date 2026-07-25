@@ -1,11 +1,11 @@
-"""Tests de la ventana de onboarding.
+"""Tests for the onboarding window.
 
-No se puede "mirar" una ventana desde un test, pero sí construirla de verdad e
-inspeccionar su jerarquía y su lógica de estado, que es donde están los fallos
-que importan: un botón apuntando a un selector inexistente (crash al pulsarlo),
-una fila fuera de los límites, o dejar continuar sin un permiso imprescindible.
+You cannot "look at" a window from a test, but you can build it for real and
+inspect its hierarchy and state logic, which is where the failures that matter
+are: a button pointing at a nonexistent selector (crash when pressed), a row
+out of bounds, or letting the user continue without an essential permission.
 
-Requieren sesión gráfica de macOS (no corren por SSH sin ventana).
+They require a macOS graphical session (they do not run over windowless SSH).
 """
 from unittest.mock import patch
 
@@ -45,13 +45,13 @@ def test_se_construye_con_las_cuatro_filas(controller):
 
 
 def test_cada_boton_apunta_a_un_selector_que_existe(controller):
-    """Un selector mal escrito no falla al construir: revienta al pulsar el botón."""
+    """A misspelled selector does not fail at build time: it blows up when the button is pressed."""
     for key, row in controller._rows.items():
         sel = row["button"].action()
         assert controller.respondsToSelector_(sel), f"'{key}' apunta a {sel}, que no existe"
 
 
-def test_ninguna_subvista_se_sale_de_la_ventana(controller):
+def test_no_subview_goes_outside_window(controller):
     for sub in controller._win.contentView().subviews():
         f = sub.frame()
         assert f.origin.x >= 0 and f.origin.y >= 0
@@ -67,33 +67,33 @@ def test_las_filas_no_se_solapan(controller):
                for i in range(len(boxes) - 1))
 
 
-def test_todo_cumplido_permite_continuar(controller):
+def test_all_satisfied_allows_continuing(controller):
     with _state():
         controller._refresh()
         assert controller._done.isEnabled()
         assert controller._rows["mic"]["status"].stringValue() == "●"
 
 
-def test_sin_accesibilidad_no_deja_continuar(controller):
+def test_without_accessibility_cannot_continue(controller):
     with _state(acc=False):
         controller._refresh()
         assert not controller._done.isEnabled()
         assert controller._rows["accessibility"]["button"].isEnabled()
 
 
-def test_sin_ia_si_deja_continuar(controller):
-    """El motor de IA es opcional: sin él se dicta igual en modo Verbatim."""
+def test_without_ai_can_continue(controller):
+    """The AI engine is optional: without it you still dictate in Verbatim mode."""
     with _state(ai=False):
         controller._refresh()
         assert controller._done.isEnabled()
         assert controller._rows["ai"]["button"].isEnabled()
 
 
-def test_cta_label_respeta_el_idioma():
-    """El CTA 'Continuar →' no debe volver al inglés cuando el NSTimer llama a
-    _refresh cada segundo (hallazgo de revisión #1): _build_page1 y _refresh
-    pintan cta_label(), una única fuente, así que no se pueden desincronizar.
-    Pura: no instancia nada de AppKit."""
+def test_cta_label_respects_language():
+    """The 'Continuar →' CTA must not fall back to English when the NSTimer
+    calls _refresh every second (review finding #1): _build_page1 and _refresh
+    both render cta_label(), a single source, so they cannot drift apart.
+    Pure: instantiates nothing from AppKit."""
     from voooxly import i18n
 
     i18n.set_lang("es")
@@ -111,37 +111,37 @@ def test_finish_invoca_el_callback():
 
 
 def test_continue_pasa_a_pagina_2(controller):
-    """El botón Continuar (página 1) cambia a la página 2 sin invocar finish."""
+    """The Continue button (page 1) switches to page 2 without invoking finish."""
     llamado = []
     c = onboarding.OnboardingController.alloc().initWithFinish_(
         lambda: llamado.append(1))
     assert c._page == 1
     c.continue_(None)
     assert c._page == 2
-    assert llamado == []  # Continuar NO termina el onboarding
+    assert llamado == []  # Continue does NOT finish the onboarding
 
 
-def test_accessibility_esconde_la_ventana(controller):
-    """Al pulsar 'Open Settings' la ventana se esconde para no tapar Ajustes."""
+def test_accessibility_hides_window(controller):
+    """Pressing 'Open Settings' hides the window so it does not cover System Settings."""
     assert controller._hidden_for_settings is False
     controller.accessibility_(None)
     assert controller._hidden_for_settings is True
     assert controller._win.isVisible() is False
 
 
-def test_refresh_re_muestra_ventana_al_conceder_permiso():
+def test_refresh_shows_window_again_when_permission_granted():
     import time as _time
 
     c = onboarding.OnboardingController.alloc().initWithFinish_(None)
     c._hidden_for_settings = True
-    c._hide_t = _time.monotonic() - 3.0  # ya pasó el grace de 1.5s
+    c._hide_t = _time.monotonic() - 3.0  # the 1.5s grace period already elapsed
     with _state(acc=True):
         c._refresh()
     assert c._hidden_for_settings is False
 
 
 def test_windowShouldClose_invoca_finish():
-    """Cerrar con el botón rojo debe rearrancar el hotkey (on_finish)."""
+    """Closing with the red button must restart the hotkey (on_finish)."""
     llamado = []
     c = onboarding.OnboardingController.alloc().initWithFinish_(
         lambda: llamado.append(1))
@@ -149,16 +149,16 @@ def test_windowShouldClose_invoca_finish():
     assert llamado == [1]
 
 
-def test_finish_no_revienta_si_el_callback_falla():
+def test_finish_does_not_crash_if_callback_fails():
     def _explota():
         raise RuntimeError("boom")
 
     c = onboarding.OnboardingController.alloc().initWithFinish_(_explota)
-    c.finish_(None)  # no debe propagar
+    c.finish_(None)  # must not propagate
 
 
 def test_ventana_tiene_boton_minimizar(controller):
-    """La ventana debe ofrecer el botón amarillo de minimizar."""
+    """The window must offer the yellow minimize button."""
     from AppKit import NSWindowMiniaturizeButton, NSWindowStyleMaskMiniaturizable
 
     assert controller._win.styleMask() & NSWindowStyleMaskMiniaturizable
@@ -166,8 +166,8 @@ def test_ventana_tiene_boton_minimizar(controller):
 
 
 def test_show_activa_politica_regular(controller):
-    """Al mostrar el asistente la app pasa a Regular: así la ventana se vuelve
-    key/activa y los clics llegan a los botones (y minimizar tiene sentido)."""
+    """When showing the assistant the app switches to Regular: this makes the
+    window key/active so clicks reach the buttons (and minimize makes sense)."""
     from AppKit import NSApplicationActivationPolicyRegular
 
     with patch.object(onboarding, "NSApplication") as NSApp:
@@ -178,7 +178,7 @@ def test_show_activa_politica_regular(controller):
 
 
 def test_finish_restaura_politica_accessory(controller):
-    """Al terminar volvemos a app de barra (Accessory): sin icono en el Dock."""
+    """On finish we go back to a menu-bar app (Accessory): no Dock icon."""
     from AppKit import NSApplicationActivationPolicyAccessory
 
     with patch.object(onboarding, "NSApplication") as NSApp:
@@ -187,8 +187,8 @@ def test_finish_restaura_politica_accessory(controller):
         NSApplicationActivationPolicyAccessory)
 
 
-# ---- micrófono: requestAccess solo pregunta si el permiso está "sin decidir";
-#      si ya se denegó una vez, hay que mandar a Ajustes o el botón parece muerto ----
+# ---- microphone: requestAccess only asks while the permission is "not determined";
+#      once it was denied, we must send the user to Settings or the button seems dead ----
 def test_mic_pide_permiso_si_no_decidido(controller):
     with patch.object(setup_checks, "microphone_status", return_value=0), \
          patch.object(setup_checks, "request_microphone") as req, \
@@ -199,8 +199,8 @@ def test_mic_pide_permiso_si_no_decidido(controller):
 
 
 def test_mic_abre_ajustes_si_ya_denegado(controller):
-    """denied(2): macOS no vuelve a preguntar; abrimos Ajustes y escondemos la
-    ventana para no taparlo (igual que Accesibilidad)."""
+    """denied(2): macOS will not ask again; we open Settings and hide the
+    window so it is not covered (same as Accessibility)."""
     with patch.object(setup_checks, "microphone_status", return_value=2), \
          patch.object(setup_checks, "request_microphone") as req, \
          patch.object(setup_checks, "open_microphone_settings") as open_s:
@@ -210,8 +210,8 @@ def test_mic_abre_ajustes_si_ya_denegado(controller):
     assert controller._hidden_for_settings is True
 
 
-# ---- IA opcional: "Connect AI" (nadie tiene IA en el primer arranque, así que
-#      no es un "test" sino un "conectar") delega en el callback del app ----
+# ---- optional AI: "Connect AI" (nobody has AI on first launch, so it is
+#      not a "test" but a "connect") delegates to the app's callback ----
 def test_boton_ai_dice_connect_ai(controller):
     assert controller._rows["ai"]["button"].attributedTitle().string() == "Connect AI"
 
@@ -224,12 +224,12 @@ def test_ai_llama_al_callback_de_conexion():
     assert llamado == [1]
 
 
-def test_ai_sin_callback_no_revienta(controller):
-    """Sin callback (standalone/tests) cae al re-detectar; no debe propagar."""
-    controller.ai_(None)  # on_connect_ai es None → rama de fallback
+def test_ai_without_callback_does_not_crash(controller):
+    """Without a callback (standalone/tests) it falls back to re-detecting; must not propagate."""
+    controller.ai_(None)  # on_connect_ai is None → fallback branch
 
 
-# --- Página 2: el usuario tiene que salir sabiendo que la tecla se cambia ---
+# --- Page 2: the user must leave knowing the key can be changed ---
 
 
 def _textos_pagina2(controller):
@@ -238,21 +238,21 @@ def _textos_pagina2(controller):
 
 
 def test_la_pagina_2_avisa_de_que_la_tecla_se_puede_cambiar(controller):
-    # Sin este renglón, quien no puede usar la ⌘ derecha (teclado externo sin
-    # ella, mano ocupada) cierra el onboarding creyendo que la app no le sirve,
-    # en vez de abrir Shortcuts y cambiarla. Es la única pantalla que ve seguro.
-    # El destino es el submenú "Shortcuts › Customize…" del primer nivel
-    # (feedback v1.6): los atajos salieron de Settings a la vista de todos, y
-    # este aviso apunta a donde están AHORA.
+    # Without this line, whoever cannot use the right ⌘ (external keyboard
+    # without it, busy hand) closes the onboarding believing the app is not for
+    # them, instead of opening Shortcuts and changing the key. It is the only
+    # screen they are guaranteed to see. The destination is the top-level
+    # "Shortcuts › Customize…" submenu (v1.6 feedback): shortcuts moved out of
+    # Settings into plain sight, and this notice points to where they are NOW.
     todo = " ".join(_textos_pagina2(controller)).lower()
     assert "shortcuts" in todo
     assert "customize" in todo
 
 
-def test_el_aviso_de_la_tecla_no_pisa_el_boton_de_empezar(controller):
-    # Se coló entre la última fila de atajos y el CTA. Si alguien añade otro
-    # atajo sin recolocar, el texto se monta encima del botón: se lee mal y el
-    # clic va a parar al sitio equivocado.
+def test_key_notice_does_not_cover_start_button(controller):
+    # It slipped in between the last shortcut row and the CTA. If someone adds
+    # another shortcut without repositioning, the text piles on top of the
+    # button: it reads badly and the click lands in the wrong place.
     cta = controller._start.frame()
     techo = cta.origin.y + cta.size.height
     for s in controller._page2:

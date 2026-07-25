@@ -1,13 +1,13 @@
-"""El Controller de pynput se construye UNA vez, y desde el main thread.
+"""The pynput Controller is built ONCE, and from the main thread.
 
-Contexto: Controller.__init__ consulta la distribución de teclado vía TIS/TSM.
-paste_frontmost lo construía en cada pegado, desde el hilo worker de _process.
-Si eso coincide con otro hilo tocando TSM (el listener del hotkey), HIToolbox
-mata el proceso: SIGTRAP en dispatch_assert_queue, sin excepción de Python que
-poder atrapar. Crash real el 2026-07-20 17:09:08, justo tras un dictado.
+Context: Controller.__init__ queries the keyboard layout via TIS/TSM.
+paste_frontmost used to build it on every paste, from the _process worker thread.
+If that coincides with another thread touching TSM (the hotkey listener), HIToolbox
+kills the process: SIGTRAP in dispatch_assert_queue, with no Python exception
+left to catch. Real crash on 2026-07-20 17:09:08, right after a dictation.
 
-press()/release() solo usan el mapping ya cacheado, así que construirlo una vez
-al arrancar (main thread) saca TSM de la ruta de pegado.
+press()/release() only use the already-cached mapping, so building it once
+at startup (main thread) takes TSM out of the paste path.
 """
 
 import pytest
@@ -16,7 +16,7 @@ from voooxly import output
 
 
 class FakeController:
-    """Cuenta construcciones: cada una sería una consulta a TSM."""
+    """Counts constructions: each one would be a TSM query."""
 
     construcciones = 0
 
@@ -41,13 +41,13 @@ def controller_limpio(monkeypatch):
     monkeypatch.setattr(output, "_kb", None)
 
 
-def test_pegar_varias_veces_construye_el_controller_una_sola_vez():
+def test_pasting_multiple_times_builds_controller_once():
     for _ in range(5):
         assert output.paste_frontmost() is True
     assert FakeController.construcciones == 1
 
 
-def test_warmup_deja_el_controller_listo_para_que_el_pegado_no_toque_tsm():
+def test_warmup_readies_controller_so_paste_does_not_touch_tsm():
     assert output.warmup() is True
     assert FakeController.construcciones == 1
 
@@ -55,14 +55,14 @@ def test_warmup_deja_el_controller_listo_para_que_el_pegado_no_toque_tsm():
     assert FakeController.construcciones == 1, "el pegado reconstruyó el Controller"
 
 
-def test_warmup_dos_veces_no_reconstruye():
+def test_warmup_twice_does_not_rebuild():
     output.warmup()
     output.warmup()
     assert FakeController.construcciones == 1
 
 
-def test_warmup_no_lanza_si_pynput_falla(monkeypatch):
-    """Un fallo al preparar no puede tumbar el arranque de la app."""
+def test_warmup_does_not_raise_if_pynput_fails(monkeypatch):
+    """A failure while warming up must not take down the app's startup."""
     import pynput.keyboard
 
     class Explota:

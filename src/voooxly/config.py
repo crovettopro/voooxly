@@ -1,4 +1,4 @@
-"""Carga de configuración: config.yaml + overrides de entorno (.env)."""
+"""Config loading: config.yaml + environment overrides (.env)."""
 from __future__ import annotations
 
 import os
@@ -11,9 +11,9 @@ import yaml
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG = ROOT / "config.yaml"
 
-# Resolución de config robusta para .app bundle y desarrollo:
-# 1. env VOOOXLY_CONFIG  2. ~/.voooxly/config.yaml (override usuario)
-# 3. config junto al binario (pyinstaller _MEIPASS / repo)
+# Robust config resolution for .app bundle and development:
+# 1. env VOOOXLY_CONFIG  2. ~/.voooxly/config.yaml (user override)
+# 3. config next to the binary (pyinstaller _MEIPASS / repo)
 def _config_candidates() -> list[pathlib.Path]:
     cands: list[pathlib.Path] = []
     env = os.environ.get("VOOOXLY_CONFIG")
@@ -111,11 +111,11 @@ def load_config(path: pathlib.Path | str | None = None) -> Config:
 
 
 def system_language() -> str | None:
-    """Código ISO de 2 letras del idioma del sistema ("es", "en"…), o None.
+    """2-letter ISO code of the system language ("es", "en"…), or None.
 
-    Es el valor por defecto del STT: forzar un idioma ahorra ~1.4s por petición
-    frente a la auto-detección, pero fijarlo en el config que se distribuye
-    haría que Whisper transcribiera como español lo que dicte un inglés.
+    This is the STT default: forcing a language saves ~1.4s per request over
+    auto-detection, but pinning it in the distributed config would make
+    Whisper transcribe an English speaker's dictation as Spanish.
     """
     try:
         from Foundation import NSLocale

@@ -1,12 +1,12 @@
 # src/voooxly/i18n.py
-"""UI en español (frente B del plan): tabla EN→ES y t() de gettext-de-bolsillo.
+"""Spanish UI: an EN→ES table plus a pocket-gettext t().
 
-El inglés ES la clave: el código sigue legible, el fallback es automático
-(cadena sin traducir sale en inglés, jamás rompe) y no hay ficheros .po.
-Sin AppKit a nivel de módulo: el idioma lo inyecta app.py al arrancar con
-set_lang(resolve_lang(NSLocale.preferredLanguages())).
+English IS the key: code stays readable, fallback is automatic (an
+untranslated string comes out in English, never breaks) and there are no
+.po files. No AppKit at module level: app.py injects the language at
+startup with set_lang(resolve_lang(NSLocale.preferredLanguages())).
 
-Las claves persistidas (ids de modos, shortcuts, prefs) NO pasan por aquí.
+Persisted keys (mode ids, shortcuts, prefs) do NOT go through here.
 """
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ _lang = "en"
 
 
 def resolve_lang(preferred) -> str:
-    """'es' si el primer idioma preferido es español; 'en' para todo lo demás."""
+    """'es' if the first preferred language is Spanish; 'en' for anything else."""
     try:
         first = str((preferred or ["en"])[0]).lower()
     except Exception:
@@ -33,48 +33,48 @@ def t(s: str) -> str:
     return s
 
 
-# Cadenas del menú que test_i18n exige tener traducidas.
+# Menu strings that test_i18n requires to be translated.
 MENU_STRINGS = [
     "Ready", "AI engine", "Detect automatically", "Test connection",
     "Usage stats…", "Quit Voooxly", "Update available", "About Voooxly",
     "Recent", "(empty)", "Settings", "Start at login", "Sounds",
     "Add to dictionary…", "Shortcuts", "Customize…", "Search history…",
     "How to use Voooxly…", "Correct last dictation…",
-    # --- submenú de idioma de dictado (auto-lock de langlock) ---
+    # --- dictation-language submenu (langlock auto-lock) ---
     "Dictation language", "Auto",
-    # --- auto-learn (aviso de transparencia + toggle en Ajustes) ---
+    # --- auto-learn (transparency notice + toggle in Settings) ---
     "Learn from my corrections", "✨ Learned", "Turn off in Settings if you prefer.",
-    # --- estado de la barra de menú (_refresh_title) ---
+    # --- menu-bar status (_refresh_title) ---
     "Mode", "ready", "recording", "processing",
-    # --- botones del diálogo de quit-to-install ---
+    # --- quit-to-install dialog buttons ---
     "Quit now", "Not yet",
-    # --- diálogo de "Correct last dictation…" (_correct_last) ---
+    # --- "Correct last dictation…" dialog (_correct_last) ---
     "Fix any misheard words — Voooxly learns the right spelling for next time:",
-    # --- ventana y alerts de "Search history…" (_search_history) ---
+    # --- "Search history…" window and alerts (_search_history) ---
     "Search history", "Find past dictations containing:", "Search",
     "History is off", "Set app.save_history: true in config.yaml to keep dictations.",
     "No matches", 'Nothing matches "{query}".', "{n} match(es)",
     "They're in the Recent submenu — click one to copy it.",
     # --- "Not added" (_add_to_dictionary) ---
     "Not added",
-    # --- updates: check_now_message / About / ítem de menú dinámico ---
+    # --- updates: check_now_message / About / dynamic menu item ---
     "Up to date", "Couldn't check", "Voooxly {ver} is available.",
     "You're running the latest version (Voooxly {local}).",
     "Couldn't reach the update server. Try again later.",
     "Check for updates…", "Update to {ver} →",
 ]
 
-# Fuera de alcance a propósito en v1.8.0: los HUD/flashes de _correct_last y
-# _add_to_dictionary ("✓ Learned", "✓ Corrected", "✓ Added to dictionary" y
-# similares) quedan en inglés — traducirlos implica localizar también las
-# descripciones que arma dictionary.add (learn.learn_from / dictionary.add),
-# que viven fuera de este módulo. Se retoma en un fix dedicado.
-# EXCEPCIÓN deliberada: el título del HUD del auto-learn ("✨ Learned") y su
-# pista de desactivación SÍ se traducen — son el aviso de transparencia del
-# feature (el usuario debe entender qué acaba de aprender la app y cómo
-# apagarlo). El cuerpo (descripciones de dictionary.add) sigue en inglés.
+# Deliberately out of scope in v1.8.0: the _correct_last and
+# _add_to_dictionary HUD flashes ("✓ Learned", "✓ Corrected", "✓ Added to
+# dictionary" and friends) stay in English — translating them also means
+# localizing the descriptions built by dictionary.add (learn.learn_from /
+# dictionary.add), which live outside this module. Picked up in a dedicated fix.
+# Deliberate EXCEPTION: the auto-learn HUD title ("✨ Learned") and its
+# opt-out hint ARE translated — they are the feature's transparency notice
+# (the user must understand what the app just learned and how to turn it
+# off). The body (dictionary.add descriptions) stays in English.
 ES = {
-    # --- menú ---
+    # --- menu ---
     "Ready": "Listo",
     "AI engine": "Motor de IA",
     "Detect automatically": "Detectar automáticamente",
@@ -94,14 +94,14 @@ ES = {
     "Search history…": "Buscar en el historial…",
     "How to use Voooxly…": "Cómo usar Voooxly…",
     "Correct last dictation…": "Corregir el último dictado…",
-    # --- submenú de idioma de dictado ---
+    # --- dictation-language submenu ---
     "Dictation language": "Idioma de dictado",
     "Auto": "Automático",
     # --- auto-learn ---
     "Learn from my corrections": "Aprender de mis correcciones",
     "✨ Learned": "✨ Aprendido",
     "Turn off in Settings if you prefer.": "Desactívalo en Ajustes si lo prefieres.",
-    # --- estado de la barra de menú (_refresh_title) ---
+    # --- menu-bar status (_refresh_title) ---
     "Mode": "Modo",
     "ready": "listo",
     "recording": "grabando",
@@ -133,7 +133,7 @@ ES = {
         "Están en el submenú Recientes — haz clic en uno para copiarlo.",
     # --- "Add to dictionary…" (_add_to_dictionary) ---
     "Not added": "No añadido",
-    # --- updates: check_now_message / About / ítem de menú dinámico ---
+    # --- updates: check_now_message / About / dynamic menu item ---
     "Up to date": "Actualizado",
     "Couldn't check": "No se pudo comprobar",
     "Voooxly {ver} is available.": "Voooxly {ver} está disponible.",
@@ -144,15 +144,15 @@ ES = {
         "Inténtalo más tarde.",
     "Check for updates…": "Comprobar actualizaciones…",
     "Update to {ver} →": "Actualizar a {ver} →",
-    # "What's new" en run(): prefijo del título, la versión va aparte.
+    # "What's new" in run(): title prefix; the version is appended separately.
     "What's new in Voooxly": "Novedades de Voooxly",
-    # --- diálogos frecuentes ---
+    # --- frequent dialogs ---
     "Nothing to correct": "Nada que corregir",
     "Dictate something first.": "Dicta algo primero.",
     "Add to dictionary": "Añadir al diccionario",
     "Add": "Añadir",
 
-    # --- guía ("How to use Voooxly…") ---
+    # --- guide ("How to use Voooxly…") ---
     "How to use Voooxly": "Cómo usar Voooxly",
     "Everything the menu bar mic can do.": "Todo lo que puede hacer el micrófono de la barra de menú.",
     "Dictate anywhere": "Dicta en cualquier sitio",

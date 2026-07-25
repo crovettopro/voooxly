@@ -1,5 +1,5 @@
-"""Stats acumulativas: nunca lanzan, nunca pierden lo acumulado y el resumen
-cuenta una historia útil ("typing saved") en vez de números crudos.
+"""Cumulative stats: they never raise, never lose what was accumulated, and
+the summary tells a useful story ("typing saved") instead of raw numbers.
 """
 from voooxly import stats
 
@@ -14,11 +14,11 @@ def test_bump_acumula(tmp_path):
     assert s["seconds_recorded"] == 6.5
 
 
-def test_fichero_corrupto_reinicia_sin_lanzar(tmp_path):
+def test_corrupt_file_resets_without_raising(tmp_path):
     p = tmp_path / "stats.json"
     p.write_text("{roto", encoding="utf-8")
     assert stats.load(p)["dictations"] == 0
-    stats.bump(3, 1.0, p)  # y bump lo repara
+    stats.bump(3, 1.0, p)  # and bump repairs it
     assert stats.load(p) == {
         "dictations": 1,
         "words": 3,
@@ -28,15 +28,15 @@ def test_fichero_corrupto_reinicia_sin_lanzar(tmp_path):
     }
 
 
-def test_summary_vacio_invita_a_dictar(tmp_path):
+def test_empty_summary_invites_to_dictate(tmp_path):
     assert "No dictations yet" in stats.summary(tmp_path / "no-existe.json")
 
 
 def test_summary_en_minutos_y_en_horas(tmp_path):
     p = tmp_path / "stats.json"
-    stats.bump(400, 60.0, p)  # 400 palabras → ~7 min ahorrados
+    stats.bump(400, 60.0, p)  # 400 words → ~7 min saved
     assert "min of typing saved" in stats.summary(p)
-    stats.bump(20000, 600.0, p)  # ya en horas
+    stats.bump(20000, 600.0, p)  # now in hours
     out = stats.summary(p)
     assert "h of typing saved" in out
     assert "2 dictations" in out
@@ -50,7 +50,7 @@ def test_valores_negativos_no_corrompen(tmp_path):
     assert s["dictations"] == 1 and s["words"] == 0 and s["seconds_recorded"] == 0.0
 
 
-def test_bump_tokens_acumula_y_recuerda_el_proveedor(tmp_path):
+def test_bump_tokens_accumulates_and_remembers_provider(tmp_path):
     p = tmp_path / "stats.json"
     stats.bump_tokens(700, "Groq", p)
     stats.bump_tokens(300, "Groq", p)
@@ -60,7 +60,7 @@ def test_bump_tokens_acumula_y_recuerda_el_proveedor(tmp_path):
 
 
 def test_los_tokens_conviven_con_el_resto_de_contadores(tmp_path):
-    # bump y bump_tokens escriben el mismo fichero: uno no puede pisar al otro.
+    # bump and bump_tokens write the same file: one cannot clobber the other.
     p = tmp_path / "stats.json"
     stats.bump(10, 4.0, p)
     stats.bump_tokens(700, "Groq", p)
@@ -80,16 +80,16 @@ def test_el_resumen_muestra_los_tokens_cuando_los_hay(tmp_path):
 
 
 def test_el_resumen_calla_los_tokens_si_no_hay(tmp_path):
-    # Con Ollama no se cuenta nada: un "0 tokens" al lado de un free tier
-    # solo confunde.
+    # With Ollama nothing is counted: a "0 tokens" next to a free tier
+    # only confuses.
     p = tmp_path / "stats.json"
     stats.bump(10, 4.0, p)
     assert "tokens" not in stats.summary(p)
 
 
 def test_el_resumen_muestra_los_tokens_en_millones(tmp_path):
-    # Hallazgo 4: 5.000.000 no puede leerse "5000k tokens" — hay que pasar a
-    # escala M por encima del millón.
+    # Finding 4: 5,000,000 cannot read as "5000k tokens" — it has to switch
+    # to the M scale above one million.
     p = tmp_path / "stats.json"
     stats.bump(10, 4.0, p)
     stats.bump_tokens(5_000_000, "Groq", p)
@@ -99,8 +99,8 @@ def test_el_resumen_muestra_los_tokens_en_millones(tmp_path):
 
 
 def test_el_resumen_no_redondea_a_1000k_cerca_del_millon(tmp_path):
-    # Hallazgo 4: 999.500 con .0f sobre miles redondea a "1000k", que no es
-    # una escala válida — debe promocionarse a "1.0M".
+    # Finding 4: 999,500 with .0f over thousands rounds to "1000k", which is
+    # not a valid scale — it must be promoted to "1.0M".
     p = tmp_path / "stats.json"
     stats.bump(10, 4.0, p)
     stats.bump_tokens(999_500, "Groq", p)
@@ -110,7 +110,7 @@ def test_el_resumen_no_redondea_a_1000k_cerca_del_millon(tmp_path):
 
 
 def test_un_fichero_viejo_sin_tokens_se_lee_sin_romper(tmp_path):
-    # Quien ya tiene stats.json de una versión anterior no puede perderlas.
+    # Anyone with a stats.json from a previous version cannot lose their stats.
     import json
     p = tmp_path / "stats.json"
     p.write_text(json.dumps({"dictations": 3, "words": 100, "seconds_recorded": 20.0}))

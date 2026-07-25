@@ -1,7 +1,7 @@
-"""Qué proveedor eligió el usuario, guardado en prefs.json.
+"""Which provider the user chose, stored in prefs.json.
 
-Separado de app.py a propósito: instanciar VoooxlyApp construye menús de AppKit
-y no se puede hacer en un test. Aquí solo hay diccionarios.
+Separate from app.py on purpose: instantiating VoooxlyApp builds AppKit menus
+and can't be done in a test. There are only dictionaries here.
 """
 from __future__ import annotations
 
@@ -22,17 +22,17 @@ class Selection:
 
 
 def load(prefs: dict) -> Selection | None:
-    """La elección guardada, o None si no hay ninguna válida."""
+    """The saved choice, or None if there is no valid one."""
     key = prefs.get(CLAVE_PROVEEDOR)
     if not key:
         return None
-    # Un prefs.json corrupto puede tener ai_provider como lista u otro tipo.
-    # No levantamos excepción: la app debe arrancar igual.
+    # A corrupt prefs.json can have ai_provider as a list or another type.
+    # We don't raise: the app must start anyway.
     if not isinstance(key, str):
         return None
     prov = providers.get(key)
     if prov is None:
-        # Un preset retirado en una versión posterior no puede tumbar el arranque.
+        # A preset removed in a later version can't take down the startup.
         return None
     return Selection(
         provider=prov,
@@ -42,7 +42,7 @@ def load(prefs: dict) -> Selection | None:
 
 
 def save(prefs: dict, provider_key: str, base_url: str, model: str) -> dict:
-    """Devuelve prefs con la elección puesta. No escribe a disco."""
+    """Returns prefs with the choice set. Doesn't write to disk."""
     prov = providers.get(provider_key)
     if prov is None:
         raise ValueError(f"Proveedor desconocido: {provider_key!r}")

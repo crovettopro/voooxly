@@ -1,5 +1,5 @@
 # tests/test_i18n.py
-"""t() traduce la UI sin tocar claves persistidas ni romper con idiomas raros."""
+"""t() translates the UI without touching persisted keys or breaking on odd languages."""
 import ast
 from pathlib import Path
 
@@ -41,15 +41,15 @@ def test_t_devuelve_la_clave_si_no_hay_traduccion():
 
 
 def test_las_traducciones_cubren_el_menu_principal():
-    # Las cadenas del menú que el usuario ve SIEMPRE deben tener traducción:
-    # si alguien añade un ítem y olvida traducirlo, este test lo caza.
+    # Menu strings the user sees must ALWAYS have a translation: if someone
+    # adds an item and forgets to translate it, this test catches it.
     for s in i18n.MENU_STRINGS:
         assert s in i18n.ES, f"Falta traducción de: {s!r}"
 
 
-def test_traduce_estado_de_la_barra_de_menu():
-    # _refresh_title compone "Mode: <label> · <state>" — el prefijo y las
-    # palabras de estado deben pasar por t() (hallazgo de revisión #1).
+def test_translates_menu_bar_state():
+    # _refresh_title composes "Mode: <label> · <state>" — the prefix and the
+    # state words must go through t() (review finding #1).
     i18n.set_lang("es")
     try:
         assert i18n.t("Mode") == "Modo"
@@ -60,8 +60,8 @@ def test_traduce_estado_de_la_barra_de_menu():
         i18n.set_lang("en")
 
 
-def test_traduce_el_submenu_de_idioma():
-    # El submenú de idioma de dictado (auto-lock de langlock) sale traducido.
+def test_translates_language_submenu():
+    # The dictation language submenu (langlock auto-lock) comes out translated.
     i18n.set_lang("es")
     try:
         assert i18n.t("Dictation language") == "Idioma de dictado"
@@ -71,8 +71,8 @@ def test_traduce_el_submenu_de_idioma():
 
 
 def test_traduce_el_aviso_de_auto_learn():
-    # El HUD del auto-learn es la excepción deliberada a "HUDs en inglés":
-    # es el aviso de transparencia del feature.
+    # The auto-learn HUD is the deliberate exception to "HUDs in English":
+    # it is the feature's transparency notice.
     i18n.set_lang("es")
     try:
         assert i18n.t("Learn from my corrections") == "Aprender de mis correcciones"
@@ -83,7 +83,7 @@ def test_traduce_el_aviso_de_auto_learn():
 
 
 def test_traduce_botones_de_quit_to_install():
-    # _offer_quit_to_install pasaba ok/cancel en crudo (hallazgo de revisión #3).
+    # _offer_quit_to_install passed ok/cancel raw (review finding #3).
     i18n.set_lang("es")
     try:
         assert i18n.t("Quit now") == "Salir ahora"
@@ -93,8 +93,8 @@ def test_traduce_botones_de_quit_to_install():
 
 
 def test_traduce_dialogo_de_correct_last():
-    # _correct_last pasaba el cuerpo del diálogo en crudo (hallazgo de
-    # revisión final #2): el título ya se traducía, el mensaje no.
+    # _correct_last passed the dialog body raw (final review finding #2):
+    # the title was already translated, the message was not.
     i18n.set_lang("es")
     try:
         assert i18n.t(
@@ -106,8 +106,8 @@ def test_traduce_dialogo_de_correct_last():
 
 
 def test_traduce_dialogos_de_search_history():
-    # _search_history mezclaba español (título del submenú) con inglés (la
-    # ventana y sus alerts) — hallazgo de revisión final #2.
+    # _search_history mixed Spanish (the submenu title) with English (the
+    # window and its alerts) — final review finding #2.
     i18n.set_lang("es")
     try:
         assert i18n.t("Search history") == "Buscar en el historial"
@@ -128,8 +128,8 @@ def test_traduce_dialogos_de_search_history():
 
 
 def test_traduce_not_added_y_updates():
-    # Hallazgo de revisión final #3: "Not added", check_now_message() y el
-    # ítem dinámico de menú "Update to {ver} →" quedaban en inglés.
+    # Final review finding #3: "Not added", check_now_message() and the
+    # dynamic menu item "Update to {ver} →" stayed in English.
     i18n.set_lang("es")
     try:
         assert i18n.t("Not added") == "No añadido"
@@ -149,11 +149,11 @@ def test_traduce_not_added_y_updates():
 
 
 def test_el_literal_de_ES_no_tiene_claves_duplicadas():
-    # Una clave repetida en el dict literal no rompe en tiempo de ejecución
-    # (la última asignación gana en silencio) pero esconde una traducción
-    # muerta o, peor, dos valores distintos donde solo uno se aplica
-    # (hallazgo de revisión #3). Se parsea el .py con ast en vez de leer
-    # i18n.ES en memoria porque el objeto ya deduplicado no puede delatarlo.
+    # A repeated key in the dict literal does not break at runtime (the
+    # last assignment silently wins) but it hides a dead translation or,
+    # worse, two different values where only one applies (review finding
+    # #3). The .py is parsed with ast instead of reading i18n.ES in memory
+    # because the already-deduplicated object cannot give it away.
     src = Path(i18n.__file__).read_text()
     tree = ast.parse(src)
     es_dict = next(

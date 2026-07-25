@@ -1,8 +1,8 @@
-"""El teclado dibujado: qué teclas se encienden y de parte de quién.
+"""The drawn keyboard: which keys light up and on whose behalf.
 
-El teclado y la lista son la MISMA verdad. Si divergen, el usuario ve una
-tecla encendida que la lista dice que no está asignada y deja de fiarse de
-las dos. Por eso lit_keys() sale del mismo estado que pinta la lista.
+The keyboard and the list are the SAME truth. If they diverge, the user sees
+a lit key that the list says is not assigned and stops trusting both. That
+is why lit_keys() derives from the same state the list paints.
 """
 from voooxly import settings_window, shortcuts, theme
 
@@ -22,42 +22,41 @@ def test_se_encienden_todas_las_teclas_asignadas():
 
 
 def test_una_tecla_compartida_la_reclama_dictation():
-    # ⇧ es el latch y también parte de ⌃⇧M. Dictation manda sobre el resto
-    # porque es la tecla que el usuario busca de un vistazo; sin una regla de
-    # desempate el color dependería del orden del diccionario.
+    # ⇧ is the latch and also part of ⌃⇧M. Dictation wins over the rest
+    # because it is the key the user looks for at a glance; without a
+    # tie-breaking rule the color would depend on dictionary order.
     estado = dict(ESTADO, dictation={"keys": ["shift"], "style": "hold", "delay_ms": 400})
     assert settings_window.lit_keys(estado)["shift"] == "dictation"
 
 
 def test_las_teclas_se_canonicalizan_antes_de_encenderse():
-    # "cmd_l" y "cmd" son la misma tecla física: el teclado tiene que
-    # encender la misma casilla en los dos casos o el usuario ve su tecla
-    # apagada tras elegirla.
+    # "cmd_l" and "cmd" are the same physical key: the keyboard has to
+    # light the same cell in both cases or the user sees their key
+    # unlit after picking it.
     estado = dict(ESTADO, dictation={"keys": ["cmd_l"], "style": "hold", "delay_ms": 400})
     lit = settings_window.lit_keys(estado)
     assert "cmd" in lit
 
 
 def test_lit_keys_y_side_hint_cuentan_la_misma_verdad_sobre_los_lados():
-    """Defecto 1 de la Task 9: side_hint() (el texto de la fila) y lit_keys()
-    (las casillas que se encienden) eran dos implementaciones independientes
-    del mismo hecho runtime y se podían desincronizar. El bug real: con el
-    latch de fábrica (shift), la fila decía "either side" pero el teclado
-    solo encendía ⇧ izquierdo -shift_r se quedaba apagado-.
+    """Defect 1 of Task 9: side_hint() (the row's text) and lit_keys()
+    (the cells that light up) were two independent implementations of the
+    same runtime fact and could fall out of sync. The real bug: with the
+    factory latch (shift), the row said "either side" but the keyboard
+    only lit the left ⇧ -shift_r stayed unlit-.
 
-    Las dos derivan ahora de shortcuts.matched_keys(), así que se atan aquí
-    de forma ESTRUCTURAL contra esa función, no contra un diccionario de
-    teclas encendidas clavado a mano: para cada atajo de una sola tecla, si
-    side_hint() dice "either side" tienen que estar encendidas las DOS
-    teclas de matched_keys() y solo ellas; si dice "right"/"left" tiene que
-    estar encendida esa única tecla. Sigue valiendo aunque mañana cambie
-    cuál es la tecla de fábrica de cualquiera de los cuatro atajos.
+    Both now derive from shortcuts.matched_keys(), so they are tied here
+    STRUCTURALLY to that function, not to a hand-pinned dictionary of lit
+    keys: for every single-key shortcut, if side_hint() says "either side"
+    then BOTH keys from matched_keys(), and only those, must be lit; if it
+    says "right"/"left" that single key must be lit. This keeps holding
+    even if tomorrow the factory key of any of the four shortcuts changes.
     """
     lit = settings_window.lit_keys(ESTADO)
     for sid, fila in ESTADO.items():
         nombres = list(fila.get("keys") or [])
         if len(nombres) != 1:
-            continue  # los combos no tienen lado; side_hint devuelve ""
+            continue  # combos have no side; side_hint returns ""
         lado = shortcuts.side_hint(sid, nombres)
         casadas = shortcuts.matched_keys(sid, nombres)
         if lado == "either side":
@@ -81,18 +80,18 @@ def test_el_teclado_incluye_las_teclas_que_importan():
 
 
 def test_las_teclas_de_relleno_llevan_nombre_y_ya_no_quedan_huecos():
-    """Defecto 2 de la Task 9 (primera ronda): KEYBOARD_ROWS dibujaba
-    rectángulos en blanco para la puntuación y para ⇪/fn; en la captura de
-    pantalla se leían como teclas rotas, no como "esto no se puede asignar".
-    Ahora llevan nombre, aunque ninguna sea asignable, y por tanto su casilla
-    nunca se enciende.
+    """Defect 2 of Task 9 (first round): KEYBOARD_ROWS drew blank
+    rectangles for punctuation and for ⇪/fn; in the screenshot they read
+    as broken keys, not as "this cannot be assigned". They now carry a
+    name, even though none is assignable, and therefore their cell never
+    lights up.
 
-    Los dos huecos sin nombre que quedaban a propósito ya no existen
-    (Defectos 3 y 4 de la segunda ronda): el de la fila de números era un
-    error de retrato -un Mac ANSI de verdad empieza esa fila por el backtick
-    y no tiene hueco entre "=" y ⌫-, y el bloque de flechas lleva ahora la
-    leyenda "◀▼▶" con el nombre sintético "arrows". No queda ninguna casilla
-    sin nombre.
+    The two deliberately nameless gaps that remained no longer exist
+    (Defects 3 and 4 of the second round): the one in the number row was a
+    portrait error -a real ANSI Mac starts that row with the backtick and
+    has no gap between "=" and ⌫-, and the arrow block now carries the
+    legend "◀▼▶" with the synthetic name "arrows". No nameless cell
+    remains.
     """
     nombres = {n for fila in settings_window.KEYBOARD_ROWS for n, _ in fila if n}
     for n in ("`", "-", "=", "[", "]", "\\", ";", "'", ",", ".", "/",
@@ -104,25 +103,25 @@ def test_las_teclas_de_relleno_llevan_nombre_y_ya_no_quedan_huecos():
 
 
 def test_keyboard_rows_sin_teclas_huerfanas_devuelve_el_retrato_tal_cual():
-    """Sin ninguna tecla asignada fuera de KEYBOARD_ROWS, keyboard_rows() no
-    inventa una fila extra: devuelve KEYBOARD_ROWS tal cual, para que la
-    geometría (alto_fila) no cambie sin que nada lo justifique."""
+    """With no key assigned outside KEYBOARD_ROWS, keyboard_rows() does not
+    invent an extra row: it returns KEYBOARD_ROWS as is, so that the
+    geometry (alto_fila) does not change without anything justifying it."""
     assert settings_window.keyboard_rows(ESTADO) == settings_window.KEYBOARD_ROWS
 
 
 def test_toda_tecla_de_lit_keys_aparece_en_el_layout_dibujado():
-    """Defecto 1 de la Task 9 (segunda ronda): KEYBOARD_ROWS retrata un
-    MacBook y no contiene toda tecla asignable -f14 es el ejemplo: la app la
-    acepta por config.yaml/prefs.json (keys._FUNCIONES) aunque el retrato
-    solo pinte f1..f13-. Con la tecla encendida en la lista y ausente del
-    teclado, el usuario ve exactamente la contradicción que este componente
-    existe para impedir.
+    """Defect 1 of Task 9 (second round): KEYBOARD_ROWS portrays a MacBook
+    and does not contain every assignable key -f14 is the example: the app
+    accepts it via config.yaml/prefs.json (keys._FUNCIONES) even though the
+    portrait only paints f1..f13-. With the key lit in the list and absent
+    from the keyboard, the user sees exactly the contradiction this
+    component exists to prevent.
 
-    Estructural y no una lista de casos: para varios estados -uno con una
-    tecla claramente fuera del retrato (f14) y otro con dos huérfanas a la
-    vez (f14 y f15)- toda clave de lit_keys() tiene que aparecer entre los
-    nombres de keyboard_rows(). Nada de comparar la fila extra contra una
-    lista clavada a mano.
+    Structural and not a list of cases: for several states -one with a key
+    clearly outside the portrait (f14) and another with two orphans at
+    once (f14 and f15)- every key of lit_keys() has to appear among the
+    names of keyboard_rows(). No comparing the extra row against a
+    hand-pinned list.
     """
     estados = [
         ESTADO,
@@ -139,11 +138,11 @@ def test_toda_tecla_de_lit_keys_aparece_en_el_layout_dibujado():
             assert tecla in nombres, (estado, tecla)
 
 
-def test_una_tecla_fuera_del_retrato_se_ve_de_verdad_en_la_ventana():
-    """No basta con que keyboard_rows() incluya la tecla huérfana en teoría:
-    _build_keyboard() tiene que usar esa fila de verdad para que la casilla
-    exista en la ventana real, con su leyenda, o la ventana seguiría
-    mostrando la misma contradicción que este defecto arregla."""
+def test_off_portrait_key_is_actually_visible_in_window():
+    """It is not enough for keyboard_rows() to include the orphan key in
+    theory: _build_keyboard() has to actually use that row so the cell
+    exists in the real window, with its legend, or the window would keep
+    showing the same contradiction this defect fixes."""
     estado = dict(ESTADO, dictation={"keys": ["f14"], "style": "hold", "delay_ms": 0})
     c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
         estado, lambda sid, fila: (True, ""))
@@ -154,11 +153,11 @@ def test_una_tecla_fuera_del_retrato_se_ve_de_verdad_en_la_ventana():
 
 
 def test_las_teclas_de_relleno_nombradas_llevan_la_leyenda_de_key_label():
-    """Ata la casilla dibujada con key_label(), la misma función que ya
-    pintan los keycaps de las cuatro filas: nada de una tabla paralela de
-    símbolos en el sitio de dibujado (la instrucción explícita del brief).
-    Estructural sobre TODOS los nombres de KEYBOARD_ROWS, no una lista de
-    pares clavada a mano.
+    """Ties the drawn cell to key_label(), the same function the keycaps
+    of the four rows already paint with: no parallel table of symbols at
+    the drawing site (the brief's explicit instruction).
+    Structural over ALL the names in KEYBOARD_ROWS, not a hand-pinned
+    list of pairs.
     """
     c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
         ESTADO, lambda sid, fila: (True, ""))
@@ -169,7 +168,7 @@ def test_las_teclas_de_relleno_nombradas_llevan_la_leyenda_de_key_label():
     c.close()
 
 
-def test_pintar_el_teclado_no_revienta():
+def test_painting_keyboard_does_not_crash():
     c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
         ESTADO, lambda sid, fila: (True, ""))
     c._paint_keyboard()
@@ -178,11 +177,11 @@ def test_pintar_el_teclado_no_revienta():
 
 
 def _se_solapan(a, b):
-    """Verdadero si dos NSRect comparten algún punto interior.
+    """True if two NSRects share any interior point.
 
-    Comparación geométrica genérica, no una fórmula atada a los números
-    de esta ventana: sirve igual si mañana cambian PAD, ROW_H o la altura
-    del teclado.
+    Generic geometric comparison, not a formula tied to this window's
+    numbers: it works just the same if PAD, ROW_H or the keyboard
+    height change tomorrow.
     """
     ax0, ay0 = a.origin.x, a.origin.y
     ax1, ay1 = ax0 + a.size.width, ay0 + a.size.height
@@ -192,12 +191,12 @@ def _se_solapan(a, b):
 
 
 def test_el_teclado_no_se_solapa_con_la_primera_fila():
-    """El teclado se dibuja en la banda vacía de encima de las filas, no
-    sobre ellas. Se compara la relación real entre los dos marcos —no se
-    tocan, y el del teclado queda por encima— en vez de fijar un
-    origin.y a mano: ese número quedaría obsoleto en cuanto la
-    disposición se retocara legítimamente, y un test así pasaría aunque
-    el teclado volviera a solaparse con cualquier otra fila.
+    """The keyboard is drawn in the empty band above the rows, not on
+    top of them. The real relationship between the two frames is
+    compared —they do not touch, and the keyboard's sits above— instead
+    of pinning an origin.y by hand: that number would go stale as soon
+    as the layout was legitimately tweaked, and such a test would pass
+    even if the keyboard overlapped any other row again.
     """
     c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
         ESTADO, lambda sid, fila: (True, ""))
@@ -206,19 +205,19 @@ def test_el_teclado_no_se_solapa_con_la_primera_fila():
     fila = c._rows[primer_sid].frame()
 
     assert not _se_solapan(marco, fila), "el teclado invade la primera fila"
-    # Coordenadas AppKit: origen abajo-izquierda. "Por encima" significa
-    # que el borde inferior del teclado no cae por debajo del borde
-    # superior de la fila.
+    # AppKit coordinates: origin at bottom-left. "Above" means that
+    # the keyboard's bottom edge does not fall below the row's top
+    # edge.
     assert marco.origin.y >= fila.origin.y + fila.size.height
 
     c.close()
 
 
-def test_toda_casilla_nombrada_tiene_exactamente_una_leyenda_y_las_de_relleno_ninguna():
-    """Ni huérfanas (una casilla con nombre sin su leyenda) ni de más: las
-    casillas de relleno ("") existen solo para que el teclado se reconozca
-    de un vistazo y nunca se encienden (ver el comentario de KEYBOARD_ROWS),
-    así que tampoco llevan leyenda."""
+def test_every_named_cell_has_exactly_one_legend_and_fillers_have_none():
+    """Neither orphans (a named cell without its legend) nor extras: the
+    filler cells ("") exist only so the keyboard is recognizable at a
+    glance and never light up (see the KEYBOARD_ROWS comment), so they
+    carry no legend either."""
     c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
         ESTADO, lambda sid, fila: (True, ""))
     assert set(c._legends) == set(c._keys)
@@ -227,11 +226,11 @@ def test_toda_casilla_nombrada_tiene_exactamente_una_leyenda_y_las_de_relleno_ni
 
 
 def test_repintar_el_teclado_no_reconstruye_las_leyendas():
-    """_paint_keyboard() recolorea casillas existentes, nunca las
-    reconstruye (ver el docstring de _build_keyboard: añadir y quitar
-    subviews en cada repintado hace parpadear la ventana). Las leyendas
-    tienen que seguir la misma regla: se crea el NSTextField una vez y se
-    recolorea, no se crea uno nuevo con el mismo texto en cada repintado."""
+    """_paint_keyboard() recolors existing cells, it never rebuilds them
+    (see the _build_keyboard docstring: adding and removing subviews on
+    every repaint makes the window flicker). The legends have to follow
+    the same rule: the NSTextField is created once and recolored, not
+    created anew with the same text on every repaint."""
     c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
         ESTADO, lambda sid, fila: (True, ""))
     antes = c._legends["cmd_r"]
@@ -242,16 +241,16 @@ def test_repintar_el_teclado_no_reconstruye_las_leyendas():
 
 
 def test_la_leyenda_de_una_tecla_encendida_en_solido_cambia_de_color_para_seguir_siendo_legible():
-    """dictation pinta su casilla de teal sólido (theme.TEAL): el gris
-    oscuro de una leyenda apagada (theme.INK_KEYCAP) sería ilegible ahí.
-    La leyenda tiene que recolorearse en el mismo sitio donde se recolorea
-    el relleno (_paint_keyboard), o las dos se pueden desincronizar: una
-    casilla encendida con su leyenda del color de una apagada.
+    """dictation paints its cell in solid teal (theme.TEAL): the dark
+    gray of an unlit legend (theme.INK_KEYCAP) would be illegible there.
+    The legend has to be recolored in the same place where the fill is
+    recolored (_paint_keyboard), or the two can fall out of sync: a lit
+    cell with its legend in the color of an unlit one.
     """
     c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
         ESTADO, lambda sid, fila: (True, ""))
-    encendida = c._legends["cmd_r"]   # dictation en ESTADO: keys=["cmd_r"]
-    apagada = c._legends["a"]         # ninguna asignación por defecto la toca
+    encendida = c._legends["cmd_r"]   # dictation in ESTADO: keys=["cmd_r"]
+    apagada = c._legends["a"]         # no default assignment touches it
 
     assert apagada.textColor().isEqual_(theme.INK_KEYCAP)
     assert encendida.textColor().isEqual_(theme.PAGE_BG)
@@ -260,27 +259,26 @@ def test_la_leyenda_de_una_tecla_encendida_en_solido_cambia_de_color_para_seguir
 
 
 def test_la_leyenda_de_una_tecla_encendida_en_tono_suave_sigue_legible():
-    """cycle_mode/latch/cancel pintan su casilla de un teal muy claro
-    (theme.MODEL_BTN_BG): ahí el gris oscuro de siempre ya es legible, así
-    que la leyenda NO tiene que cambiar de color como en dictation — solo
-    la casilla de relleno sólido necesita ese ajuste. Esto documenta la
-    decisión con un test, no solo con un comentario."""
+    """cycle_mode/latch/cancel paint their cell in a very light teal
+    (theme.MODEL_BTN_BG): there the usual dark gray is already legible,
+    so the legend does NOT have to change color as in dictation — only
+    the solid-fill cell needs that adjustment. This documents the
+    decision with a test, not just with a comment."""
     c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
         ESTADO, lambda sid, fila: (True, ""))
-    suave = c._legends["esc"]   # cancel en ESTADO: keys=["esc"]
+    suave = c._legends["esc"]   # cancel in ESTADO: keys=["esc"]
     assert suave.textColor().isEqual_(theme.INK_KEYCAP)
     c.close()
 
 
 def test_la_casilla_huerfana_tiene_ancho_de_modificadora_no_de_fila():
-    """Defecto 1 de la Task 9 (tercera ronda): con una sola tecla huérfana en
-    la fila, un peso proporcional de 1.0 se llevaba el 100% del ancho y la
-    casilla se dibujaba como una barra espaciadora -justo lo que un teclado
-    dibujado existe para no mentir. La casilla huérfana tiene que salir con
-    un ancho comparable al de una tecla modificadora normal del retrato
-    (aquí "cmd"), muy por debajo del ancho completo de la fila. Comparación
-    estructural entre anchos ya dibujados, nada de una constante de píxeles
-    clavada.
+    """Defect 1 of Task 9 (third round): with a single orphan key in the
+    row, a proportional weight of 1.0 took 100% of the width and the cell
+    was drawn like a space bar -exactly what a drawn keyboard exists not
+    to lie about. The orphan cell has to come out with a width comparable
+    to that of a normal modifier key of the portrait (here "cmd"), well
+    below the full row width. Structural comparison between already-drawn
+    widths, no pinned pixel constant whatsoever.
     """
     estado = dict(ESTADO, dictation={"keys": ["f14"], "style": "hold", "delay_ms": 0})
     c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
@@ -290,18 +288,18 @@ def test_la_casilla_huerfana_tiene_ancho_de_modificadora_no_de_fila():
     ancho_cmd = c._keys["cmd"].frame().size.width
     ancho_fila = c._teclado_marco.frame().size.width
 
-    # "Comparable", no idéntico a fuerza: unos pocos puntos de margen
-    # absorben el redondeo de la aritmética de pesos sin dejar pasar una
-    # regresión al reparto proporcional de antes.
+    # "Comparable", not forcibly identical: a few points of margin
+    # absorb the rounding of the weight arithmetic without letting a
+    # regression to the old proportional split through.
     assert abs(ancho_huerfana - ancho_cmd) < 2.0, (ancho_huerfana, ancho_cmd)
     assert ancho_huerfana < ancho_fila / 3, (ancho_huerfana, ancho_fila)
     c.close()
 
 
-def test_la_casilla_huerfana_no_se_estira_con_varias_huerfanas_a_la_vez():
-    """La misma garantía que el test anterior, pero con dos teclas huérfanas
-    en la fila a la vez (f15 y f14): cada una sigue con el ancho de una
-    modificadora normal, no el de la fila repartido entre dos.
+def test_orphan_cell_is_not_stretched_with_several_orphans_at_once():
+    """The same guarantee as the previous test, but with two orphan keys
+    in the row at once (f15 and f14): each one keeps the width of a
+    normal modifier, not the row's width split between two.
     """
     estado = dict(ESTADO,
                    dictation={"keys": ["f15"], "style": "hold", "delay_ms": 0},
@@ -317,13 +315,13 @@ def test_la_casilla_huerfana_no_se_estira_con_varias_huerfanas_a_la_vez():
 
 
 def test_el_resto_de_la_fila_huerfana_no_dibuja_ninguna_casilla():
-    """Defecto 1 de la Task 9 (tercera ronda): el ancho que la casilla
-    huérfana no usa se queda vacío -fondo del teclado, sin vista dibujada-
-    en vez de una casilla de relleno apagada, que es justo el "agujero sin
-    leyenda que parece tecla rota" de la ronda anterior. keyboard_rows()
-    reserva ese resto con un nombre `None`; este test comprueba que
-    _build_keyboard() de verdad lo salta y no crea ninguna casilla ni
-    leyenda para él.
+    """Defect 1 of Task 9 (third round): the width the orphan cell does
+    not use stays empty -keyboard background, no drawn view- instead of
+    an unlit filler cell, which is exactly the previous round's
+    "legendless hole that looks like a broken key". keyboard_rows()
+    reserves that remainder with a `None` name; this test checks that
+    _build_keyboard() really skips it and creates no cell or legend
+    for it.
     """
     estado = dict(ESTADO, dictation={"keys": ["f14"], "style": "hold", "delay_ms": 0})
     fila_huerfana = settings_window.keyboard_rows(estado)[-1]
@@ -332,17 +330,17 @@ def test_el_resto_de_la_fila_huerfana_no_dibuja_ninguna_casilla():
 
     c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
         estado, lambda sid, fila: (True, ""))
-    # Ninguna casilla ni leyenda lleva clave None: no hay vista para el hueco.
+    # No cell or legend carries a None key: there is no view for the gap.
     assert None not in c._keys
     assert None not in c._legends
     c.close()
 
 
 def test_la_fila_huerfana_explica_por_que_esa_tecla_esta_ahi():
-    """Defecto 2 de la Task 9 (tercera ronda): una tecla huérfana suelta y
-    sin explicación parece puesta al azar. La ventana tiene que mostrar el
-    texto "not on this keyboard" cuando hay fila huérfana, y NO mostrarlo
-    cuando no la hay (el caso común, con el estado de fábrica).
+    """Defect 2 of Task 9 (third round): a loose, unexplained orphan key
+    looks randomly placed. The window has to show the text
+    "not on this keyboard" when there is an orphan row, and NOT show it
+    when there is none (the common case, with the factory state).
     """
     sin_huerfanas = settings_window.ShortcutsController.alloc().initWithState_onChange_(
         ESTADO, lambda sid, fila: (True, ""))
@@ -358,14 +356,15 @@ def test_la_fila_huerfana_explica_por_que_esa_tecla_esta_ahi():
 
 
 def test_el_texto_de_la_fila_huerfana_no_se_recorta():
-    """La Task 8 recortó "either side" en silencio con un campo de ancho
-    clavado a ojo, y el test que leía stringValue() pasaba igual porque
-    stringValue() no sabe nada del glifo cortado. Aquí se comprueba lo
-    mismo que evitó ese bug: el campo dibujado mide, medido con la MISMA
-    función (theme.text_width) que _build_keyboard() usa para dimensionarlo,
-    al menos tanto como el texto necesita con su propia fuente -si el campo
-    fuera más angosto, el texto (correcto en stringValue()) se recortaría al
-    dibujarse sin que este test lo notara igual que le pasó a la Task 8.
+    """Task 8 silently clipped "either side" with a field width pinned by
+    eye, and the test that read stringValue() passed anyway because
+    stringValue() knows nothing about the cut glyph. Here the same thing
+    that avoided that bug is checked: the drawn field measures, measured
+    with the SAME function (theme.text_width) that _build_keyboard() uses
+    to size it, at least as much as the text needs with its own font -if
+    the field were narrower, the text (correct in stringValue()) would be
+    clipped when drawn without this test noticing, just as happened to
+    Task 8.
     """
     estado = dict(ESTADO, dictation={"keys": ["f14"], "style": "hold", "delay_ms": 0})
     c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
@@ -376,11 +375,11 @@ def test_el_texto_de_la_fila_huerfana_no_se_recorta():
     c.close()
 
 
-def test_el_teclado_no_se_sale_del_contenido_de_la_ventana():
-    """El error simétrico al solapamiento: un teclado desplazado de más
-    hacia arriba se saldría del borde superior de la ventana en lugar de
-    invadir las filas. Las dos pruebas juntas cubren los dos sentidos en
-    los que un origen mal calculado puede fallar.
+def test_keyboard_does_not_exceed_window_content():
+    """The error symmetric to the overlap: a keyboard shifted too far up
+    would run off the window's top edge instead of invading the rows.
+    The two tests together cover both directions in which a miscalculated
+    origin can fail.
     """
     c = settings_window.ShortcutsController.alloc().initWithState_onChange_(
         ESTADO, lambda sid, fila: (True, ""))
@@ -394,7 +393,7 @@ def test_el_teclado_no_se_sale_del_contenido_de_la_ventana():
     c.close()
 
 
-# --- captura: verde = usable, gris = no usable (feedback de POMI) ---
+# --- capture: green = usable, gray = not usable (POMI feedback) ---
 
 def _controller(estado=None):
     return settings_window.ShortcutsController.alloc().initWithState_onChange_(
@@ -402,29 +401,30 @@ def _controller(estado=None):
 
 
 def test_durante_la_captura_las_letras_se_apagan_y_las_usables_se_encienden():
-    """Capturando Dictation: una letra inutilizaría el teclado entero
-    (validate la rechaza) → gris; una F o un modificador con lado → teal
-    SÓLIDO con leyenda en papel. El teal claro de la primera versión
-    (MODEL_BTN_BG) no se distinguía del gris en pantalla — "el teclado se ve
-    completo", dijo Eduardo — así que el contraste es parte del contrato.
-    La verdad la pone shortcuts.validate, el MISMO validador que luego acepta
-    o rechaza la captura — el color no puede prometer lo que validate negará."""
+    """Capturing Dictation: a letter would render the whole keyboard
+    unusable (validate rejects it) → gray; an F key or a sided modifier →
+    SOLID teal with a paper-colored legend. The light teal of the first
+    version (MODEL_BTN_BG) was indistinguishable from gray on screen —
+    "el teclado se ve completo", said Eduardo — so the contrast is part of
+    the contract. The truth comes from shortcuts.validate, the SAME
+    validator that later accepts or rejects the capture — the color cannot
+    promise what validate will deny."""
     c = _controller()
     c.begin_capture_("dictation")
 
-    assert c._legends["a"].textColor().isEqual_(theme.INK_MUTED)     # letra: no
-    assert c._legends["esc"].textColor().isEqual_(theme.INK_MUTED)   # dueña de cancel
-    assert c._legends["shift"].textColor().isEqual_(theme.INK_MUTED) # dueña de latch
-    assert c._legends["f13"].textColor().isEqual_(theme.PAGE_BG)     # usable: encendida
-    assert c._legends["cmd_r"].textColor().isEqual_(theme.PAGE_BG)   # la suya: usable
+    assert c._legends["a"].textColor().isEqual_(theme.INK_MUTED)     # letter: no
+    assert c._legends["esc"].textColor().isEqual_(theme.INK_MUTED)   # owner of cancel
+    assert c._legends["shift"].textColor().isEqual_(theme.INK_MUTED) # owner of latch
+    assert c._legends["f13"].textColor().isEqual_(theme.PAGE_BG)     # usable: lit
+    assert c._legends["cmd_r"].textColor().isEqual_(theme.PAGE_BG)   # its own: usable
     c.close()
 
 
-def test_las_decorativas_nunca_se_encienden_en_captura():
-    """⇪ y el bloque de flechas tienen leyenda pero no son asignables: en
-    captura salen en gris, no como promesa de tecla elegible. fn ya NO está
-    aquí: desde que hotkey.py la endereza es una tecla de dictado de pleno
-    derecho (ver el test siguiente)."""
+def test_decorative_keys_never_light_up_during_capture():
+    """⇪ and the arrow block have a legend but are not assignable: during
+    capture they come out gray, not as a promise of an eligible key. fn is
+    NO longer here: since hotkey.py straightens it out it is a dictation
+    key in its own right (see the next test)."""
     c = _controller()
     c.begin_capture_("dictation")
     for nombre in ("caps_lock", "arrows", ";", ","):
@@ -433,8 +433,8 @@ def test_las_decorativas_nunca_se_encienden_en_captura():
 
 
 def test_fn_se_enciende_capturando_dictation():
-    """La tecla estrella de Wispr Flow, pedida expresamente ("es vital tener
-    también fn"): capturando Dictation tiene que ofrecerse en verde."""
+    """Wispr Flow's star key, expressly requested ("es vital tener
+    también fn"): capturing Dictation it has to be offered in green."""
     c = _controller()
     c.begin_capture_("dictation")
     assert c._legends["fn"].textColor().isEqual_(theme.PAGE_BG)
@@ -442,10 +442,10 @@ def test_fn_se_enciende_capturando_dictation():
 
 
 def test_los_modificadores_izquierdos_se_encienden_capturando_dictation():
-    """El ⌘/⌥/⌃ izquierdos son teclas de dictado legítimas (DICTATION_KEYS
-    las ofrece, con guarda): el teclado tiene que ofrecerlas en verde, no
-    dejarlas grises como si no existiera forma de elegirlas. shift no: sigue
-    reservada para latch."""
+    """The left ⌘/⌥/⌃ are legitimate dictation keys (DICTATION_KEYS
+    offers them, with a guard): the keyboard has to offer them in green,
+    not leave them gray as if there were no way to pick them. Not shift:
+    it stays reserved for latch."""
     c = _controller()
     c.begin_capture_("dictation")
     for nombre in ("cmd", "alt", "ctrl"):
@@ -455,12 +455,12 @@ def test_los_modificadores_izquierdos_se_encienden_capturando_dictation():
 
 
 def test_cada_atajo_tiene_sus_propias_usables():
-    """esc es gris capturando Dictation (pertenece a Cancel) pero verde
-    capturando Cancel (confirmar tu propia tecla nunca es conflicto)."""
+    """esc is gray capturing Dictation (it belongs to Cancel) but green
+    capturing Cancel (confirming your own key is never a conflict)."""
     c = _controller()
     c.begin_capture_("cancel")
     assert c._legends["esc"].textColor().isEqual_(theme.PAGE_BG)
-    assert c._legends["cmd_r"].textColor().isEqual_(theme.INK_MUTED)  # de Dictation
+    assert c._legends["cmd_r"].textColor().isEqual_(theme.INK_MUTED)  # Dictation's
     c.close()
 
 
@@ -468,19 +468,19 @@ def test_al_salir_de_la_captura_vuelve_el_pintado_por_asignaciones():
     c = _controller()
     c.begin_capture_("dictation")
     c.cancel_capture_()
-    # dictation vuelve a su teal sólido (leyenda en color papel) y la letra
-    # suelta recupera el gris oscuro normal de una tecla apagada.
+    # dictation returns to its solid teal (paper-colored legend) and the
+    # loose letter gets back the normal dark gray of an unlit key.
     assert c._legends["cmd_r"].textColor().isEqual_(theme.PAGE_BG)
     assert c._legends["a"].textColor().isEqual_(theme.INK_KEYCAP)
     c.close()
 
 
-def test_aplicar_una_captura_valida_tambien_restaura_el_teclado():
+def test_applying_valid_capture_also_restores_keyboard():
     c = _controller()
     c.begin_capture_("dictation")
     c.apply_capture_(["f13"])
     assert c._capturing is None
-    # f13 es ahora la tecla de dictado: teal sólido con leyenda en papel.
+    # f13 is now the dictation key: solid teal with a paper-colored legend.
     assert c._legends["f13"].textColor().isEqual_(theme.PAGE_BG)
     assert c._legends["a"].textColor().isEqual_(theme.INK_KEYCAP)
     c.close()

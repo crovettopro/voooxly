@@ -42,9 +42,9 @@ def load(path: Path | None = None) -> dict:
 
 
 def add(entry: str, path: Path | None = None) -> str:
-    """Añade lo tecleado en el menú. "mal -> bien" = reemplazo; si no, palabra.
+    """Adds what was typed in the menu. "wrong -> right" = replacement; else, word.
 
-    Devuelve una descripción legible de lo añadido (para la notificación).
+    Returns a human-readable description of what was added (for the notification).
     """
     path = path or DICT_FILE
     data = load(path)
@@ -55,7 +55,7 @@ def add(entry: str, path: Path | None = None) -> str:
             raise ValueError("Use: wrong spelling -> right spelling")
         data["replacements"][wrong] = right
         desc = f"Replacement: “{wrong}” → “{right}”"
-        # la grafía buena también sesga la transcripción
+        # the correct spelling also biases the transcription
         if right not in data["words"]:
             data["words"].append(right)
     else:
@@ -73,7 +73,7 @@ def add(entry: str, path: Path | None = None) -> str:
 
 
 def stt_terms(path: Path | None = None) -> list[str]:
-    """Términos para el initial prompt de Whisper (palabras + grafías buenas)."""
+    """Terms for the Whisper initial prompt (words + correct spellings)."""
     data = load(path)
     seen: list[str] = []
     for t in data["words"] + list(data["replacements"].values()):

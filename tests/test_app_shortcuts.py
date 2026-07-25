@@ -1,9 +1,9 @@
-"""El pegamento entre la ventana y el hotkey, sin instanciar VoooxlyApp.
+"""The glue between the window and the hotkey, without instantiating VoooxlyApp.
 
-Instanciar VoooxlyApp construye menús de AppKit y no corre en un test (mismo
-motivo por el que existen keys.py, shortcuts.py y ai_menu_labels a nivel de
-módulo). Se prueba la función de aplicar un atajo contra un hotkey falso, y la
-función que migra + persiste prefs.json en __init__.
+Instantiating VoooxlyApp builds AppKit menus and does not run in a test (the
+same reason keys.py, shortcuts.py and ai_menu_labels exist at module level).
+We test the function that applies a shortcut against a fake hotkey, and the
+function that migrates + persists prefs.json in __init__.
 """
 from voooxly import app as app_mod
 from voooxly.app import apply_shortcut
@@ -14,9 +14,9 @@ class _HotkeyFalso:
         self._ok = ok
         self.reconfigurado = None
         self.rebindeado = []
-        # Vigilan la regla del sistema (ver test_aplicar_un_atajo_no_reinicia_el_listener
-        # más abajo): reconfigure()/rebind() solo pueden mutar atributos, jamás
-        # tocar el keyboard.Listener en marcha.
+        # These watch the system rule (see test_aplicar_un_atajo_no_reinicia_el_listener
+        # below): reconfigure()/rebind() may only mutate attributes, never
+        # touch the running keyboard.Listener.
         self.parada = False
         self.arrancada = False
 
@@ -47,9 +47,9 @@ def test_dictation_va_por_reconfigure_con_el_delay_en_segundos():
 
 
 def test_delay_del_usuario_se_honra_incluso_en_tecla_sin_guarda_por_defecto():
-    """Punto 2 del feedback: con el ⌘ derecho, needs_guard es False, así que
-    antes el guard se apagaba y el delay del slíder se IGNORABA. Ahora un
-    delay>0 lo activa en cualquier tecla — el delay es elección del usuario."""
+    """Feedback point 2: with the right ⌘, needs_guard is False, so the guard
+    used to be switched off and the slider's delay was IGNORED. Now a
+    delay>0 enables it on any key — the delay is the user's choice."""
     hk = _HotkeyFalso()
     ok, _ = apply_shortcut(hk, "dictation", {"keys": ["cmd_r"], "style": "hold", "delay_ms": 400})
     assert ok
@@ -60,8 +60,8 @@ def test_delay_del_usuario_se_honra_incluso_en_tecla_sin_guarda_por_defecto():
 
 
 def test_delay_cero_en_tecla_sin_guarda_deja_el_guard_apagado():
-    """El default de la tecla derecha sigue siendo sin guarda (instantáneo): el
-    usuario no pierde el tacto de siempre salvo que suba el slíder a mano."""
+    """The right key's default is still guard-free (instant): the user keeps
+    the familiar feel unless they raise the slider by hand."""
     hk = _HotkeyFalso()
     ok, _ = apply_shortcut(hk, "dictation", {"keys": ["cmd_r"], "style": "hold", "delay_ms": 0})
     assert ok
@@ -70,8 +70,8 @@ def test_delay_cero_en_tecla_sin_guarda_deja_el_guard_apagado():
 
 
 def test_tecla_con_guarda_no_pierde_el_guard_aun_con_delay_cero():
-    """Una tecla izquierda (needs_guard True) sigue con guard aunque el delay
-    sea 0: no se puede quedar sin protección y dispararse en cada ⌘C."""
+    """A left key (needs_guard True) keeps its guard even with a delay of 0:
+    it cannot be left unprotected and fire on every ⌘C."""
     hk = _HotkeyFalso()
     ok, _ = apply_shortcut(hk, "dictation", {"keys": ["cmd_l"], "style": "hold", "delay_ms": 0})
     assert ok
@@ -94,8 +94,8 @@ def test_si_el_hotkey_rechaza_se_devuelve_el_motivo():
 
 
 def test_una_excepcion_del_hotkey_no_propaga():
-    # apply_shortcut lo llama código de AppKit: una excepción sin capturar
-    # ahí se lleva la app entera por delante.
+    # apply_shortcut is called by AppKit code: an uncaught exception
+    # there takes the whole app down with it.
     class Explota:
         def reconfigure(self, **kw):
             raise RuntimeError("boom")
@@ -107,24 +107,24 @@ def test_una_excepcion_del_hotkey_no_propaga():
 
 
 def test_aplicar_un_atajo_no_reinicia_el_listener():
-    """Regla del sistema, no detalle de reconfigure()/rebind(): cambiar
-    CUALQUIERA de los cuatro atajos jamás llama a .stop() ni a .start()
-    sobre el HotkeyManager.
+    """A system rule, not a reconfigure()/rebind() detail: changing
+    ANY of the four shortcuts never calls .stop() or .start()
+    on the HotkeyManager.
 
-    Reiniciar el keyboard.Listener de pynput reventó la app de verdad con
-    SIGTRAP en dispatch_assert_queue (arranca con `with keycode_context()`,
-    que toca TIS/TSM desde el hilo del propio listener, y HIToolbox exige
-    que eso pase en el hilo principal). Y aunque el hilo fuera el correcto,
-    tener dos listeners vivos a la vez — el viejo aún sin unir y el nuevo —
-    aborta el proceso con SIGABRT: ambos llamarían a TIS/TSM desde hilos
-    distintos. reconfigure() y rebind() lo evitan de raíz: solo mutan
-    atributos normales que _on_press/_on_release releen en cada evento, así
-    que jamás hace falta recrear el listener (ver sus docstrings en
-    hotkey.py). Este test deja esa regla vigilada: si algún día
-    apply_shortcut() empieza a llamar a hk.stop()/hk.start(), tiene que
-    fallar señalando el crash que evita, no con un AttributeError que el
-    `except Exception` de apply_shortcut se traga y disfraza de un
-    ok=False genérico.
+    Restarting pynput's keyboard.Listener genuinely crashed the app with
+    SIGTRAP in dispatch_assert_queue (it starts with `with keycode_context()`,
+    which touches TIS/TSM from the listener's own thread, and HIToolbox
+    demands that this happen on the main thread). And even if the thread
+    were the right one, having two listeners alive at once — the old one
+    not yet joined and the new one — aborts the process with SIGABRT: both
+    would call TIS/TSM from different threads. reconfigure() and rebind()
+    avoid this at the root: they only mutate normal attributes that
+    _on_press/_on_release re-read on every event, so the listener never
+    needs to be recreated (see their docstrings in hotkey.py). This test
+    keeps that rule watched: if apply_shortcut() ever starts calling
+    hk.stop()/hk.start(), it has to fail pointing at the crash it prevents,
+    not with an AttributeError that apply_shortcut's `except Exception`
+    swallows and disguises as a generic ok=False.
     """
     hk = _HotkeyFalso()
     filas = {
@@ -151,10 +151,10 @@ def test_aplicar_un_atajo_no_reinicia_el_listener():
 
 
 def test_una_migracion_vieja_acaba_persistida(monkeypatch):
-    """Quien actualiza desde v1.3.0 y nunca abre la ventana de Shortcuts
-    tiene que acabar con la clave "shortcuts" en su prefs.json igualmente —
-    si no, el día que una versión futura deje de leer las claves viejas,
-    pierde su configuración sin haber hecho nada malo."""
+    """Whoever updates from v1.3.0 and never opens the Shortcuts window
+    must still end up with the "shortcuts" key in their prefs.json —
+    otherwise, the day a future version stops reading the old keys, they
+    lose their configuration without having done anything wrong."""
     guardado = {}
     monkeypatch.setattr(app_mod, "_save_prefs", lambda prefs: guardado.update(prefs))
 
@@ -164,8 +164,8 @@ def test_una_migracion_vieja_acaba_persistida(monkeypatch):
 
 
 def test_un_prefs_ya_migrado_no_provoca_escritura(monkeypatch):
-    """Sin este corte, __init__ reescribiría prefs.json en cada arranque sin
-    motivo — shortcuts.migrate() ya no tiene nada que cambiar aquí."""
+    """Without this cutoff, __init__ would rewrite prefs.json on every launch
+    for no reason — shortcuts.migrate() has nothing left to change here."""
     llamadas = []
     monkeypatch.setattr(app_mod, "_save_prefs", lambda prefs: llamadas.append(prefs))
 

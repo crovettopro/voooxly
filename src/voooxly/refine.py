@@ -1,12 +1,12 @@
-"""Refinamiento LLM: transforma la transcripción cruda en el texto final según el modo.
+"""LLM refinement: turns the raw transcription into the final text per the mode.
 
 Backends:
-- ollama: endpoint local http://localhost:11434 (modelo local o cloud enrutado)
-- claude: Anthropic API (si ANTHROPIC_API_KEY)
-- openai: cualquier endpoint OpenAI-compatible
+- ollama: local endpoint http://localhost:11434 (local model or routed cloud model)
+- claude: Anthropic API (if ANTHROPIC_API_KEY)
+- openai: any OpenAI-compatible endpoint
 
-Cada modo (modes.system_prompt) define el system prompt. El modo "literal" se salta
-el LLM y devuelve la transcripción tal cual.
+Each mode (modes.system_prompt) defines the system prompt. The "literal" mode
+skips the LLM and returns the transcription as-is.
 """
 from __future__ import annotations
 
@@ -19,16 +19,16 @@ from . import modes
 
 log = logging.getLogger("voooxly.refine")
 
-# Resultado cacheado de la auto-detección (backend "auto"). Se refresca con
-# detect_backend(force=True) — el menú "AI engine" y el keepalive lo hacen.
+# Cached result of the auto-detection (backend "auto"). Refreshed with
+# detect_backend(force=True) — the "AI engine" menu and the keepalive do it.
 _detected: str | None = None
 
 
 def detect_backend(cfg=None, force: bool = False) -> str:
-    """Cascada de auto-detección del motor LLM disponible.
+    """Auto-detection cascade for the available LLM engine.
 
-    ollama corriendo → claude (ANTHROPIC_API_KEY) → openai (key) → "none".
-    Con "none" Voooxly pega la transcripción cruda: funciona sin IA instalada.
+    ollama running → claude (ANTHROPIC_API_KEY) → openai (key) → "none".
+    With "none" Voooxly pastes the raw transcription: works with no AI installed.
     """
     global _detected
     if _detected is not None and not force:
@@ -42,13 +42,13 @@ def detect_backend(cfg=None, force: bool = False) -> str:
             f"{cfg.get('llm.ollama.host', 'http://localhost:11434')}/api/tags",
             timeout=1.5,
         )
-        # Un Ollama alcanzable pero SIN modelo configurado NO es un proveedor:
-        # Ollama.app autoarranca su servidor, y reclamarlo aquí con
-        # llm.ollama.model vacío condenaba cada dictado a un 400 + aviso
-        # "AI didn't answer" para siempre (y la cascada nunca llegaba a una
-        # key de entorno que sí funcionara más abajo). El usuario conecta
-        # Ollama explícitamente desde el menú; hasta entonces el pegado crudo
-        # debe seguir limpio y sin avisos.
+        # A reachable Ollama WITHOUT a configured model is NOT a provider:
+        # Ollama.app auto-starts its server, and claiming it here with
+        # llm.ollama.model empty doomed every dictation to a 400 + an
+        # "AI didn't answer" warning forever (and the cascade never reached an
+        # environment key further down that did work). The user connects
+        # Ollama explicitly from the menu; until then the raw paste
+        # must stay clean and warning-free.
         if r.ok and cfg.get("llm.ollama.model", ""):
             _detected = "ollama"
             return _detected
@@ -61,14 +61,14 @@ def detect_backend(cfg=None, force: bool = False) -> str:
         _detected = "openai"
         return _detected
     _detected = "none"
-    log.info("Sin motor LLM detectado: los dictados se pegan sin refinar.")
+    log.info("No LLM engine detected: dictations are pasted unrefined.")
     return _detected
 
 
-# Familias de OpenAI que SOLO aceptan la temperature por defecto: mandarles
-# otra es un 400 Bad Request seco (el fallo real con gpt-5-mini mientras
-# gpt-4.1-mini conectaba). Se casa por prefijo con separador ("-" o ".") para
-# que "gpt-5.6-luna" cuente y "gpt-4o" u "olmo-7b" no.
+# OpenAI families that ONLY accept the default temperature: sending them any
+# other is a flat 400 Bad Request (the actual failure with gpt-5-mini while
+# gpt-4.1-mini connected). Matched by prefix with a separator ("-" or ".") so
+# that "gpt-5.6-luna" counts and "gpt-4o" or "olmo-7b" don't.
 _RAZONADORES = ("gpt-5", "o1", "o3", "o4")
 
 
@@ -81,10 +81,10 @@ def _es_razonador(model: str) -> bool:
 
 
 def openai_payload(model: str, system: str, user: str, temp) -> dict:
-    """Cuerpo del POST /chat/completions. Función pura de módulo para que el
-    contrato quede clavado en tests: a los modelos razonadores se les omite
-    la temperature; el resto (gpt-4*, llama, gemini) la siguen recibiendo,
-    porque quitársela cambiaría su salida en silencio."""
+    """Body of the POST /chat/completions. Pure module-level function so the
+    contract stays nailed down in tests: reasoning models get the temperature
+    omitted; the rest (gpt-4*, llama, gemini) keep receiving it,
+    because taking it away would silently change their output."""
     body = {
         "model": model,
         "messages": [
@@ -98,11 +98,11 @@ def openai_payload(model: str, system: str, user: str, temp) -> dict:
 
 
 def list_ollama_models(host: str, timeout: float = 3.0) -> list[str]:
-    """Modelos que el Ollama del usuario dice tener. Nunca lanza.
+    """Models the user's Ollama says it has. Never raises.
 
-    Se usa para ofrecerle SUS modelos en vez de presuponer cuál tiene. Cualquier
-    fallo devuelve lista vacía: quien llama está construyendo un diálogo y una
-    excepción aquí rompería el menú.
+    Used to offer THEIR models instead of presuming which one they have. Any
+    failure returns an empty list: the caller is building a dialog and an
+    exception here would break the menu.
     """
     try:
         r = requests.get(f"{host.rstrip('/')}/api/tags", timeout=timeout)
@@ -113,7 +113,7 @@ def list_ollama_models(host: str, timeout: float = 3.0) -> list[str]:
             return []
         return [n for m in modelos if isinstance(m, dict) and (n := m.get("name"))]
     except Exception:
-        log.debug("No pude listar modelos de Ollama en %s", host, exc_info=True)
+        log.debug("Couldn't list Ollama models at %s", host, exc_info=True)
         return []
 
 
@@ -121,22 +121,23 @@ class Refiner:
     def __init__(self, cfg):
         self.cfg = cfg
         self.backend = cfg.get("llm.backend", "auto")
-        # Modo estricto: sólo lo activa _probe (ver abajo). Con strict=False
-        # (siempre en dictado real, vía app.py), _openai/_claude conservan su
-        # fallback a Ollama si el backend remoto falla — así el usuario nunca
-        # se queda sin texto en mitad de un dictado. En modo estricto ese
-        # fallback se desactiva y el error real se relanza, porque _probe
-        # necesita saber si EL CANDIDATO responde, no si Ollama responde en
-        # su lugar (si no, validate() podía devolver éxito para un proveedor
-        # que nunca contestó — el propio Ollama ya configurado tapaba el fallo).
+        # Strict mode: only _probe turns it on (see below). With strict=False
+        # (always in real dictation, via app.py), _openai/_claude keep their
+        # fallback to Ollama if the remote backend fails — so the user is
+        # never left without text mid-dictation. In strict mode that
+        # fallback is disabled and the real error is re-raised, because _probe
+        # needs to know whether THE CANDIDATE answers, not whether Ollama
+        # answers in its place (otherwise validate() could report success for
+        # a provider that never replied — the already-configured Ollama itself
+        # masked the failure).
         self.strict = False
-        # None si refine() terminó bien (o no necesitaba LLM); texto con la
-        # causa si el resultado final fue la transcripción cruda POR UN FALLO.
-        # Los caminos deliberados (literal, backend "none") no lo tocan.
+        # None if refine() finished fine (or needed no LLM); text with the
+        # cause if the final result was the raw transcription DUE TO A FAILURE.
+        # The deliberate paths (literal, backend "none") don't touch it.
         self.last_fallback: str | None = None
-        # Tokens de la última llamada al LLM remoto, o None si no la hubo
-        # (fast-lane, modo literal, backend "none", Ollama). Lo lee app.py
-        # para las stats. Ollama no cuenta: es local y no gasta cuota.
+        # Tokens of the last call to the remote LLM, or None if there was none
+        # (fast-lane, literal mode, backend "none", Ollama). app.py reads it
+        # for the stats. Ollama doesn't count: it's local and burns no quota.
         self.last_usage: int | None = None
 
     def refine(self, transcript: str, mode: str, language: str | None) -> str:
@@ -146,11 +147,11 @@ class Refiner:
         if not transcript:
             return ""
         sys_prompt = modes.system_prompt(mode, language)
-        if not sys_prompt:  # modo literal
+        if not sys_prompt:  # literal mode
             return transcript
-        # Reglas personales del usuario (llm.custom_rules): se añaden AL FINAL
-        # para que puedan matizar cualquier modo ("nunca uses punto y coma",
-        # "mi nombre se escribe Eduardo"...). Vacío por defecto.
+        # The user's personal rules (llm.custom_rules): appended AT THE END
+        # so they can qualify any mode ("never use semicolons",
+        # "my name is spelled Eduardo"...). Empty by default.
         custom = str(self.cfg.get("llm.custom_rules", "") or "").strip()
         if custom:
             sys_prompt += "\n\nPersonal rules from the user — always follow them:\n" + custom
@@ -161,14 +162,14 @@ class Refiner:
         if backend == "none":
             return transcript
         if backend == "claude":
-            # Sin condicionar a que ANTHROPIC_API_KEY esté en el entorno: si el
-            # usuario eligió Claude explícitamente, el despacho va SIEMPRE a
-            # _claude. Antes, con la variable ausente (p.ej. una lectura del
-            # llavero fallida al arrancar), se caía en silencio a _ollama con el
-            # menú diciendo Claude: refinado por el motor equivocado o fallos
-            # mal atribuidos. _claude ya hace lo correcto sin key: strict
-            # relanza; si no, fallback a _ollama, cuyo propio fallo deja
-            # last_fallback puesto.
+            # Not conditioned on ANTHROPIC_API_KEY being in the environment: if
+            # the user chose Claude explicitly, dispatch ALWAYS goes to
+            # _claude. Before, with the variable absent (e.g. a failed keychain
+            # read at startup), it silently fell to _ollama with the
+            # menu saying Claude: refined by the wrong engine or failures
+            # misattributed. _claude already does the right thing without a
+            # key: strict re-raises; otherwise, fallback to _ollama, whose own
+            # failure sets last_fallback.
             return self._claude(sys_prompt, transcript)
         if backend == "openai":
             return self._openai(sys_prompt, transcript)
@@ -191,60 +192,61 @@ class Refiner:
                         {"role": "user", "content": user},
                     ],
                     "stream": False,
-                    # los modelos razonadores (GLM, qwen, deepseek) queman 200-4700
-                    # tokens "pensando" antes de responder: 1.6-40s de latencia extra
-                    # que no aporta nada para limpiar un dictado
+                    # reasoning models (GLM, qwen, deepseek) burn 200-4700
+                    # tokens "thinking" before answering: 1.6-40s of extra latency
+                    # that adds nothing for cleaning up a dictation
                     "think": False,
                     "options": {"temperature": temp},
                 },
                 timeout=timeout,
             )
             if r.status_code >= 400:
-                # OJO: sólo aquí, con una respuesta de error real. Antes se
-                # miraba r.text (el cuerpo crudo) SIN comprobar el status, así
-                # que un 200 cuyo texto generado contenía "not found" (p.ej.
-                # "The file was not found...") disparaba ModelNotAvailable y
-                # el dictado se perdía. Un 2xx nunca puede llegar aquí.
+                # CAREFUL: only here, with a real error response. Before,
+                # r.text (the raw body) was checked WITHOUT looking at the
+                # status, so a 200 whose generated text contained "not found"
+                # (e.g. "The file was not found...") triggered ModelNotAvailable
+                # and the dictation was lost. A 2xx can never reach here.
                 error_detail = ""
                 try:
                     body = r.json()
                     if isinstance(body, dict):
                         error_detail = str(body.get("error", ""))
                 except ValueError:
-                    pass  # cuerpo de error no-JSON: cae al raise_for_status genérico
+                    pass  # non-JSON error body: falls to the generic raise_for_status
                 if "not found" in error_detail.lower():
                     raise ModelNotAvailable(f"model '{model}' not found on the Ollama host")
                 r.raise_for_status()
             data = r.json()
             return (data.get("message", {}).get("content", "") or "").strip()
         except ModelNotAvailable:
-            # Este caso tiene que llegar hasta validate(): es justo lo que distingue
-            # "servidor arriba, modelo ausente" de cualquier otro fallo. Si cayera en
-            # el except de abajo, quedaría indistinguible y validate() nunca lo vería
-            # (el bug de glm-5.2:cloud que originó esta tarea).
+            # This case has to reach validate(): it is exactly what tells
+            # "server up, model missing" apart from any other failure. If it
+            # fell into the except below, it would be indistinguishable and
+            # validate() would never see it (the glm-5.2:cloud bug that
+            # originated this task).
             raise
         except Exception as e:
             if self.strict:
-                # Mismo motivo que en _claude/_openai: en modo probe, devolver
-                # la transcripción tal cual como si fuera la respuesta del
-                # modelo es indistinguible de un éxito real para validate()
-                # (sólo mira si la salida no está vacía). Sin esto, un Ollama
-                # completamente inalcanzable reportaba "Connected" — el mismo
-                # bug de falso-positivo que el flag strict existe para evitar.
+                # Same reason as in _claude/_openai: in probe mode, returning
+                # the transcription as-is as if it were the model's
+                # response is indistinguishable from a real success for
+                # validate() (it only checks the output isn't empty). Without
+                # this, a completely unreachable Ollama reported "Connected" —
+                # the very false-positive bug the strict flag exists to avoid.
                 raise
-            log.error("Ollama falló (%s). Devuelvo transcripción sin refinar.", e)
+            log.error("Ollama failed (%s). Returning unrefined transcription.", e)
             self.last_fallback = f"Ollama: {e}"
             return user
 
     # --- Claude ---
     def _claude(self, system: str, user: str) -> str:
         try:
-            # El import, la construcción del cliente y las lecturas de config
-            # viven DENTRO del try a propósito: un install roto, una env mal
-            # puesta o un valor de config con tipo inválido son tan "Claude
-            # falló" como un error de la API, y deben seguir el mismo camino
-            # (strict relanza; si no, fallback a Ollama). Fuera del try se
-            # escapaban de refine() sin dejar last_fallback puesto.
+            # The import, the client construction and the config reads live
+            # INSIDE the try on purpose: a broken install, a badly set
+            # env or a config value of an invalid type are just as much
+            # "Claude failed" as an API error, and must follow the same path
+            # (strict re-raises; otherwise, fallback to Ollama). Outside the
+            # try they escaped refine() without setting last_fallback.
             import anthropic
 
             client = anthropic.Anthropic()
@@ -259,28 +261,28 @@ class Refiner:
                 timeout=timeout,
             )
             texto = "".join(b.text for b in resp.content if hasattr(b, "text")).strip()
-            # El conteo corre DESPUÉS de tener `texto` construido, y en su
-            # PROPIO try/except — no en el de fuera. "getattr no puede
-            # lanzar" era mentira: getattr sólo traga AttributeError, así que
-            # un SDK que cambie la forma de `usage`, o entrada/salida no
-            # numéricos (deriva de esquema), lanzaban igual y escapaban al
-            # except de fuera, reintentando contra Ollama una llamada a
-            # Claude que YA había respondido bien. Con esto, un fallo aquí
-            # sólo pierde su propio conteo — nunca el texto ya construido, y
-            # nunca puede quedar con tokens de una respuesta que un fallback
-            # posterior descarta (last_usage se asigna sólo si `texto` existe).
+            # The counting runs AFTER `texto` is built, and in its
+            # OWN try/except — not the outer one. "getattr can't
+            # raise" was a lie: getattr only swallows AttributeError, so
+            # an SDK changing the shape of `usage`, or non-numeric
+            # input/output (schema drift), raised anyway and escaped to
+            # the outer except, retrying against Ollama a call to
+            # Claude that had ALREADY answered fine. With this, a failure here
+            # only loses its own count — never the already-built text, and
+            # it can never be left holding tokens from a response a later
+            # fallback discards (last_usage is assigned only if `texto` exists).
             try:
                 usage = getattr(resp, "usage", None)
                 entrada = getattr(usage, "input_tokens", 0) or 0
                 salida = getattr(usage, "output_tokens", 0) or 0
                 self.last_usage = (entrada + salida) or None
             except Exception:
-                log.debug("No pude leer usage de Claude; sigo sin contar tokens", exc_info=True)
+                log.debug("Couldn't read Claude usage; skipping token count", exc_info=True)
             return texto
         except Exception as e:
             if self.strict:
                 raise
-            log.error("Claude falló (%s). Fallback Ollama.", e)
+            log.error("Claude failed (%s). Falling back to Ollama.", e)
             return self._ollama(system, user)
 
     # --- OpenAI-compatible ---
@@ -293,11 +295,11 @@ class Refiner:
         timeout = self.cfg.get("llm.openai.timeout", 30)
         if not key:
             if self.strict:
-                # Mismo motivo que en el except de abajo: en modo probe, "no hay
-                # key" es un fallo del candidato, no una señal para tapar el
-                # hueco con Ollama.
+                # Same reason as in the except below: in probe mode, "no
+                # key" is a failure of the candidate, not a signal to plug the
+                # gap with Ollama.
                 raise RuntimeError(f"missing {env_key}")
-            log.warning("Sin %s. Fallback Ollama.", env_key)
+            log.warning("Missing %s. Falling back to Ollama.", env_key)
             return self._ollama(system, user)
         try:
             r = requests.post(
@@ -309,27 +311,27 @@ class Refiner:
             r.raise_for_status()
             data = r.json()
             texto = (data["choices"][0]["message"]["content"] or "").strip()
-            # Mismo orden y mismo motivo que en _claude: el conteo corre
-            # DESPUÉS de tener `texto`, y en su propio try/except. `usage` es
-            # opcional en el protocolo y su forma no está garantizada — un
-            # proveedor que mande un valor truthy no-dict (deriva de esquema)
-            # no puede tirar por la borda una respuesta que sí contestó bien;
-            # sólo se queda sin contar sus tokens.
+            # Same order and same reason as in _claude: the counting runs
+            # AFTER `texto` exists, and in its own try/except. `usage` is
+            # optional in the protocol and its shape isn't guaranteed — a
+            # provider sending a truthy non-dict value (schema drift)
+            # can't throw overboard a response that did answer fine;
+            # it just goes without counting its tokens.
             try:
                 usage = data.get("usage") or {}
                 self.last_usage = usage.get("total_tokens") or None
             except Exception:
-                log.debug("No pude leer usage de OpenAI; sigo sin contar tokens", exc_info=True)
+                log.debug("Couldn't read OpenAI usage; skipping token count", exc_info=True)
             return texto
         except Exception as e:
             if self.strict:
                 raise
-            log.error("OpenAI falló (%s). Fallback Ollama.", e)
+            log.error("OpenAI failed (%s). Falling back to Ollama.", e)
             return self._ollama(system, user)
 
 
 def health() -> dict:
-    """Comprueba disponibilidad de cada backend (para el menú)."""
+    """Checks each backend's availability (for the menu)."""
     from .config import get_config
 
     cfg = get_config()
@@ -346,16 +348,17 @@ def health() -> dict:
 
 
 class ModelNotAvailable(Exception):
-    """El servidor responde, pero el modelo pedido no está."""
+    """The server responds, but the requested model isn't there."""
 
 
 def export_key(selection, api_key: str | None) -> None:
-    """Pone la key donde los backends la buscan: os.environ.
+    """Puts the key where the backends look for it: os.environ.
 
-    _openai() y _claude() leen la key del entorno (os.environ.get(env_key)), que
-    es como funcionaba cuando venía de ~/.voooxly/.env. Con la key en el llavero
-    hay que puentearla aquí, o el backend nunca la ve y el flujo entero queda
-    bonito sin funcionar.
+    _openai() and _claude() read the key from the environment
+    (os.environ.get(env_key)), which is how it worked when it came from
+    ~/.voooxly/.env. With the key in the keychain it has to be bridged here,
+    or the backend never sees it and the whole flow sits there looking
+    nice without working.
     """
     if not api_key:
         return
@@ -369,12 +372,12 @@ def export_key(selection, api_key: str | None) -> None:
 
 
 class _CandidateConfig:
-    """Vista de solo lectura: config real + los valores del candidato a probar.
+    """Read-only view: real config + the values of the candidate under probe.
 
-    Refiner sólo lee config vía self.cfg.get(path, default), así que basta con
-    interceptar aquí las claves que el candidato cambia y delegar el resto al
-    Config real. Nada se escribe nunca en el singleton — una validación
-    fallida, cancelada o exitosa no puede dejar rastro en la app en marcha.
+    Refiner only reads config via self.cfg.get(path, default), so it's enough
+    to intercept here the keys the candidate changes and delegate the rest to
+    the real Config. Nothing is ever written to the singleton — a failed,
+    cancelled or successful validation cannot leave a trace in the running app.
     """
 
     def __init__(self, base_cfg, overrides: dict):
@@ -388,17 +391,17 @@ class _CandidateConfig:
 
 
 def _probe(selection, api_key: str | None, timeout: float) -> str:
-    """Una generación mínima por la MISMA ruta que usa un dictado.
+    """A minimal generation through the SAME route a dictation uses.
 
-    No toca la config real: el Refiner desechable recibe una _CandidateConfig
-    que superpone sólo las claves de ESTE candidato sobre la config real.
-    Además, cada "kind" tiene su propia ruta de host/base_url: los presets
-    openai/groq/openrouter/custom comparten kind="openai" y por tanto
-    llm.openai.*, mientras que ollama tiene su propio llm.ollama.host. Escribir
-    siempre en llm.openai.base_url (como antes) hacía que un probe de Ollama
-    ignorara el host del candidato y probara el que ya hubiera en config, y que
-    validar CUALQUIER preset openai-compatible pisara la config de los otros
-    tres.
+    Doesn't touch the real config: the throwaway Refiner gets a
+    _CandidateConfig that overlays only THIS candidate's keys on top of the
+    real config. Also, each "kind" has its own host/base_url path: the
+    openai/groq/openrouter/custom presets share kind="openai" and therefore
+    llm.openai.*, while ollama has its own llm.ollama.host. Always writing
+    llm.openai.base_url (as before) made an Ollama probe ignore the
+    candidate's host and probe whichever one was already in config, and made
+    validating ANY openai-compatible preset stomp on the config of the other
+    three.
     """
     export_key(selection, api_key)
     from .config import get_config
@@ -406,27 +409,27 @@ def _probe(selection, api_key: str | None, timeout: float) -> str:
     kind = selection.provider.kind
     overrides = {
         f"llm.{kind}.model": selection.model,
-        # El usuario está mirando un diálogo modal mientras esto corre: el
-        # timeout pedido tiene que llegar de verdad al backend. Los tres
-        # backends leen su timeout de config (no como parámetro).
+        # The user is staring at a modal dialog while this runs: the
+        # requested timeout has to actually reach the backend. All three
+        # backends read their timeout from config (not as a parameter).
         f"llm.{kind}.timeout": timeout,
     }
     if kind == "ollama":
         overrides["llm.ollama.host"] = selection.base_url
     elif selection.base_url:
-        # Mismo guardado que en apply_ai_selection: Claude no tiene base_url
-        # propia (base_url == "" por diseño en providers.py) y superponer
-        # llm.openai.base_url = "" aquí es el patrón exacto que ya produjo
-        # tres bugs en esta rama.
+        # Same guard as in apply_ai_selection: Claude has no base_url of its
+        # own (base_url == "" by design in providers.py) and overlaying
+        # llm.openai.base_url = "" here is the exact pattern that already
+        # produced three bugs in this branch.
         overrides["llm.openai.base_url"] = selection.base_url
 
     r = Refiner.__new__(Refiner)
     r.cfg = _CandidateConfig(get_config(), overrides)
     r.backend = kind
-    # Sin esto, un candidato openai/claude roto cae al fallback de Ollama de
-    # _openai()/_claude() y, si el Ollama YA CONFIGURADO en la máquina del
-    # usuario responde bien (lo normal), validate() da éxito nombrando un
-    # proveedor que en realidad nunca contestó.
+    # Without this, a broken openai/claude candidate falls to the Ollama
+    # fallback of _openai()/_claude() and, if the Ollama ALREADY CONFIGURED on
+    # the user's machine answers fine (the usual case), validate() reports
+    # success naming a provider that actually never replied.
     r.strict = True
     if kind == "ollama":
         return r._ollama("Reply with the single word OK.", "ping")
@@ -436,9 +439,9 @@ def _probe(selection, api_key: str | None, timeout: float) -> str:
 
 
 def _env_key_for(selection) -> str | None:
-    """Variable de entorno que _probe (vía export_key) toca para este kind.
+    """Environment variable that _probe (via export_key) touches for this kind.
 
-    None para ollama: no hay key de por medio, nada que restaurar.
+    None for ollama: no key involved, nothing to restore.
     """
     kind = selection.provider.kind
     if kind == "claude":
@@ -451,17 +454,17 @@ def _env_key_for(selection) -> str | None:
 
 
 def validate(selection, api_key: str | None, timeout: float = 12.0) -> tuple[bool, str]:
-    """Comprueba de verdad que el proveedor refina. Devuelve (ok, mensaje)."""
+    """Actually checks that the provider refines. Returns (ok, message)."""
     if selection.provider.needs_key and not api_key:
         return False, f"{selection.provider.name} needs an API key."
     if not selection.model:
         return False, f"Pick a model for {selection.provider.name}."
-    # _probe() exporta la key candidata a os.environ ANTES de generar (los
-    # backends la leen de ahí). Si la validación falla, esa key rechazada se
-    # queda en el entorno y sesga la próxima detect_backend() (su cascada solo
-    # mira PRESENCIA de la variable, no si la key funciona). Snapshot + restore
-    # deja el entorno como estaba en cualquier fallo; en éxito la dejamos
-    # puesta, porque acaba de demostrar que funciona.
+    # _probe() exports the candidate key to os.environ BEFORE generating (the
+    # backends read it from there). If validation fails, that rejected key
+    # stays in the environment and biases the next detect_backend() (its
+    # cascade only checks PRESENCE of the variable, not whether the key
+    # works). Snapshot + restore leaves the environment as it was on any
+    # failure; on success we leave it set, because it just proved it works.
     env_key = _env_key_for(selection)
     prev = os.environ.get(env_key) if env_key else None
     had_prev = env_key is not None and env_key in os.environ

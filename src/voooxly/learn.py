@@ -1,21 +1,21 @@
-"""Aprender del usuario: qué corrigió sobre un dictado y qué merece el diccionario.
+"""Learning from the user: what they corrected on a dictation and what earns the dictionary.
 
-Módulo puro (sin AppKit) por el mismo motivo que shortcuts.py: la lógica
-delicada se prueba en pytest; app.py solo pega la ventana.
+Pure module (no AppKit) for the same reason as shortcuts.py: the delicate
+logic is tested in pytest; app.py only glues on the window.
 
-El sesgo es deliberado: PRECISIÓN sobre exhaustividad. Un reemplazo
-aprendido de más corrompe todos los dictados futuros (dictionary.apply es
-global y case-insensitive); uno aprendido de menos solo cuesta repetir la
-corrección a mano. Por eso solo se aprende de sustituciones cortas
-(1 palabra mal → 1-2 bien) y nunca de borrados, inserciones o reescrituras.
+The bias is deliberate: PRECISION over exhaustiveness. One replacement
+learned in excess corrupts every future dictation (dictionary.apply is
+global and case-insensitive); one learned short only costs repeating the
+correction by hand. That's why we only learn from short substitutions
+(1 wrong word → 1-2 right) and never from deletions, insertions or rewrites.
 """
 from __future__ import annotations
 
 import difflib
 import re
 
-# Máx. palabras a cada lado de una sustitución para considerarla "grafía
-# corregida" y no "frase reescrita". 1→2 cubre "wisperflow" → "Wispr Flow".
+# Max words on each side of a substitution to consider it a "corrected
+# spelling" and not a "rewritten phrase". 1→2 covers "wisperflow" → "Wispr Flow".
 _MAX_WRONG = 1
 _MAX_RIGHT = 2
 
@@ -28,11 +28,11 @@ def _strip_punct(w: str) -> str:
     return re.sub(r"^\W+|\W+$", "", w, flags=re.UNICODE)
 
 
-# --- Vía automática: guardas extra sobre corrections() ---------------------
-# Un error de ASR SUENA como lo que el usuario quería decir; una edición de
-# estilo no. Normalización fonética es-aware barata (sin dependencias) +
-# ratio de similitud: suficiente para separar "wisperflow"→"Wispr Flow"
-# (aprende) de "envía"→"manda" (silencio).
+# --- Automatic path: extra guards on top of corrections() ------------------
+# An ASR error SOUNDS like what the user meant to say; a style edit does
+# not. Cheap es-aware phonetic normalization (no dependencies) +
+# similarity ratio: enough to separate "wisperflow"→"Wispr Flow"
+# (learns) from "envía"→"manda" (silence).
 _PHONETIC_SUBS = (
     ("ph", "f"), ("qu", "k"), ("ch", "x"), ("ll", "y"), ("h", ""),
     ("v", "b"), ("z", "s"), ("ge", "je"), ("gi", "ji"), ("ce", "se"),
@@ -42,7 +42,7 @@ _SOUNDS_ALIKE_MIN = 0.6
 
 
 def normalize_phonetic(s: str) -> str:
-    """Colapsa grafías que suenan igual en español (v/b, h muda, ll/y, qu/k…)."""
+    """Collapses spellings that sound the same in Spanish (v/b, silent h, ll/y, qu/k…)."""
     import unicodedata
 
     t = unicodedata.normalize("NFD", (s or "").lower())
@@ -68,10 +68,10 @@ def _is_common(word: str) -> bool:
 
 
 def corrections(original: str, corrected: str) -> list[tuple[str, str]]:
-    """Pares (mal, bien) que el usuario corrigió, aptos como reemplazos.
+    """(wrong, right) pairs the user corrected, suitable as replacements.
 
-    Solo opcodes 'replace' cortos del SequenceMatcher sobre palabras; los
-    bordes de puntuación se recortan para que "hola," vs "hola" no cuente.
+    Only short 'replace' opcodes from the SequenceMatcher over words; the
+    punctuation edges are trimmed so that "hola," vs "hola" doesn't count.
     """
     a, b = _words(original), _words(corrected)
     if not a or not b:
@@ -86,22 +86,22 @@ def corrections(original: str, corrected: str) -> list[tuple[str, str]]:
         right = _strip_punct(" ".join(b[j1:j2]))
         if not wrong or not right:
             continue
-        # Cambio solo de puntuación: tras recortar bordes quedan iguales.
+        # Punctuation-only change: after trimming the edges they're equal.
         if wrong == right:
             continue
         fuera.append((wrong, right))
     return fuera
 
 
-# Umbral de "lo pegado sigue ahí": por debajo, el usuario cambió de campo,
-# lo borró o lo reescribió — y en cualquiera de esos casos no hay nada que
-# aprender con seguridad. Limitación aceptada: un pegado de 1 palabra
-# corregido entero no se localiza (matched=0) — falla en silencio, a propósito.
+# Threshold for "the paste is still there": below it, the user switched
+# fields, deleted it or rewrote it — and in any of those cases there's
+# nothing to learn safely. Accepted limitation: a 1-word paste corrected
+# in full can't be located (matched=0) — it fails silently, on purpose.
 _LOCATE_MIN_RATIO = 0.6
 
 
 def locate_pasted(pasted: str, field_text: str) -> str | None:
-    """Región del campo que corresponde a lo pegado (quizá ya corregida)."""
+    """Region of the field corresponding to the paste (perhaps already corrected)."""
     pw, fw = _words(pasted), _words(field_text)
     if not pw or not fw:
         return None
@@ -118,22 +118,22 @@ def locate_pasted(pasted: str, field_text: str) -> str | None:
 
 
 def auto_corrections(pasted: str, field_text: str) -> list[tuple[str, str]]:
-    """Pares (mal, bien) de la vía automática: corrections() + fonética + frecuencia."""
+    """(wrong, right) pairs from the automatic path: corrections() + phonetics + frequency."""
     region = locate_pasted(pasted, field_text)
     if region is None:
         return []
     fuera: list[tuple[str, str]] = []
     for wrong, right in corrections(pasted, region):
         if not sounds_alike(wrong, right):
-            continue  # edición de estilo, no error de oído
+            continue  # style edit, not a hearing error
         if _is_common(wrong) or all(_is_common(w) for w in right.split()):
-            continue  # una palabra común como reemplazo global es una bomba
+            continue  # a common word as a global replacement is a bomb
         fuera.append((wrong, right))
     return fuera
 
 
 def _persist(pairs: list[tuple[str, str]], path=None) -> list[str]:
-    """Guarda pares en el diccionario; una entrada que falle se salta."""
+    """Saves pairs into the dictionary; an entry that fails is skipped."""
     from . import dictionary
 
     descs: list[str] = []
@@ -146,16 +146,16 @@ def _persist(pairs: list[tuple[str, str]], path=None) -> list[str]:
 
 
 def learn_from(original: str, corrected: str, path=None) -> list[str]:
-    """Aprende las correcciones y devuelve descripciones para el HUD.
+    """Learns the corrections and returns descriptions for the HUD.
 
-    Best-effort como todo lo que rodea al dictado: una entrada que no se
-    pueda guardar se salta, jamás se propaga una excepción al menú.
+    Best-effort like everything surrounding dictation: an entry that can't
+    be saved is skipped, an exception is never propagated to the menu.
     """
     return _persist(corrections(original, corrected), path=path)
 
 
 def auto_learn_from(pasted: str, field_text: str, path=None) -> list[str]:
-    """Aprende de las correcciones hechas in-situ. Best-effort, nunca lanza."""
+    """Learns from corrections made in place. Best-effort, never raises."""
     try:
         return _persist(auto_corrections(pasted, field_text), path=path)
     except Exception:

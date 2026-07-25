@@ -6,7 +6,7 @@ from voooxly import setup_checks
 
 @contextmanager
 def fake_state(mic=True, acc=True, model=True, ai=True):
-    """Parchea las cuatro sondas del sistema para testear la lógica sin tocar macOS."""
+    """Patches the four system probes to test the logic without touching macOS."""
     with ExitStack() as stack:
         for name, value in (
             ("has_microphone", mic),
@@ -26,7 +26,7 @@ def test_check_all_devuelve_los_cuatro_pasos_en_orden():
 
 
 def test_el_motor_de_ia_no_es_bloqueante():
-    """Sin IA la app dicta igual en modo Verbatim: no debe frenar el arranque."""
+    """Without AI the app still dictates in Verbatim mode: it must not block startup."""
     with fake_state(ai=False):
         checks = {c.key: c for c in setup_checks.check_all()}
         assert checks["ai"].blocking is False
@@ -34,17 +34,17 @@ def test_el_motor_de_ia_no_es_bloqueante():
         assert setup_checks.needs_setup() is False
 
 
-def test_needs_setup_true_si_falta_accesibilidad():
+def test_needs_setup_true_if_accessibility_missing():
     with fake_state(acc=False):
         assert setup_checks.needs_setup() is True
 
 
-def test_needs_setup_true_si_falta_el_modelo():
+def test_needs_setup_true_if_model_missing():
     with fake_state(model=False):
         assert setup_checks.needs_setup() is True
 
 
-def test_needs_setup_true_si_falta_el_microfono():
+def test_needs_setup_true_if_microphone_missing():
     with fake_state(mic=False):
         assert setup_checks.needs_setup() is True
 
@@ -63,6 +63,6 @@ def test_has_ai_engine_true_si_algun_backend_esta_vivo():
         assert setup_checks.has_ai_engine() is False
 
 
-def test_has_ai_engine_no_lanza_si_health_falla():
+def test_has_ai_engine_does_not_raise_if_health_fails():
     with patch("voooxly.refine.health", side_effect=OSError("boom")):
         assert setup_checks.has_ai_engine() is False

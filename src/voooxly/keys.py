@@ -1,26 +1,26 @@
-"""Catálogo de teclas de dictado y su validación.
+"""Catalog of dictation keys and their validation.
 
-Un módulo de datos, sin AppKit, por el mismo motivo que existe ai_settings.py:
-instanciar VoooxlyApp construye menús y no se puede hacer en un test. Aquí vive
-toda la lógica que se puede verificar; app.py solo cablea el menú.
+A data module, no AppKit, for the same reason ai_settings.py exists:
+instantiating VoooxlyApp builds menus and can't be done in a test. All the
+verifiable logic lives here; app.py only wires the menu.
 
-La validación es la parte importante. Elegir mal la tecla de dictado no es un
-detalle de configuración: inutiliza el teclado. Con "a" de tecla de dictado
-dejas de poder escribir la letra a en todo el sistema, y para arreglarlo hay
-que editar prefs.json a mano — cosa que el usuario que necesita este menú no
-sabe hacer.
+Validation is the important part. Choosing the dictation key badly is not a
+configuration detail: it cripples the keyboard. With "a" as the dictation
+key you can no longer type the letter a anywhere in the system, and fixing it
+requires editing prefs.json by hand — something the user who needs this menu
+doesn't know how to do.
 
-GUARDA (guard=True): los modificadores IZQUIERDOS se usan constantemente en
-combos (⌘C, ⌘V, ⌘S, ⌘Tab). hotkey.py dispara on_start() (modo hold) u
-on_toggle() (modo toggle) al caer la tecla, así que sin guarda cada ⌘C
-arrancaría o alternaría una grabación EN CUALQUIERA de los dos modos —
-needs_guard() no distingue por dictation_mode porque la tecla la necesita
-pase lo que pase en Settings → Dictation style. Con guarda, el disparo solo
-ocurre si mantienes la tecla SOLA ~300ms (en modo toggle eso cambia el gesto
-de un tap a un mantener breve). Las derechas no la llevan: casi nadie hace
-combos con ellas, la ruta actual ya está en producción y dársela costaría
-300ms de latencia a todo el mundo para arreglar un problema que solo tienen
-las izquierdas.
+GUARD (guard=True): the LEFT modifiers are used constantly in
+combos (⌘C, ⌘V, ⌘S, ⌘Tab). hotkey.py fires on_start() (hold mode) or
+on_toggle() (toggle mode) on key-down, so without the guard every ⌘C
+would start or toggle a recording IN EITHER of the two modes —
+needs_guard() doesn't distinguish by dictation_mode because the key needs it
+no matter what's in Settings → Dictation style. With the guard, the trigger
+only happens if you hold the key ALONE ~300ms (in toggle mode that changes
+the gesture from a tap to a brief hold). The right ones don't carry it:
+almost nobody makes combos with them, the current path is already in
+production and giving it to them would cost everyone 300ms of latency to fix
+a problem only the left ones have.
 """
 from __future__ import annotations
 
@@ -29,43 +29,43 @@ from dataclasses import dataclass
 DEFAULT_KEY = "cmd_r"
 DEFAULT_MODE = "hold"
 
-# Modo del botón de dictado. El texto es el que se ve en el menú.
+# Dictation button mode. The text is what's shown in the menu.
 MODES: dict[str, str] = {
     "hold": "Hold to talk",
     "toggle": "Press to start / stop",
 }
 
-# Prefijos de los modificadores: se usan en combos, así que necesitan guarda.
+# Modifier prefixes: they're used in combos, so they need the guard.
 _MODIFICADORES = ("cmd", "alt", "ctrl")
 
-# Los modificadores con lado que pynput conoce de verdad. Se listan enteros en
-# vez de deducirlos con un sufijo "_l"/"_r" porque alt_gr no lo cumple y la
-# deducción generaba mensajes de error absurdos ("prueba alt__r").
+# The sided modifiers pynput actually knows. They're listed in full instead
+# of deducing them with an "_l"/"_r" suffix because alt_gr doesn't comply and
+# the deduction generated absurd error messages ("prueba alt__r").
 _MODIFICADORES_CON_LADO = {
     "cmd_l", "cmd_r", "alt_l", "alt_r", "alt_gr", "ctrl_l", "ctrl_r",
 }
 
-# Teclas con dueño: no se pueden reasignar a dictado sin dejar la app coja.
+# Keys with an owner: can't be reassigned to dictation without crippling the app.
 _RESERVADAS = {"esc", "shift", "shift_l", "shift_r"}
 
-# alt_gr no está en el catálogo pero pynput la colapsa en el mismo miembro de
-# enum que alt_r: en macOS no existe una tecla AltGr física distinta de la
-# Option derecha, así que ambas comparten virtual keycode y `Key.alt_gr is
-# Key.alt_r` (verificado contra el pynput del proyecto). needs_guard() tiene
-# que saberlo: sin este alias trataría alt_gr como "un modificador
-# cualquiera" y le pondría guarda, incoherente con que el catálogo ya trata
-# las derechas — que es lo que alt_gr ES de verdad — sin guarda.
+# alt_gr isn't in the catalog but pynput collapses it into the same enum
+# member as alt_r: on macOS there's no physical AltGr key distinct from the
+# right Option, so both share a virtual keycode and `Key.alt_gr is
+# Key.alt_r` (verified against the project's pynput). needs_guard() has
+# to know it: without this alias it would treat alt_gr as "just another
+# modifier" and give it the guard, inconsistent with the catalog already
+# treating the right ones — which is what alt_gr really IS — without a guard.
 _ALIAS_MISMA_TECLA = {"alt_gr": "alt_r"}
 
-# GOTCHA pynput: en macOS, Key.cmd_l NO es un miembro propio del enum sino un
-# ALIAS de Key.cmd — el backend darwin les da el mismo virtual keycode (0x37) y
-# enum.Enum colapsa los valores iguales en un solo miembro. Así que
-# `Key.cmd_l is Key.cmd` y su .name es "cmd": el listener jamás reporta
-# "cmd_l". El nombre genérico que reporta pynput ES el de la tecla izquierda,
-# y hay que traducir el nombre del catálogo al que llega del teclado o la
-# tecla no casaría nunca. Vive aquí y no en hotkey.py porque es aritmética de
-# diccionarios —no toca pynput— y shortcuts.py la necesita para ver conflictos
-# sin arrastrar pynput a un módulo de datos.
+# pynput GOTCHA: on macOS, Key.cmd_l is NOT its own enum member but an
+# ALIAS of Key.cmd — the darwin backend gives them the same virtual keycode
+# (0x37) and enum.Enum collapses equal values into a single member. So
+# `Key.cmd_l is Key.cmd` and its .name is "cmd": the listener never reports
+# "cmd_l". The generic name pynput reports IS the left key's, and the
+# catalog name has to be translated to the one arriving from the keyboard or
+# the key would never match. Lives here and not in hotkey.py because it is
+# dictionary arithmetic —doesn't touch pynput— and shortcuts.py needs it to
+# see conflicts without dragging pynput into a data module.
 _ALIAS_IZQUIERDA = {
     "cmd_l": "cmd",
     "alt_l": "alt",
@@ -75,7 +75,7 @@ _ALIAS_IZQUIERDA = {
 
 
 def canon(name: str | None) -> str | None:
-    """Nombre de tecla configurado → nombre que pynput reporta de verdad."""
+    """Configured key name → the name pynput actually reports."""
     if not name:
         return name
     low = name.lower()
@@ -83,37 +83,38 @@ def canon(name: str | None) -> str | None:
         return _ALIAS_IZQUIERDA[low]
     return _ALIAS_MISMA_TECLA.get(low, low)
 
-# Nombres de pynput que aceptamos fuera del catálogo. Ya no hay entrada
-# "Custom…" en el menú (la retiramos: ver DICTATION_KEYS), pero validate_custom
-# sigue siendo la puerta de prefs.json y de config.yaml > hotkeys.toggle, que
-# es por donde entra hoy quien quiera una F.
-# Las funciones llegan hasta f20 en pynput.
+# pynput names we accept outside the catalog. There is no "Custom…" menu
+# entry anymore (we removed it: see DICTATION_KEYS), but validate_custom
+# remains the gate for prefs.json and for config.yaml > hotkeys.toggle, which
+# is how anyone wanting an F key gets in today.
+# Function keys go up to f20 in pynput.
 _FUNCIONES = {f"f{i}" for i in range(1, 21)}
 
-# "fn" no es un nombre pynput: su flagsChanged (vk 63) lo endereza hotkey.py a
-# mano (pynput lo entrega siempre como release). Se acepta aquí porque es la
-# tecla de dictado estrella de Wispr Flow y no lleva guarda: nadie hace combos
-# ⌘C con fn, así que _es_modificador() ya le da False sin ayuda.
+# "fn" is not a pynput name: its flagsChanged (vk 63) is straightened out by
+# hotkey.py by hand (pynput always delivers it as a release). It's accepted
+# here because it's Wispr Flow's star dictation key and carries no guard:
+# nobody does ⌘C combos with fn, so _es_modificador() already gives it False
+# with no help.
 _ESPECIALES = {"fn"}
 
 
 @dataclass(frozen=True)
 class DictationKey:
-    name: str    # nombre pynput
-    label: str   # etiqueta del menú
-    guard: bool  # ¿necesita ventana de decisión?
+    name: str    # pynput name
+    label: str   # menu label
+    guard: bool  # needs a decision window?
 
 
-# El orden es el del menú (orden de inserción): las derechas primero porque son
-# las recomendadas y las izquierdas después, con el retardo escrito en la propia
-# etiqueta.
+# The order is the menu's (insertion order): the right ones first because
+# they're the recommended ones and the left ones after, with the delay written
+# into the label itself.
 #
-# Solo los seis modificadores de la fila de abajo. Las F estuvieron aquí y se
-# retiraron: F13-F15 no existen en ningún teclado de portátil, así que a quien
-# abría el menú en un MacBook le sobraban cuatro filas de diez que no podía
-# pulsar — y una lista donde casi la mitad no funciona hace dudar del resto.
-# Siguen aceptándose por config.yaml > hotkeys.toggle (ver _FUNCIONES) para
-# quien tenga un teclado que las traiga y sepa editar el YAML.
+# Only the six modifiers of the bottom row. The F keys were here and got
+# removed: F13-F15 don't exist on any laptop keyboard, so whoever opened the
+# menu on a MacBook had four out of ten rows they couldn't press — and a list
+# where almost half doesn't work casts doubt on the rest.
+# They're still accepted via config.yaml > hotkeys.toggle (see _FUNCIONES) for
+# whoever has a keyboard that carries them and knows how to edit the YAML.
 DICTATION_KEYS: dict[str, DictationKey] = {
     "cmd_r": DictationKey("cmd_r", "Right ⌘ (Command)", False),
     "alt_r": DictationKey("alt_r", "Right ⌥ (Option)", False),
@@ -129,10 +130,10 @@ def get(name: str) -> DictationKey | None:
 
 
 def needs_guard(name: str) -> bool:
-    """¿Esta tecla necesita ventana de decisión antes de empezar a grabar?
+    """Does this key need a decision window before starting to record?
 
-    Las del catálogo lo llevan escrito. Una custom la necesita si es un
-    modificador (se usa en combos); una función o una multimedia, no.
+    The catalog ones carry it written down. A custom one needs it if it's a
+    modifier (used in combos); a function or media key doesn't.
     """
     k = get(_ALIAS_MISMA_TECLA.get(name, name))
     if k is not None:
@@ -145,13 +146,13 @@ def _es_modificador(name: str) -> bool:
 
 
 def validate_custom(name: str) -> tuple[bool, str]:
-    """¿Sirve `name` como tecla de dictado? Devuelve (ok, mensaje).
+    """Does `name` work as a dictation key? Returns (ok, message).
 
-    El mensaje de error dice qué está mal Y cómo arreglarlo: quien llega aquí
-    es justo el usuario que no sabe qué es un "nombre de tecla de pynput".
-    Acepta cualquier tipo, no solo str: esta función queda cableada a la
-    entrada del menú, y un valor no-string ahí no es un caso de laboratorio
-    sino lo primero que puede llegar de una entrada de texto sin validar.
+    The error message says what's wrong AND how to fix it: whoever gets here
+    is precisely the user who doesn't know what a "pynput key name" is.
+    Accepts any type, not just str: this function ends up wired to the
+    menu's input, and a non-string value there isn't a laboratory case
+    but the first thing an unvalidated text field can deliver.
     """
     if not isinstance(name, str):
         return False, "A key name must be text, not a number or other value."
@@ -169,11 +170,12 @@ def validate_custom(name: str) -> tuple[bool, str]:
         dueno = "cancel a dictation" if name.startswith("esc") else "latch a long dictation"
         return False, f'"{name}" is already used to {dueno}. Pick another key.'
     if name in _MODIFICADORES:
-        # OJO: no decir que "{name}" a secas casaría con las dos manos — en
-        # macOS solo casa con la izquierda (pynput colapsa Key.cmd_l en
-        # Key.cmd; ver hotkey._canon). Ese mensaje era falso, y encima el
-        # "arreglo" que sugería antes ({name}_l) canonicaliza de vuelta al
-        # mismo "{name}" plano. Se pide lado sin afirmar cuál casa hoy.
+        # CAREFUL: don't say a plain "{name}" would match both hands — on
+        # macOS it only matches the left one (pynput collapses Key.cmd_l into
+        # Key.cmd; see hotkey._canon). That message was false, and on top of
+        # that the "fix" it used to suggest ({name}_l) canonicalizes back to
+        # the same plain "{name}". A side is asked for without asserting
+        # which one matches today.
         return False, (
             f'"{name}" needs a side — use {name}_l for the left key '
             f"or {name}_r for the right key."
@@ -187,17 +189,17 @@ def validate_custom(name: str) -> tuple[bool, str]:
 
 
 def resolve(prefs: dict, cfg) -> tuple[str, str, bool]:
-    """(tecla, modo, guarda) efectivos: prefs del usuario por encima del YAML.
+    """Effective (key, mode, guard): the user's prefs on top of the YAML.
 
-    Mismo patrón que `sounds` en app.py — config.yaml es el valor de fábrica y
-    lo que eligió el usuario manda. Ni unos prefs corruptos (una lista, un
-    número, una tecla retirada en una versión posterior) ni un YAML corrupto
-    (un string suelto donde debía ir una lista, un tipo que ni se puede
-    indexar) pueden dejar la app sin hotkey: ~/.voooxly/config.yaml es
-    manuscrito por quien lo tenga y "toggle: cmd_r" en vez de
-    "toggle: [cmd_r]" es un error de tecleo, no un caso exótico. Las dos
-    fuentes pasan por la misma puerta — validate_custom — y las dos caen al
-    DEFAULT_KEY si no la pasan.
+    Same pattern as `sounds` in app.py — config.yaml is the factory value and
+    what the user chose wins. Neither corrupt prefs (a list, a
+    number, a key removed in a later version) nor a corrupt YAML
+    (a bare string where a list should go, a type that can't even be
+    indexed) can leave the app without a hotkey: ~/.voooxly/config.yaml is
+    handwritten by whoever has it and "toggle: cmd_r" instead of
+    "toggle: [cmd_r]" is a typing mistake, not an exotic case. Both
+    sources go through the same gate — validate_custom — and both fall to
+    DEFAULT_KEY if they fail it.
     """
     tecla = DEFAULT_KEY
     del_yaml = cfg.get("hotkeys.toggle", [DEFAULT_KEY]) or [DEFAULT_KEY]

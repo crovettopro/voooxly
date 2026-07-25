@@ -1,6 +1,7 @@
-"""Latch (modo hold): Shift SIN soltar la tecla de dictado fija la grabación;
-soltar ya no la corta y un tap posterior la termina. El autorepeat de una tecla
-mantenida tras el tap no debe rearrancar nada, y Esc deshace el latch.
+"""Latch (hold mode): Shift WITHOUT releasing the dictation key latches the
+recording; releasing no longer cuts it and a later tap ends it. The autorepeat
+of a key held down after the tap must not restart anything, and Esc undoes the
+latch.
 """
 import threading
 import time
@@ -26,20 +27,20 @@ def _mk(on_start, on_stop, on_latch=None, on_cancel=None):
     )
 
 
-def test_latch_fija_y_soltar_no_para():
+def test_latch_pins_and_release_does_not_stop():
     started, stopped, latched = threading.Event(), threading.Event(), threading.Event()
     hk = _mk(started.set, stopped.set, latched.set)
-    hk._on_press(keyboard.Key.cmd_r)          # mantener
+    hk._on_press(keyboard.Key.cmd_r)          # hold
     assert started.wait(2.0)
-    hk._on_press(keyboard.Key.shift)          # fijar sin soltar
+    hk._on_press(keyboard.Key.shift)          # latch without releasing
     assert latched.wait(2.0)
     hk._on_release(keyboard.Key.shift)
-    hk._on_release(keyboard.Key.cmd_r)        # soltar: se sigue grabando
+    hk._on_release(keyboard.Key.cmd_r)        # release: still recording
     time.sleep(0.15)
     assert not stopped.is_set(), "el latch no evitó el stop al soltar"
 
 
-def test_tap_tras_latch_termina_una_sola_vez():
+def test_tap_after_latch_ends_once():
     stops = 0
     done = threading.Event()
 
@@ -54,7 +55,7 @@ def test_tap_tras_latch_termina_una_sola_vez():
     hk._on_press(keyboard.Key.shift)
     hk._on_release(keyboard.Key.shift)
     hk._on_release(keyboard.Key.cmd_r)
-    # tap para terminar… pero el usuario se queda con la tecla pulsada
+    # tap to finish… but the user keeps the key held down
     hk._on_press(keyboard.Key.cmd_r)
     assert done.wait(2.0)
     hk._on_press(keyboard.Key.cmd_r)          # autorepeat
@@ -67,7 +68,7 @@ def test_tap_tras_latch_termina_una_sola_vez():
     assert stops == 1, "la release del tap disparó otro stop"
 
 
-def test_shift_derecho_tambien_fija():
+def test_right_shift_also_pins():
     latched = threading.Event()
     hk = _mk(lambda: None, lambda: None, latched.set)
     hk._on_press(keyboard.Key.cmd_r)
@@ -75,15 +76,15 @@ def test_shift_derecho_tambien_fija():
     assert latched.wait(2.0)
 
 
-def test_sin_mantener_el_shift_no_fija_nada():
+def test_without_holding_shift_pins_nothing():
     latched = threading.Event()
     hk = _mk(lambda: None, lambda: None, latched.set)
-    hk._on_press(keyboard.Key.shift)          # shift suelto, sin dictado
+    hk._on_press(keyboard.Key.shift)          # stray shift, no dictation
     time.sleep(0.15)
     assert not latched.is_set()
 
 
-def test_esc_deshace_el_latch():
+def test_esc_undoes_latch():
     canceled = threading.Event()
     started = []
     hk = _mk(lambda: started.append(1), lambda: None, on_cancel=canceled.set)
@@ -91,10 +92,10 @@ def test_esc_deshace_el_latch():
     hk._on_press(keyboard.Key.shift)
     hk._on_release(keyboard.Key.shift)
     hk._on_release(keyboard.Key.cmd_r)
-    hk._on_press(keyboard.Key.esc)            # cancela el dictado fijado
+    hk._on_press(keyboard.Key.esc)            # cancels the latched dictation
     assert canceled.wait(2.0)
     hk._on_release(keyboard.Key.esc)
-    # la siguiente pulsación vuelve a EMPEZAR (no a "terminar" un latch fantasma)
+    # the next press STARTS again (it does not "finish" a phantom latch)
     hk._on_press(keyboard.Key.cmd_r)
     time.sleep(0.15)
     assert len(started) == 2, "tras Esc, la tecla de dictado no volvió a arrancar"

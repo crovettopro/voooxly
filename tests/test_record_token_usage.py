@@ -1,12 +1,12 @@
-"""_record_token_usage(): el conteo de tokens no puede impedir ni ensuciar
-el pegado. A nivel de módulo (mismo motivo que apply_ai_selection, ver
-test_apply_ai_selection.py) para poder testearla sin instanciar VoooxlyApp.
+"""_record_token_usage(): token counting can neither block nor pollute
+the paste. At module level (same reason as apply_ai_selection, see
+test_apply_ai_selection.py) so it can be tested without instantiating VoooxlyApp.
 
-Hallazgo 3: ai_settings.load(self._prefs) corría dentro del try/except de
-_process y ANTES de output.deliver(). Si lanzaba, el método abortaba al
-catch-all de arriba y el texto ya refinado nunca llegaba a pegarse — el peor
-desenlace posible para una tarea de solo contar tokens. stats.bump_tokens ya
-estaba bien envuelto; lo que faltaba envolver era la llamada nueva.
+Finding 3: ai_settings.load(self._prefs) ran inside _process's try/except
+and BEFORE output.deliver(). If it raised, the method aborted to the upper
+catch-all and the already-refined text never got pasted — the worst possible
+outcome for a task meant only to count tokens. stats.bump_tokens was already
+properly wrapped; what was missing was wrapping the new call.
 """
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ def test_sin_uso_no_llama_a_bump_tokens(monkeypatch):
     assert not llamadas
 
 
-def test_con_uso_llama_a_bump_tokens_con_el_proveedor_guardado(monkeypatch):
+def test_with_usage_calls_bump_tokens_with_saved_provider(monkeypatch):
     llamadas = []
     monkeypatch.setattr(
         stats, "bump_tokens", lambda tokens, provider: llamadas.append((tokens, provider))
@@ -35,19 +35,19 @@ def test_con_uso_llama_a_bump_tokens_con_el_proveedor_guardado(monkeypatch):
     assert llamadas
     tokens, provider = llamadas[0]
     assert tokens == 321
-    assert provider  # el label del proveedor guardado en prefs
+    assert provider  # the label of the provider saved in prefs
 
 
-def test_ai_settings_load_roto_no_lanza(monkeypatch):
-    """Si ai_settings.load() lanzara (prefs.json corrupto, un tipo
-    inesperado...) esto NO puede escapar: en _process corre DESPUÉS de
-    output.deliver(), y perder el pegado por un fallo al contar tokens es
-    justo lo que este hallazgo prohíbe."""
+def test_broken_ai_settings_load_does_not_raise(monkeypatch):
+    """If ai_settings.load() were to raise (corrupt prefs.json, an
+    unexpected type...) this must NOT escape: in _process it runs AFTER
+    output.deliver(), and losing the paste over a token-counting failure
+    is exactly what this finding forbids."""
     def load_roto(prefs):
         raise RuntimeError("prefs.json corrupto")
 
     monkeypatch.setattr(ai_settings, "load", load_roto)
-    app._record_token_usage(_RefinerFake(100), {})  # no debe lanzar
+    app._record_token_usage(_RefinerFake(100), {})  # must not raise
 
 
 def test_bump_tokens_roto_tampoco_escapa(monkeypatch):
@@ -55,4 +55,4 @@ def test_bump_tokens_roto_tampoco_escapa(monkeypatch):
         raise RuntimeError("disco lleno")
 
     monkeypatch.setattr(stats, "bump_tokens", bump_roto)
-    app._record_token_usage(_RefinerFake(100), {})  # no debe lanzar
+    app._record_token_usage(_RefinerFake(100), {})  # must not raise

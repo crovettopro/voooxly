@@ -1,17 +1,17 @@
-"""Modos de dictado. Cada modo = un system prompt que transforma lo dictado.
+"""Dictation modes. Each mode = a system prompt that transforms what was dictated.
 
-Diseño inspirado en los "Writing Styles" de Wispr Flow: el modo cambia cómo se
-reescribe lo que dices, no solo qué se transcribe. El LLM recibe la transcripción
-cruda y devuelve el texto final listo para pegar.
+Design inspired by Wispr Flow's "Writing Styles": the mode changes how what
+you say is rewritten, not just what gets transcribed. The LLM receives the raw
+transcription and returns the final text ready to paste.
 
-Los prompts van en inglés (rinden mejor en todos los backends, incluidos los
-modelos locales pequeños) y la salida conserva el idioma hablado salvo que
-app.language lo fije o el modo sea de traducción. Las CLAVES de los modos no se
-tocan: config, prefs y TCC las referencian.
+The prompts are in English (they perform better on every backend, including
+small local models) and the output keeps the spoken language unless
+app.language pins it or the mode is a translation one. The mode KEYS are not
+touched: config, prefs and TCC reference them.
 """
 from __future__ import annotations
 
-# Idioma de salida forzado. None = conservar el idioma hablado (lo normal).
+# Forced output language. None = keep the spoken language (the usual).
 DEFAULT_LANG = None
 
 
@@ -43,13 +43,14 @@ def _base_rules(lang: str | None) -> str:
 
 
 def _command_rules(lang: str | None) -> str:
-    """Reglas base del modo Command: aquí la instrucción SÍ se ejecuta.
+    """Base rules for the Command mode: here the instruction IS executed.
 
-    _base_rules prohíbe actuar sobre lo dictado — la regla que salva a los
-    demás modos de contestar una pregunta dictada. Command existe justo para
-    lo contrario (idea rescatada del Command Mode de Wispro, PH 2026-07-23):
-    el usuario dicta un ENCARGO de escritura y quiere el texto terminado, no
-    el encargo pulido. Por eso este modo no comparte base con el resto.
+    _base_rules forbids acting on the dictation — the rule that saves the
+    other modes from answering a dictated question. Command exists for
+    exactly the opposite (idea rescued from Wispro's Command Mode, PH
+    2026-07-23): the user dictates a writing ASSIGNMENT and wants the
+    finished text, not the polished assignment. That's why this mode
+    doesn't share the base with the rest.
     """
     if lang:
         lang_rule = (
@@ -78,9 +79,9 @@ def _command_rules(lang: str | None) -> str:
     )
 
 
-# Los labels/hints (UI) van en inglés; la SALIDA conserva el idioma hablado
-# (o app.language si el usuario lo fija). Las claves no se tocan.
-# "fast_lane": True → dictados cortos (llm.fast_lane_words) se pegan sin LLM.
+# The labels/hints (UI) are in English; the OUTPUT keeps the spoken language
+# (or app.language if the user pins it). The keys are not touched.
+# "fast_lane": True → short dictations (llm.fast_lane_words) are pasted without the LLM.
 MODES: dict[str, dict] = {
     "ordenar": {
         "label": "Organize & reply",
@@ -133,7 +134,7 @@ MODES: dict[str, dict] = {
     "resumir": {
         "label": "Summarize",
         "hint": "Condenses what you said into crisp bullets.",
-        "rich_paste": True,  # bullets renderizados en apps de texto rico
+        "rich_paste": True,  # bullets rendered in rich-text apps
         "system": (
             "Condense the transcript into crisp bullets that capture every "
             "distinct point.\n"
@@ -147,7 +148,7 @@ MODES: dict[str, dict] = {
     "traducir-en-es": {
         "label": "Translate EN→ES",
         "hint": "Speak English, paste Spanish.",
-        "stt_lang": "en",  # aquí el usuario dicta en inglés: forzar "es" lo rompería
+        "stt_lang": "en",  # here the user dictates in English: forcing "es" would break it
         "system": (
             "Translate the transcript from English into natural, native-sounding "
             "Spanish.\n"
@@ -196,7 +197,7 @@ MODES: dict[str, dict] = {
     "notas": {
         "label": "Markdown notes",
         "hint": "Structures your speech as a markdown note.",
-        "rich_paste": True,  # títulos/listas renderizados en Mail, Notion, Gmail…
+        "rich_paste": True,  # headings/lists rendered in Mail, Notion, Gmail…
         "system": (
             "Structure the transcript as a well-formed Markdown note, ready for "
             "Obsidian, Notion or a README.\n"
@@ -214,7 +215,7 @@ MODES: dict[str, dict] = {
     "comando": {
         "label": "Command",
         "hint": "Say what you want written — get the draft.",
-        "command": True,  # la instrucción se EJECUTA (ver _command_rules)
+        "command": True,  # the instruction gets EXECUTED (see _command_rules)
         "system": (
             "Write the text the instruction asks for.\n"
             "- 'Write an email to Ana about X' -> the email itself; add a "
@@ -231,7 +232,7 @@ MODES: dict[str, dict] = {
     "literal": {
         "label": "Verbatim",
         "hint": "Exactly what you said — no rewriting.",
-        "system": "NONE",  # señal especial: el refinador se salta y devuelve la transcripción tal cual
+        "system": "NONE",  # special signal: the refiner is skipped and the transcription returned as-is
     },
 }
 
@@ -249,8 +250,8 @@ def modes_by_key() -> dict[str, dict]:
 
 
 def flash_parts(mode: str) -> tuple[str, str]:
-    """(título, cuerpo) del HUD al cambiar de modo: nombre + posición en el
-    ciclo, y qué hace — para que Ctrl+Shift+M no sea ciclar a ciegas."""
+    """(title, body) of the HUD on mode change: name + position in the
+    cycle, and what it does — so Ctrl+Shift+M isn't cycling blind."""
     keys = list(MODES.keys())
     spec = MODES.get(mode) or MODES["ordenar"]
     try:

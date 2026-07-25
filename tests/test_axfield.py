@@ -1,5 +1,5 @@
-"""axfield debe poder importarse y llamarse en cualquier entorno (CI incluido):
-sin sesión gráfica devuelve None, jamás lanza."""
+"""axfield must be importable and callable in any environment (CI included):
+without a graphical session it returns None, it never raises."""
 from voooxly import axfield
 
 

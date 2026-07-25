@@ -1,10 +1,10 @@
-"""Auto-lock de idioma de dictado (es/en) por observación.
+"""Auto-lock of dictation language (es/en) by observation.
 
-El 99% de la gente dicta siempre en el mismo idioma; detectar idioma en cada
-petición cuesta ~1,1s (medido). Mientras el ajuste está en Auto, detectamos el
-idioma del RESULTADO por stopwords; tras LOCK_AFTER dictados consecutivos
-iguales, fijamos language= en las peticiones. Módulo puro (sin AppKit), como
-shortcuts.py: la lógica delicada se prueba en pytest.
+99% of people always dictate in the same language; detecting language on each
+request costs ~1.1s (measured). While the setting is on Auto, we detect the
+language of the RESULT via stopwords; after LOCK_AFTER consecutive identical
+dictations, we pin language= on requests. Pure module (no AppKit), like
+shortcuts.py: the delicate logic is tested in pytest.
 """
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ def _words(text) -> list[str]:
 
 
 def detect_lang_es_en(text) -> str | None:
-    """'es' o 'en' solo con señal clara; None en la duda (la duda no bloquea nada)."""
+    """'es' or 'en' only with a clear signal; None when unsure (uncertainty locks nothing)."""
     words = _words(text)
     if len(words) < 3:
         return None

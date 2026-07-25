@@ -1,7 +1,7 @@
-"""Ctrl+Shift+M (ciclo de modos) TIENE que casar en macOS, donde pynput
-entrega la letra como carácter de control cuando Ctrl está pulsado
-(Ctrl+M = '\\r'). El bug original comparaba chars crudos y el combo no
-disparaba jamás.
+"""Ctrl+Shift+M (mode cycle) HAS to match on macOS, where pynput
+delivers the letter as a control character when Ctrl is held
+(Ctrl+M = '\\r'). The original bug compared raw chars and the combo
+never fired.
 """
 import threading
 
@@ -25,22 +25,22 @@ def _mk(on_cycle=None):
 
 
 def test_ctrl_shift_m_con_control_char_dispara_cycle():
-    """Lo que macOS entrega de verdad al pulsar Ctrl+Shift+M."""
+    """What macOS actually delivers when pressing Ctrl+Shift+M."""
     fired = threading.Event()
     hk = _mk(on_cycle=fired.set)
     hk._on_press(keyboard.Key.ctrl)
     hk._on_press(keyboard.Key.shift)
-    hk._on_press(keyboard.KeyCode(char="\r", vk=46))  # Ctrl+M llega como \r
+    hk._on_press(keyboard.KeyCode(char="\r", vk=46))  # Ctrl+M arrives as \r
     assert fired.wait(2.0), "ctrl+shift+m no disparó el ciclo de modos"
 
 
 def test_char_limpio_sigue_funcionando():
-    """Por si algún backend entrega la letra sin mapear a control char."""
+    """In case some backend delivers the letter unmapped to a control char."""
     fired = threading.Event()
     hk = _mk(on_cycle=fired.set)
     hk._on_press(keyboard.Key.ctrl)
     hk._on_press(keyboard.Key.shift)
-    hk._on_press(keyboard.KeyCode.from_char("M"))  # mayúscula por el shift
+    hk._on_press(keyboard.KeyCode.from_char("M"))  # uppercase because of the shift
     assert fired.wait(2.0)
 
 
@@ -49,15 +49,15 @@ def test_sin_char_cae_al_virtual_keycode():
     hk = _mk(on_cycle=fired.set)
     hk._on_press(keyboard.Key.ctrl)
     hk._on_press(keyboard.Key.shift)
-    hk._on_press(keyboard.KeyCode(vk=46))  # sin char: solo el vk de la M
+    hk._on_press(keyboard.KeyCode(vk=46))  # no char: just the M's vk
     assert fired.wait(2.0)
 
 
-def test_el_combo_exige_las_tres_teclas():
+def test_combo_requires_all_three_keys():
     fired = threading.Event()
     hk = _mk(on_cycle=fired.set)
     hk._on_press(keyboard.Key.ctrl)
-    hk._on_press(keyboard.KeyCode(char="\r", vk=46))  # falta shift
+    hk._on_press(keyboard.KeyCode(char="\r", vk=46))  # shift missing
     import time
 
     time.sleep(0.15)

@@ -1,13 +1,13 @@
-"""Captura de micrófono + VAD + endpointing por silencio.
+"""Microphone capture + VAD + silence endpointing.
 
-Usa sounddevice (PortAudio) para capturar 16kHz mono int16 y webrtcvad para detectar
-voz frame a frame. Detecta el final del enunciado por silencio sostenido y expone
-tanto el audio completo como una ventana reciente para los partials en vivo.
+Uses sounddevice (PortAudio) to capture 16kHz mono int16 and webrtcvad to detect
+speech frame by frame. Detects the end of the utterance by sustained silence and
+exposes both the full audio and a recent window for the live partials.
 
-Diagnóstico integrado: cada grabación conoce su RMS y su ratio de frames con voz.
-Si macOS niega el micrófono (TCC), CoreAudio entrega ceros en silencio — el RMS≈0
-lo delata y la app puede avisar en vez de mandar silencio a Whisper (que alucina
-"Thank you." / "Gracias.").
+Built-in diagnostics: each recording knows its RMS and its ratio of voiced
+frames. If macOS denies the microphone (TCC), CoreAudio silently delivers zeros
+— the RMS≈0 gives it away and the app can warn instead of sending silence to
+Whisper (which hallucinates "Thank you." / "Gracias.").
 """
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ FRAME_SAMPLES = SR * FRAME_MS // 1000  # 480
 
 
 def rms_of(audio: np.ndarray) -> float:
-    """RMS de un buffer int16. Silencio TCC ≈ 0; voz normal ≈ 300–3000."""
+    """RMS of an int16 buffer. TCC silence ≈ 0; normal speech ≈ 300–3000."""
     if audio is None or len(audio) == 0:
         return 0.0
     return float(np.sqrt(np.mean(audio.astype(np.float64) ** 2)))
@@ -48,22 +48,22 @@ class AudioConfig:
     device: int | str | None = None
     vad_aggressiveness: int = 2
     silence_to_stop: float = 1.2
-    # 5 min, no 60s: el tope de un minuto anulaba el latch, que existe justo
-    # para dictados largos. No se quita del todo — sigue siendo la red de
-    # seguridad contra una tecla encallada, que grabaría hasta llenar el disco.
+    # 5 min, not 60s: the one-minute cap nullified the latch, which exists
+    # precisely for long dictations. It's not removed entirely — it remains
+    # the safety net against a stuck key, which would record until the disk fills.
     max_duration: float = 300.0
     min_duration: float = 0.4
 
 
 class Recorder:
-    """Grabador con VAD y endpointing automático por silencio."""
+    """Recorder with VAD and automatic silence endpointing."""
 
     def __init__(self, cfg: AudioConfig):
         self.cfg = cfg
         self.vad = webrtcvad.Vad(cfg.vad_aggressiveness)
         self._lock = threading.Lock()
-        self._frames: list[np.ndarray] = []          # audio completo capturado
-        self._recent: deque[np.ndarray] = deque()    # ventana para partials
+        self._frames: list[np.ndarray] = []          # full captured audio
+        self._recent: deque[np.ndarray] = deque()    # window for partials
         self._silence_frames = 0
         self._speech_frames = 0
         self._total_frames = 0
@@ -107,7 +107,7 @@ class Recorder:
                 target=self._partial_loop, daemon=True
             )
             self._partial_thread.start()
-        log.info("Micrófono: %s", default_input_name(self.cfg.device))
+        log.info("Microphone: %s", default_input_name(self.cfg.device))
         self._stream = sd.InputStream(
             samplerate=SR,
             channels=1,
@@ -119,9 +119,9 @@ class Recorder:
         self._stream.start()
 
     def stop(self) -> None:
-        """Aborta sin procesar (p.ej. al salir de la app)."""
+        """Aborts without processing (e.g. when quitting the app)."""
         with self._finalize_lock:
-            self._finalized = True  # bloquea cualquier on_stop posterior
+            self._finalized = True  # blocks any subsequent on_stop
         self._stop_event.set()
         try:
             if self._stream:
@@ -132,10 +132,10 @@ class Recorder:
         self._stream = None
 
     def force_finish(self) -> None:
-        """Cierra la grabación ahora y procesa (hotkey soltada / botón de menú)."""
+        """Closes the recording now and processes (hotkey released / menu button)."""
         self._finalize()
 
-    # --- stats para diagnóstico ---
+    # --- diagnostic stats ---
     @property
     def had_speech(self) -> bool:
         with self._lock:
@@ -159,9 +159,9 @@ class Recorder:
         except Exception:
             is_speech = False
 
-        # Capturamos SIEMPRE el audio (no solo lo que el VAD marca como voz):
-        # si el VAD falla o el micro está bajo, seguimos teniendo audio real para
-        # transcribir. El VAD solo se usa para endpointing por silencio.
+        # We ALWAYS capture the audio (not just what the VAD marks as speech):
+        # if the VAD fails or the mic is low, we still have real audio to
+        # transcribe. The VAD is only used for silence endpointing.
         with self._lock:
             self._recent.append(frame)
             max_recent = int(self._partial_window * SR / FRAME_SAMPLES)
@@ -176,9 +176,9 @@ class Recorder:
             elif self._has_speech:
                 self._silence_frames += 1
 
-        # endpointing (en modo hold silence_to_stop es ~infinito, así que no corta).
-        # OJO: no se puede parar el stream desde dentro de su propio callback
-        # (deadlock en PortAudio) — se delega a un hilo y se corta con CallbackStop.
+        # endpointing (in hold mode silence_to_stop is ~infinite, so it doesn't cut).
+        # CAREFUL: the stream can't be stopped from inside its own callback
+        # (PortAudio deadlock) — it's delegated to a thread and cut with CallbackStop.
         silence_secs = self._silence_frames * FRAME_MS / 1000.0
         elapsed = time.monotonic() - self._start_ts
         end_by_silence = self._has_speech and silence_secs >= self.cfg.silence_to_stop
@@ -199,7 +199,7 @@ class Recorder:
         audio = self.get_full_audio()
         duration = len(audio) / SR
         log.info(
-            "Grabación cerrada: %.1fs, RMS=%.0f, voz=%.0f%%",
+            "Recording closed: %.1fs, RMS=%.0f, voice=%.0f%%",
             duration, rms_of(audio), self.speech_ratio * 100,
         )
         if self._on_stop:
@@ -207,15 +207,15 @@ class Recorder:
             self._on_stop(audio if keep else None, duration)
 
     def _close_stream_with_watchdog(self) -> None:
-        """Cierra el stream sin dejarse colgar por CoreAudio.
+        """Closes the stream without getting hung by CoreAudio.
 
-        abort()/close() pueden bloquearse PARA SIEMPRE (visto en real: el
-        recorder quedó zombi, _on_stop nunca llegó y la app se quedó en
-        RECORDING con el micro abierto, inmune a release/Esc/tope de 60s
-        porque el guard _finalized convierte los reintentos en no-ops). El
-        cierre va en un hilo con timeout: si no responde en 3s, se abandona el
-        stream (se libera al morir el proceso) y el audio capturado se procesa
-        igual — recuperarse vale más que un close limpio.
+        abort()/close() can block FOREVER (seen for real: the recorder
+        went zombie, _on_stop never arrived and the app stayed in
+        RECORDING with the mic open, immune to release/Esc/the 60s cap
+        because the _finalized guard turns retries into no-ops). The close
+        goes in a thread with a timeout: if it doesn't respond in 3s, the
+        stream is abandoned (freed when the process dies) and the captured
+        audio is processed anyway — recovering is worth more than a clean close.
         """
         stream, self._stream = self._stream, None
         if stream is None:
@@ -223,8 +223,8 @@ class Recorder:
 
         def _close():
             try:
-                # abort() descarta buffers pendientes en vez de esperarlos:
-                # un stream atascado por TCC nunca los entregaría y stop() colgaría
+                # abort() discards pending buffers instead of waiting for them:
+                # a stream stuck by TCC would never deliver them and stop() would hang
                 stream.abort()
                 stream.close()
             except Exception:
@@ -235,8 +235,8 @@ class Recorder:
         t.join(timeout=3.0)
         if t.is_alive():
             log.warning(
-                "El stream de audio no respondió al abort/close en 3s "
-                "(CoreAudio colgado): continúo sin esperarlo."
+                "Audio stream didn't respond to abort/close in 3s "
+                "(CoreAudio hung): continuing without waiting for it."
             )
 
     def _partial_loop(self) -> None:

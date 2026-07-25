@@ -1,15 +1,15 @@
-"""Ventana de Shortcuts: reasignar los cuatro atajos capturando teclas.
+"""Shortcuts window: reassign the four shortcuts by capturing keys.
 
-NSWindow, NUNCA NSPanel: en macOS 26 (Darwin 25) el window server no compone
-un NSPanel — isVisible devuelve True y no hay un solo píxel. El HUD estuvo
-roto en silencio por eso durante semanas. Verificar SIEMPRE con screencapture.
+NSWindow, NEVER NSPanel: on macOS 26 (Darwin 25) the window server does not
+composite an NSPanel — isVisible returns True and not a single pixel shows. The
+HUD was silently broken for weeks because of this. ALWAYS verify with screencapture.
 
-NSWindow solo se puede instanciar en el hilo principal, igual que overlay.py y
-onboarding.py. La captura llega por el hilo del listener de pynput, así que
-todo repintado que salga de ella va por AppHelper.callAfter.
+NSWindow can only be instantiated on the main thread, just like overlay.py and
+onboarding.py. Capture arrives on the pynput listener thread, so any repaint
+coming out of it goes through AppHelper.callAfter.
 
-Este módulo solo pinta y recoge: quién puede tener qué tecla lo decide
-shortcuts.py, que es puro y está probado.
+This module only paints and collects: who may hold which key is decided by
+shortcuts.py, which is pure and tested.
 """
 from __future__ import annotations
 
@@ -39,67 +39,67 @@ PAD = 28
 ROW_H = 46
 
 def y_(top, h):
-    """'y desde arriba' (como en el diseño) → origen abajo-izquierda."""
+    """'y from the top' (as in the design) → bottom-left origin."""
     return H - top - h
 
 
-# La tabla de símbolos y key_label viven ahora en shortcuts.py (las comparte
-# el submenú Shortcuts de la barra, feedback v1.6). Sigue habiendo UNA sola
-# tabla — solo que en el módulo puro; este alias mantiene a los keycaps, los
-# chips y las casillas de relleno (⇪, fn, "arrows") pasando por ella.
+# The symbol table and key_label now live in shortcuts.py (shared with the
+# menu bar's Shortcuts submenu, v1.6 feedback). There is still ONE single
+# table — just in the pure module; this alias keeps the keycaps, the chips
+# and the filler cells (⇪, fn, "arrows") going through it.
 key_label = shortcuts.key_label
 
 
-# Los cuatro valores que shortcuts.side_hint puede devolver (ver su
-# docstring): la etiqueta de lado se dimensiona sobre el más ancho de
-# estos con AppKit, no sobre un número puesto a ojo. Ese fue justo el bug:
-# 58pt alcanzaban para "right" pero "either side" ya no cabía, y el texto
-# (correcto) se recortaba en pantalla sin que ningún test lo viera, porque
-# stringValue() sigue devolviendo el texto completo aunque el glifo se
-# corte al dibujarse.
+# The four values shortcuts.side_hint can return (see its docstring):
+# the side label is sized against the widest of these with AppKit, not
+# against an eyeballed number. That was exactly the bug: 58pt was enough
+# for "right" but "either side" no longer fit, and the (correct) text got
+# clipped on screen without any test seeing it, because stringValue()
+# still returns the full text even when the glyph gets cut off as it is
+# drawn.
 _LADOS_POSIBLES = ("right", "left", "either side", "")
-_LADO_HOLGURA = 6   # aire entre el texto medido y el borde del campo
+_LADO_HOLGURA = 6   # air between the measured text and the field's edge
 _LADO_ALTO = 15
-_LADO_GAP = 4       # hueco entre el campo de chips y la etiqueta de lado
-_LADO_MARGEN_D = 4  # hueco entre el campo y el borde de la fila
+_LADO_GAP = 4       # gap between the chips field and the side label
+_LADO_MARGEN_D = 4  # gap between the field and the row's edge
 
-# Campo de chips estilo Wispr Flow (feedback de Eduardo, con capturas):
-# cada tecla del atajo es su PROPIO chip (⌃ ⇧ M, tres chips) dentro de un
-# campo blanco con un lápiz ✎ al final. El lápiz ES la afordancia de editar
-# — "Change" como texto suelto no se identificaba como acción. El click de
-# verdad lo sigue recibiendo el botón invisible de toda la fila.
+# Wispr Flow-style chips field (Eduardo's feedback, with screenshots):
+# each key of the shortcut is its OWN chip (⌃ ⇧ M, three chips) inside a
+# white field with a pencil ✎ at the end. The pencil IS the edit affordance
+# — "Change" as loose text was not recognized as an action. The real click
+# is still received by the invisible button covering the whole row.
 _CHIP_FONT_PT = 12.5
 _CHIP_PESO = 0.3
 _CHIP_H = 22
-_CHIP_PAD = 7        # aire horizontal dentro de cada chip
-_CHIP_GAP = 4        # hueco entre chips
-_FIELD_PAD = 8       # aire interior del campo, a ambos lados
+_CHIP_PAD = 7        # horizontal air inside each chip
+_CHIP_GAP = 4        # gap between chips
+_FIELD_PAD = 8       # inner air of the field, on both sides
 _FIELD_H = 32
 _PENCIL_TXT = "✎"
 _PENCIL_W = 16
 _FIELD_MIN_W = 110
-# Placeholder del campo durante la captura, hasta que cae la primera tecla
-# (el análogo del "Click to add a shortcut" de Wispr). Cabe de sobra: el
-# campo mide _FIELD_MIN_W como poco y la frase ~62pt a 11pt.
+# Placeholder for the field during capture, until the first key lands
+# (the analogue of Wispr's "Click to add a shortcut"). Fits with room to
+# spare: the field is at least _FIELD_MIN_W and the phrase ~62pt at 11pt.
 _FIELD_HINT = "Press keys…"
 
-# El "Reset to default" de Wispr (sale en las tres capturas del feedback):
-# vuelve los cuatro atajos a fábrica en un click.
+# Wispr's "Reset to default" (appears in all three feedback screenshots):
+# returns the four shortcuts to factory defaults in one click.
 _RESET_TXT = "Reset to defaults"
 
 
 def chip_texts(names: list[str]) -> list[str]:
-    """['ctrl','shift','m'] → ['⌃','⇧','M']: un chip por tecla, estilo Wispr.
+    """['ctrl','shift','m'] → ['⌃','⇧','M']: one chip per key, Wispr style.
 
-    Pasa por key_label tecla a tecla para que el chip y la leyenda del
-    teclado visual no puedan escribir la misma tecla de dos formas."""
+    Goes through key_label key by key so the chip and the visual keyboard's
+    legend cannot spell the same key in two different ways."""
     return [key_label([n]) for n in (names or [])]
 
 
 def _chip_ancho(texto: str, font) -> float:
-    """Ancho de un chip: su texto medido de verdad (theme.text_width, la
-    lección de _lado_ancho) con aire a ambos lados, y nunca más estrecho que
-    alto — un chip de una letra se dibuja cuadrado, no como una astilla."""
+    """Width of a chip: its text truly measured (theme.text_width, the
+    lesson from _lado_ancho) with air on both sides, and never narrower than
+    it is tall — a one-letter chip draws as a square, not as a sliver."""
     return max(math.ceil(theme.text_width(texto, font)) + 2 * _CHIP_PAD, _CHIP_H)
 
 
@@ -110,10 +110,10 @@ def _chips_ancho(textos: list[str], font) -> float:
 
 
 def field_width(estado: dict, font) -> float:
-    """Ancho ÚNICO del campo de chips, compartido por las cuatro filas (la
-    misma decisión que lado_w): el máximo que pide cualquier binding actual
-    más el lápiz, con _FIELD_MIN_W de suelo. Compartirlo deja la columna
-    alineada — cuatro campos de anchos distintos se leerían escalonados."""
+    """SINGLE width for the chips field, shared by the four rows (the same
+    decision as lado_w): the maximum any current binding asks for plus the
+    pencil, with _FIELD_MIN_W as the floor. Sharing it keeps the column
+    aligned — four fields of different widths would read as staggered."""
     necesita = max(
         (_chips_ancho(chip_texts(list((fila or {}).get("keys") or [])), font)
          for fila in estado.values()),
@@ -121,71 +121,71 @@ def field_width(estado: dict, font) -> float:
     )
     return max(_FIELD_MIN_W, necesita + 2 * _FIELD_PAD + _PENCIL_W + _CHIP_GAP)
 
-# Alto extra que gana la fila de Dictation para el slíder de delay (ver
-# _build_row): el contenido de siempre (título, subtítulo, keycap, lado) se
-# desplaza este mismo alto hacia arriba, así que ocupa exactamente el mismo
-# rectángulo que ocuparía en una fila normal de ROW_H, y el slíder vive en la
-# banda nueva que queda libre debajo, DENTRO del frame de la fila -no fuera
-# de él-, para que no invada la fila de abajo (ver el comentario largo en
+# Extra height the Dictation row gains for the delay slider (see
+# _build_row): the usual content (title, subtitle, keycap, side) shifts up
+# by this same height, so it occupies exactly the same rectangle it would
+# occupy in a normal ROW_H row, and the slider lives in the new band left
+# free below, INSIDE the row's frame -not outside it-, so it does not
+# invade the row below (see the long comment in
 # _build_row).
 #
-# Subido de 24 a 36 en el Finding 1 del review: con 24 el slíder (alto 20)
-# llegaba pegado al borde inferior de la fila y no quedaba sitio para las
-# marcas nuevas debajo de la pista. Los 12pt de más son exactamente los que
-# piden _DELAY_MARCA_H + el hueco que las separa del slíder (ver más abajo);
-# subir esta constante empuja automáticamente todas las filas siguientes
-# (Cycle mode incluida) hacia abajo -_build() sólo repite alto_fila+1-, así
-# que no hace falta tocar nada más para que no se coman una a otra.
+# Raised from 24 to 36 in Finding 1 of the review: with 24 the slider
+# (height 20) sat flush against the row's bottom edge and there was no room
+# for the new tick marks below the track. The extra 12pt are exactly what
+# _DELAY_MARCA_H + the gap separating them from the slider ask for (see
+# below); raising this constant automatically pushes every following row
+# (Cycle mode included) downward -_build() just repeats alto_fila+1-, so
+# nothing else needs touching to keep them from eating into each other.
 _DELAY_ROW_EXTRA_H = 36
 
-# Geometría del slíder y sus marcas dentro de la banda [0, _DELAY_ROW_EXTRA_H)
-# que queda libre debajo del contenido normal de la fila de Dictation (ver el
-# comentario de arriba y el de _build_row). El slíder sube de su antiguo y=2
-# a _DELAY_SLIDER_Y=14 para dejar, debajo, la franja [0, 14) para las marcas
-# -antes esa franja no existía y las marcas no tenían dónde ir sin invadir
-# nada-, conservando el mismo margen de ~8pt entre el slíder y el subtítulo
-# de arriba que ya tenía el diseño original.
+# Geometry of the slider and its marks inside the [0, _DELAY_ROW_EXTRA_H)
+# band left free below the normal content of the Dictation row (see the
+# comment above and the one in _build_row). The slider moves up from its old
+# y=2 to _DELAY_SLIDER_Y=14 to leave, below it, the [0, 14) strip for the
+# marks -before, that strip did not exist and the marks had nowhere to go
+# without invading something-, keeping the same ~8pt margin between the
+# slider and the subtitle above that the original design already had.
 _DELAY_SLIDER_Y = 14
 _DELAY_MARCA_Y = 0
 _DELAY_MARCA_H = 11
-_DELAY_MARCA_PT = 9.0        # pequeñas y en gris secundario, como pide el brief
-# 2pt de holgura recortaba en pantalla el último dígito de "200"/"400"/"600"
-# (comprobado con screencapture: "200" se leía "20"), aunque
-# theme.text_width() midiera "bien" -sizeWithAttributes_ da el avance puro
-# del glifo, no el hueco que la celda de un NSTextField quiere alrededor.
-# 6pt es la misma holgura que ya usan _LADO_HOLGURA y _NOTA_HUERFANA_HOLGURA
-# más arriba en este módulo, y ahí no recorta.
-_DELAY_MARCA_HOLGURA = 6.0   # aire entre el texto medido de cada marca y su campo
+_DELAY_MARCA_PT = 9.0        # small and in secondary gray, as the brief asks
+# 2pt of slack clipped the last digit of "200"/"400"/"600" on screen
+# (verified with screencapture: "200" read as "20"), even though
+# theme.text_width() measured "correctly" -sizeWithAttributes_ gives the pure
+# glyph advance, not the space an NSTextField's cell wants around it.
+# 6pt is the same slack _LADO_HOLGURA and _NOTA_HUERFANA_HOLGURA already use
+# higher up in this module, and there it does not clip.
+_DELAY_MARCA_HOLGURA = 6.0   # air between each mark's measured text and its field
 _DELAY_VALOR_PT = 13.5
-_DELAY_VALOR_PESO = 0.5      # negrita de verdad (NSFontWeightBold es 0.40)
-_DELAY_VALOR_GAP = 14.0      # hueco entre el borde derecho del slíder y el valor
-_DELAY_VALOR_HOLGURA = 6.0   # aire entre el texto medido del valor y su campo
+_DELAY_VALOR_PESO = 0.5      # actually bold (NSFontWeightBold is 0.40)
+_DELAY_VALOR_GAP = 14.0      # gap between the slider's right edge and the value
+_DELAY_VALOR_HOLGURA = 6.0   # air between the value's measured text and its field
 
 
 def _marcas_delay() -> list[int]:
-    """Los cinco valores que reparte el slíder de delay (Finding 1 del
-    review): 0, MAX/4, MAX/2, 3·MAX/4 y MAX -no 0/200/400/600/800 clavados a
-    mano-, para que si mañana cambia shortcuts.MAX_DELAY_MS las marcas lo
-    sigan solas, sin que haga falta acordarse de tocar este número también
-    aquí (la misma lección que _lado_ancho() ya aplica con
-    shortcuts.side_hint más arriba en este módulo)."""
+    """The five values the delay slider spreads out (Finding 1 of the
+    review): 0, MAX/4, MAX/2, 3·MAX/4 and MAX -not a hand-hardcoded
+    0/200/400/600/800-, so that if shortcuts.MAX_DELAY_MS changes tomorrow
+    the marks follow it on their own, with no need to remember to also touch
+    this number here (the same lesson _lado_ancho() already applies with
+    shortcuts.side_hint higher up in this module)."""
     paso = shortcuts.MAX_DELAY_MS / 4
     return [round(paso * i) for i in range(5)]
 
 
 def _fmt_delay(ms) -> str:
-    """'400 ms': el formato exacto que pide el brief para el valor elegido."""
+    """'400 ms': the exact format the brief asks for the chosen value."""
     return f"{int(ms)} ms"
 
 
 def _valor_ancho(font) -> float:
-    """Ancho que necesita el texto del valor del delay ('N ms') para
-    CUALQUIER N entre 0 y shortcuts.MAX_DELAY_MS, medido de verdad con
-    AppKit sobre el rango entero: un font proporcional no mide lo mismo
-    para todas las cifras de tres dígitos, así que el peor caso se calcula
-    sobre el rango completo en vez de asumir que el valor máximo es el más
-    ancho (la misma razón por la que _lado_ancho() mide las cuatro
-    posibilidades de side_hint en vez de clavar un número)."""
+    """Width the delay value text ('N ms') needs for ANY N between 0 and
+    shortcuts.MAX_DELAY_MS, truly measured with AppKit over the entire
+    range: a proportional font does not measure the same for every
+    three-digit number, so the worst case is computed over the full range
+    instead of assuming the maximum value is the widest one (the same
+    reason _lado_ancho() measures the four side_hint possibilities
+    instead of hardcoding a number)."""
     return math.ceil(max(
         theme.text_width(_fmt_delay(ms), font)
         for ms in range(0, shortcuts.MAX_DELAY_MS + 1)
@@ -193,121 +193,121 @@ def _valor_ancho(font) -> float:
 
 
 def _alto_multilinea(font, lineas=2) -> float:
-    """Alto en puntos que necesitan `lineas` líneas de `font`, medido con las
-    métricas reales de AppKit (ascender/descender/leading) en vez de doblar
-    a ojo el alto de una línea: el mismo principio que theme.text_width()
-    ya aplica al ancho, aplicado ahora al alto (Finding 3 del review: el
-    campo de error vivía al filo con una sola línea fija de 17pt)."""
+    """Height in points that `lineas` lines of `font` need, measured with
+    AppKit's real metrics (ascender/descender/leading) instead of eyeball-
+    doubling one line's height: the same principle theme.text_width()
+    already applies to width, now applied to height (Finding 3 of the
+    review: the error field lived on the edge with one fixed 17pt line)."""
     alto_linea = math.ceil(font.ascender() - font.descender() + font.leading())
     return alto_linea * lineas
 
-# Tamaño de la leyenda de cada casilla del teclado visual. 9pt le sobra hueco
-# incluso al texto más ancho ("F13") en la casilla más estrecha del teclado
-# (~30pt de ancho real, medido con theme.text_width): no hace falta ganar
-# tamaño de ventana para que se lea.
+# Size of the legend on each cell of the visual keyboard. 9pt leaves spare
+# room even for the widest text ("F13") in the narrowest cell of the keyboard
+# (~30pt of real width, measured with theme.text_width): no need to gain
+# window size for it to be readable.
 _LEYENDA_TECLADO_PT = 9.0
 
-# Texto de la fila huérfana (Task 9, tercera ronda, Defecto 2): sin él, una
-# tecla suelta al final del teclado parece puesta al azar. En inglés, como
-# el resto de la interfaz.
+# Text for the orphan row (Task 9, third round, Defect 2): without it, a
+# lone key at the end of the keyboard looks randomly placed. In English,
+# like the rest of the interface.
 NOTA_HUERFANA = "not on this keyboard"
 _NOTA_HUERFANA_PT = 10.0
-_NOTA_HUERFANA_HOLGURA = 6.0   # aire entre el texto medido y su campo
-_NOTA_HUERFANA_MARGEN_D = 8.0  # aire entre el texto y el borde derecho del teclado
+_NOTA_HUERFANA_HOLGURA = 6.0   # air between the measured text and its field
+_NOTA_HUERFANA_MARGEN_D = 8.0  # air between the text and the keyboard's right edge
 
 
 def _nota_huerfana_ancho(font) -> float:
-    """Puntos que necesita el texto de la fila huérfana con `font`, medidos
-    de verdad con AppKit (theme.text_width) en vez de clavados a ojo: la
-    misma lección que _lado_ancho() ya aplica más abajo -en la Task 8 un
-    campo de 58pt recortó "either side" en silencio y el test que leía
-    stringValue() pasaba igual."""
+    """Points the orphan row's text needs with `font`, truly measured with
+    AppKit (theme.text_width) instead of eyeballed and hardcoded: the
+    same lesson _lado_ancho() already applies below -in Task 8 a 58pt
+    field silently clipped "either side" and the test that read
+    stringValue() passed anyway."""
     return math.ceil(theme.text_width(NOTA_HUERFANA, font)) + _NOTA_HUERFANA_HOLGURA
 
 
 def _lado_ancho(font) -> float:
-    """Puntos que necesita el campo del lado para no cortar ningún valor de
-    shortcuts.side_hint con `font`, medido de verdad con AppKit.
+    """Points the side field needs so it never cuts off any value of
+    shortcuts.side_hint with `font`, truly measured with AppKit.
 
-    Autodefensivo a propósito: si mañana side_hint gana un quinto valor más
-    largo que "either side", basta con añadirlo a _LADOS_POSIBLES — el
-    ancho se recalcula solo, no hay un número de puntos que reajustar
-    también a mano y que se pueda olvidar.
+    Self-defensive on purpose: if side_hint gains a fifth value longer
+    than "either side" tomorrow, adding it to _LADOS_POSIBLES is enough —
+    the width recomputes itself, there is no point count to also readjust
+    by hand that could be forgotten.
     """
     return math.ceil(max(theme.text_width(t, font) for t in _LADOS_POSIBLES)) + _LADO_HOLGURA
 
 
 def side_label(sid: str, names: list[str]) -> str:
-    """'right' / 'left' / 'either side' / '' — el matiz que un símbolo ⌘ solo
-    no puede dar.
+    """'right' / 'left' / 'either side' / '' — the nuance a lone ⌘ symbol
+    cannot convey.
 
-    Envoltorio de presentación: la decisión de qué lado(s) casan de verdad en
-    runtime es semántica de atajos, no de pintado, y vive en
-    shortcuts.side_hint (probada ahí sin AppKit). Hace falta `sid` y no solo
-    el nombre de la tecla porque el mismo nombre significa cosas distintas
-    según el atajo — "shift" en latch casa las dos manos (hotkey.py:421),
-    pero un combo o una tecla sin lado en cualquier otro atajo no la casan.
+    Presentation wrapper: deciding which side(s) actually match at
+    runtime is shortcut semantics, not painting, and lives in
+    shortcuts.side_hint (tested there without AppKit). It needs `sid` and
+    not just the key name because the same name means different things
+    per shortcut — "shift" in latch matches both hands (hotkey.py:421),
+    but a combo or a side-less key in any other shortcut does not match it.
     """
     return shortcuts.side_hint(sid, names)
 
 
-# Teclado de un MacBook, por filas. (nombre pynput, nombre sintético de
-# relleno como "arrows", o "" si hiciera falta una casilla puramente muda; hoy
-# ninguna fila la usa, ver más abajo), ancho relativo). Las teclas asignadas
-# que este retrato no contenga las añade keyboard_rows() en una fila aparte:
-# _build_keyboard() nunca dibuja KEYBOARD_ROWS directamente, dibuja lo que
-# esa función devuelve.
+# A MacBook keyboard, by rows. (pynput name, synthetic filler name such as
+# "arrows", or "" if a purely mute cell were ever needed; today no row uses
+# one, see below), relative width). Assigned keys this portrait does not
+# contain are added by keyboard_rows() in a separate row:
+# _build_keyboard() never draws KEYBOARD_ROWS directly, it draws what
+# that function returns.
 #
-# Las letras y dígitos se nombran (con el char en minúscula que reporta
-# hotkey._norm) y no solo "m": shortcuts.py no restringe qué tecla puede
-# entrar en un combo de varias teclas (solo valida la tecla suelta), así que
-# cycle_mode se puede reasignar a cualquier ctrl+alt+<letra> — si el teclado
-# solo supiera encender "m", esa reasignación se vería en la fila pero nunca
-# en el dibujo, rompiendo la regla de que las dos vistas son la misma verdad.
+# Letters and digits are named (with the lowercase char that hotkey._norm
+# reports) and not just "m": shortcuts.py does not restrict which key may
+# enter a multi-key combo (it only validates the single key), so
+# cycle_mode can be reassigned to any ctrl+alt+<letter> — if the keyboard
+# only knew how to light up "m", that reassignment would show in the row but
+# never in the drawing, breaking the rule that both views are the same truth.
 #
-# La puntuación (`, -, =, [, ], \, ;, ', ,, ., /) y las dos teclas especiales
-# de la fila de abajo (⇪ caps lock, fn) SÍ se nombran, aunque ninguna sea
-# asignable hoy (Task 9, Defecto 2): sin nombre se pintaban como rectángulos
-# en blanco y en la captura de pantalla se leían como teclas rotas, no como
-# "esto no se puede asignar". Nombrarlas les da leyenda vía key_label() sin
-# encenderlas nunca (lit_keys() nunca las incluye porque ningún atajo puede
-# apuntar a ellas — ver keys.validate_custom). El bloque de flechas del final
-# de la fila de abajo lleva el nombre sintético "arrows" por el mismo motivo
-# (Task 9 fix2, Defecto 4): son varias teclas y no una sola, así que no
-# puede ser asignable, pero un rectángulo sin leyenda ahí se lee igual de
-# roto que los demás. No queda ninguna casilla sin nombre: el hueco que
-# tenía la fila de números (Defecto 3) era un error de retrato -en un Mac
-# ANSI de verdad esa fila empieza por el backtick y no tiene hueco entre
-# "=" y ⌫-, no una casilla de relleno legítima.
+# The punctuation (`, -, =, [, ], \, ;, ', ,, ., /) and the two special keys
+# on the bottom row (⇪ caps lock, fn) ARE named, even though none is
+# assignable today (Task 9, Defect 2): unnamed, they were painted as blank
+# rectangles and in the screenshot they read as broken keys, not as
+# "this cannot be assigned". Naming them gives them a legend via key_label()
+# without ever lighting them (lit_keys() never includes them because no
+# shortcut can point at them — see keys.validate_custom). The arrow block at
+# the end of the bottom row carries the synthetic name "arrows" for the same
+# reason (Task 9 fix2, Defect 4): it is several keys and not a single one, so
+# it cannot be assignable, but an unlabeled rectangle there reads just as
+# broken as the rest. No cell is left unnamed: the gap the number row
+# had (Defect 3) was a portrait error -on a real ANSI Mac that row starts
+# with the backtick and has no gap between
+# "=" and ⌫-, not a legitimate filler cell.
 KEYBOARD_ROWS: list[list[tuple[str, float]]] = [
     [("esc", 1.4)] + [(f"f{i}", 1.0) for i in range(1, 13)] + [("f13", 1.0)],
     [("`", 1.0)] + [(d, 1.0) for d in "1234567890"] + [("-", 1.0), ("=", 1.0)] + [("backspace", 1.5)],
     [("tab", 1.5)] + [(c, 1.0) for c in "qwertyuiop"] + [("[", 1.0), ("]", 1.0)] + [("\\", 1.2)],
     [("caps_lock", 1.7)] + [(c, 1.0) for c in "asdfghjkl"] + [(";", 1.0), ("'", 1.0)] + [("enter", 1.6)],
     [("shift", 2.2)] + [(c, 1.0) for c in "zxcvbnm"] + [(",", 1.0), (".", 1.0), ("/", 1.0)] + [("shift_r", 2.2)],
-    # La fila de abajo lleva los cuatro modificadores en AMBOS lados para que
-    # izquierda y derecha sean simétricas: antes faltaba ctrl_r y quien la
-    # asignaba la veía caer en la fila "not on this keyboard", mientras que
-    # cmd_r y alt_r sí tenían casilla. El peso se lo recortamos a la barra
-    # espaciadora (5.6 → 4.5) para que el total de la fila no cambie.
+    # The bottom row carries the four modifiers on BOTH sides so that left
+    # and right are symmetric: ctrl_r used to be missing and whoever
+    # assigned it saw it fall into the "not on this keyboard" row, while
+    # cmd_r and alt_r did have a cell. The weight was trimmed off the
+    # space bar (5.6 → 4.5) so the row total does not change.
     [("fn", 1.1), ("ctrl", 1.1), ("alt", 1.1), ("cmd", 1.4), ("space", 4.5),
      ("cmd_r", 1.4), ("alt_r", 1.1), ("ctrl_r", 1.1), ("arrows", 2.2)],
 ]
 
-# Quién gana cuando dos atajos comparten una tecla física. Dictation primero:
-# es la que el usuario busca de un vistazo, y sin una regla explícita el color
-# dependería del orden de iteración del diccionario.
+# Who wins when two shortcuts share a physical key. Dictation first: it is
+# the one the user looks for at a glance, and without an explicit rule the
+# color would depend on the dict's iteration order.
 _PRIORIDAD = ("dictation", "cancel", "latch", "cycle_mode")
 
 
 def delay_for(names: list[str], anterior_ms: int) -> int:
-    """Delay que le toca a una tecla recién capturada.
+    """Delay a freshly captured key gets.
 
-    Sube al default SOLO si la tecla necesita guarda y el delay actual no la
-    protege: con el ⌘ izquierdo a 0 ms, cada ⌘C arranca una grabación. Si la
-    tecla no necesita guarda se conserva lo que hubiera — subir a 400 a quien
-    eligió el ⌘ derecho le cambiaría el tacto de la app sin pedirlo, y bajarle
-    un 600 puesto a mano le pisaría su elección.
+    Bumps to the default ONLY if the key needs a guard and the current delay
+    does not protect it: with left ⌘ at 0 ms, every ⌘C starts a recording.
+    If the key needs no guard, whatever was there is kept — raising to 400
+    for someone who chose right ⌘ would change the app's feel unasked, and
+    lowering a hand-set 600 would stomp on their choice.
     """
     if names and keys.needs_guard(names[0]) and anterior_ms <= 0:
         return shortcuts.DEFAULT_DELAY_MS
@@ -315,15 +315,15 @@ def delay_for(names: list[str], anterior_ms: int) -> int:
 
 
 def lit_keys(estado: dict) -> dict[str, str]:
-    """{nombre canónico: sid} de las teclas que hay que encender.
+    """{canonical name: sid} of the keys that must light up.
 
-    Deriva de shortcuts.matched_keys(), no de canonicalizar cada nombre a
-    mano: matched_keys() sabe que latch ensancha a la variante derecha
-    (hotkey.py:421 casa por prefijo) y side_label() cuenta exactamente la
-    misma historia (shortcuts.side_hint() usa la misma función). Antes de
-    este fix las dos vistas se calculaban por separado y se desincronizaban
-    -el bug real de la Task 9: "shift" encendido, "shift_r" apagado, la fila
-    diciendo "either side".
+    Derives from shortcuts.matched_keys(), not from canonicalizing each
+    name by hand: matched_keys() knows that latch widens to the right-hand
+    variant (hotkey.py:421 matches by prefix) and side_label() tells
+    exactly the same story (shortcuts.side_hint() uses the same function).
+    Before this fix the two views were computed separately and drifted apart
+    -the real Task 9 bug: "shift" lit, "shift_r" off, the row
+    saying "either side".
     """
     fuera: dict[str, str] = {}
     for sid in _PRIORIDAD:
@@ -336,46 +336,46 @@ def lit_keys(estado: dict) -> dict[str, str]:
     return fuera
 
 
-# Referencia de "tecla modificadora normal" para el ancho de una casilla
-# huérfana (Task 9, tercera ronda, Defecto 1): la fila de abajo del retrato
-# es la que tiene más modificadoras juntas, y "cmd" es justo el ejemplo que
-# pide el brief. Se leen de KEYBOARD_ROWS en vez de clavarse a mano para que
-# si mañana cambia el peso de "cmd" en el retrato, la huérfana lo siga sin
-# que haga falta acordarse de tocar dos sitios.
+# "Normal modifier key" reference for the width of an orphan cell
+# (Task 9, third round, Defect 1): the portrait's bottom row is the one
+# with the most modifiers together, and "cmd" is exactly the example the
+# brief asks for. They are read from KEYBOARD_ROWS instead of hardcoded so
+# that if "cmd"'s weight in the portrait changes tomorrow, the orphan
+# follows it without having to remember to touch two places.
 _FILA_MODIFICADORAS = KEYBOARD_ROWS[-1]
 _PESO_MODIFICADOR = next(w for n, w in _FILA_MODIFICADORAS if n == "cmd")
 _PESO_FILA_MODIFICADORAS = sum(w for _, w in _FILA_MODIFICADORAS)
 
 
 def keyboard_rows(estado: dict) -> list[list[tuple[str | None, float]]]:
-    """KEYBOARD_ROWS y, si hace falta, una fila extra con las teclas
-    asignadas que ese retrato de MacBook no dibuja.
+    """KEYBOARD_ROWS plus, if needed, an extra row with the assigned keys
+    that this MacBook portrait does not draw.
 
-    Defecto 1 de la Task 9 (segunda ronda): KEYBOARD_ROWS retrata un MacBook
-    concreto, pero hay teclas asignables que ese retrato no contiene -ctrl_r
-    es la primera, keys.DICTATION_KEYS:114 ya la ofrece en el menú hoy y un
-    prefs.json real puede traerla tras shortcuts.migrate()-. Sin esta fila
-    extra la lista decía "⌃ right" y el teclado no encendía nada: exactamente
-    la contradicción que este componente existe para impedir.
+    Defect 1 of Task 9 (second round): KEYBOARD_ROWS portrays a specific
+    MacBook, but there are assignable keys that portrait does not contain
+    -ctrl_r is the first, keys.DICTATION_KEYS:114 already offers it in the
+    menu today and a real prefs.json can carry it after shortcuts.migrate()-.
+    Without this extra row the list said "⌃ right" and the keyboard lit
+    nothing: exactly the contradiction this component exists to prevent.
 
-    Se construye sobre lit_keys(), no sobre una lista de nombres puesta a
-    mano, para que CUALQUIER tecla asignable futura caiga aquí sola -f14, una
-    tecla del teclado numérico, home...- en cuanto algún atajo la use de
-    verdad, sin que haga falta acordarse de tocar este módulo otra vez.
+    It is built on lit_keys(), not on a hand-written list of names, so
+    that ANY future assignable key lands here on its own -f14, a numeric
+    keypad key, home...- as soon as some shortcut actually uses it,
+    without having to remember to touch this module again.
 
-    Sin huérfanas devuelve KEYBOARD_ROWS tal cual (ni una fila de más ni una
-    lista distinta que comparar), así que la geometría de siempre no cambia
-    para el caso común.
+    With no orphans it returns KEYBOARD_ROWS as-is (not one extra row nor
+    a different list to compare), so the usual geometry does not change
+    for the common case.
 
-    Defecto 1 de la tercera ronda: cada huérfana lleva el mismo peso que
-    "cmd" en la fila de abajo (_PESO_MODIFICADOR), no un peso de 1.0 que solo
-    significa algo comparado con las demás casillas de ESA fila -con una sola
-    casilla en la fila, peso 1.0 es el 100% del ancho y la casilla se dibuja
-    como una barra espaciadora, el defecto que este arreglo corrige. El resto
-    del peso de referencia (_PESO_FILA_MODIFICADORAS) se reserva con un
-    nombre `None`: una casilla que _build_keyboard() cuenta para el ancho
-    pero nunca dibuja, así que el resto de la fila queda vacío -fondo, sin
-    casilla- en vez de un hueco sin leyenda que parece tecla rota.
+    Defect 1 of the third round: each orphan carries the same weight as
+    "cmd" in the bottom row (_PESO_MODIFICADOR), not a 1.0 weight that only
+    means something compared to the other cells of THAT row -with a single
+    cell in the row, weight 1.0 is 100% of the width and the cell draws
+    like a space bar, the defect this fix corrects. The rest of the
+    reference weight (_PESO_FILA_MODIFICADORAS) is reserved under a
+    `None` name: a cell _build_keyboard() counts for width but never
+    draws, so the rest of the row stays empty -background, no cell-
+    instead of an unlabeled gap that looks like a broken key.
     """
     en_retrato = {n for fila in KEYBOARD_ROWS for n, _ in fila if n}
     huerfanas = sorted(n for n in lit_keys(estado) if n not in en_retrato)
@@ -390,16 +390,16 @@ def keyboard_rows(estado: dict) -> list[list[tuple[str | None, float]]]:
 
 
 def _apagar(casilla):
-    """Deja una casilla del teclado en su color base (sin asignar).
+    """Returns a keyboard cell to its base (unassigned) color.
 
-    Función de módulo, no método: un nombre con un solo guion bajo inicial y
-    ninguno más ("_apagar") es, para el transformador de selectores de
-    PyObjC, indistinguible de un selector Objective-C de CERO argumentos
-    (`default_selector` solo trata el método como Python puro cuando lleva
-    OTRO guion bajo además del inicial, o termina en uno). Como método de
-    ShortcutsController con un argumento (`casilla`) revienta al definir la
-    clase con `objc.BadPrototypeError: '_apagar' expects 0 arguments`. Fuera
-    de la clase no hay transformación de selector que lo confunda.
+    Module function, not a method: a name with a single leading underscore
+    and no other ("_apagar") is, to PyObjC's selector transformer,
+    indistinguishable from a ZERO-argument Objective-C selector
+    (`default_selector` only treats the method as pure Python when it has
+    ANOTHER underscore besides the leading one, or ends in one). As a
+    ShortcutsController method with one argument (`casilla`) it blows up at
+    class definition with `objc.BadPrototypeError: '_apagar' expects 0
+    arguments`. Outside the class no selector transformation confuses it.
     """
     casilla.layer().setBackgroundColor_(theme.KEYCAP_BG2.CGColor())
     casilla.layer().setBorderWidth_(1.0)
@@ -407,8 +407,8 @@ def _apagar(casilla):
 
 
 class ShortcutsController(NSObject):
-    """Controlador + ventana. Subclase de NSObject para ser target de los
-    botones y delegate de la ventana."""
+    """Controller + window. NSObject subclass so it can be the buttons'
+    target and the window's delegate."""
 
     def initWithState_onChange_(self, estado, on_change):
         self = objc.super(ShortcutsController, self).init()
@@ -416,43 +416,43 @@ class ShortcutsController(NSObject):
             return None
         self._estado = {sid: dict(fila) for sid, fila in estado.items()}
         self._on_change = on_change
-        self._rows = {}          # sid → NSView de la fila
-        self._fields = {}        # sid → NSView del campo de chips (estilo Wispr)
-        self._chips = {}         # sid → [NSView]: un chip por tecla del binding
-        self._pencils = {}       # sid → NSTextField del lápiz ✎ del campo
+        self._rows = {}          # sid → NSView of the row
+        self._fields = {}        # sid → NSView of the chips field (Wispr style)
+        self._chips = {}         # sid → [NSView]: one chip per key of the binding
+        self._pencils = {}       # sid → NSTextField of the field's pencil ✎
         self._hints = {}         # sid → NSTextField placeholder ("Press keys…")
-        self._sides = {}         # sid → NSTextField del lado
-        self._fila_boton = {}    # sid → NSButton invisible que arma la captura
-        self._teclado_marco = None  # NSView del fondo del teclado (tests de geometría)
-        self._nota_huerfana = None  # NSTextField de la fila huérfana, si la hay
-        self._capturing = None    # sid en captura, o None
-        self._capture_pressed = []  # teclas ya pulsadas en la captura en curso
+        self._sides = {}         # sid → NSTextField of the side label
+        self._fila_boton = {}    # sid → invisible NSButton that arms the capture
+        self._teclado_marco = None  # NSView of the keyboard background (geometry tests)
+        self._nota_huerfana = None  # NSTextField of the orphan row, if any
+        self._capturing = None    # sid being captured, or None
+        self._capture_pressed = []  # keys already pressed in the ongoing capture
         self._chip_font = theme.sf(_CHIP_FONT_PT, _CHIP_PESO)
-        self._field_w = 0.0       # ancho compartido del campo (field_width)
+        self._field_w = 0.0       # shared width of the field (field_width)
         self._reset_boton = None  # NSButton "Reset to defaults"
         self._error_text = ""
-        self._error = None        # NSTextField del mensaje de error de la fila
-        self._slider = None       # NSSlider del delay de Dictation
-        self._delay_ticks = []    # NSTextField × 5: las marcas 0/200/400/600/800 ms
-        self._delay_valor = None  # NSTextField del valor elegido ('400 ms')
-        # HotkeyManager real, si lo hay: lo conecta quien wire esta ventana en
-        # el menú de la app (Task 11) con attachHotkey_(). None en los tests
-        # (y en verificar-ventana.py) — sin él, begin_capture_/cancel_capture_
-        # solo mueven el estado de la ventana, sin tocar pynput.
+        self._error = None        # NSTextField of the row's error message
+        self._slider = None       # NSSlider for the Dictation delay
+        self._delay_ticks = []    # NSTextField × 5: the 0/200/400/600/800 ms marks
+        self._delay_valor = None  # NSTextField of the chosen value ('400 ms')
+        # Real HotkeyManager, if any: whoever wires this window into the app
+        # menu (Task 11) connects it with attachHotkey_(). None in the tests
+        # (and in verificar-ventana.py) — without it, begin_capture_/cancel_capture_
+        # only move the window's state, without touching pynput.
         self._hotkey = None
         self._build()
         return self
 
-    # ---------- hotkey real (pynput) ----------
+    # ---------- real hotkey (pynput) ----------
     def attachHotkey_(self, hotkey):
-        """Conecta el HotkeyManager de verdad que ya está corriendo.
+        """Connects the real HotkeyManager that is already running.
 
-        Nunca instancia ni arranca un HotkeyManager: usa el que le pasan.
-        Solo puede haber un keyboard.Listener en el proceso (dos hacen que
-        pynput llame a TIS/TSM desde dos hilos y HIToolbox aborta con
-        SIGABRT) — begin_capture()/end_capture() del que ya corre solo
-        cambian a qué callback van las pulsaciones, no crean ni reinician el
-        listener.
+        Never instantiates or starts a HotkeyManager: it uses the one it is
+        given. There can only be one keyboard.Listener in the process (two
+        make pynput call TIS/TSM from two threads and HIToolbox aborts with
+        SIGABRT) — begin_capture()/end_capture() on the one already running
+        only change which callback keystrokes go to, they do not create or
+        restart the listener.
         """
         self._hotkey = hotkey
 
@@ -478,22 +478,22 @@ class ShortcutsController(NSObject):
             theme.sf(12.5), theme.INK_SOFT))
 
         lado_font = theme.mono(9.5)
-        lado_w = _lado_ancho(lado_font)   # una sola vez: mismo ancho en las 4 filas
-        # Ancho del campo de chips, también compartido por las cuatro filas.
+        lado_w = _lado_ancho(lado_font)   # once only: same width in all 4 rows
+        # Width of the chips field, also shared by the four rows.
         self._field_w = field_width(self._estado, self._chip_font)
 
-        self._keys = {}          # nombre → NSView de la casilla
-        self._legends = {}       # nombre → NSTextField con la leyenda de la casilla
+        self._keys = {}          # name → NSView of the cell
+        self._legends = {}       # name → NSTextField with the cell's legend
         self._build_keyboard(content, top=84, height=228)
         self._paint_keyboard()
 
-        top = 330   # el teclado de la Task 9 ocupa de 84 a 312
+        top = 330   # the Task 9 keyboard spans 84 to 312
         for sid, sc in shortcuts.SHORTCUTS.items():
-            # Dictation es la única fila con slíder (sc.has_delay) y necesita
-            # _DELAY_ROW_EXTRA_H de más para que quepa DENTRO de su propio
-            # frame (ver _build_row); las demás se quedan en ROW_H. Sumar el
-            # mismo alto que de verdad se usó al avanzar `top` es lo que
-            # impide que la fila siguiente invada ese espacio de más.
+            # Dictation is the only row with a slider (sc.has_delay) and needs
+            # _DELAY_ROW_EXTRA_H extra so that it fits INSIDE its own
+            # frame (see _build_row); the rest stay at ROW_H. Adding the
+            # same height that was actually used when advancing `top` is what
+            # keeps the next row from invading that extra space.
             alto_fila = ROW_H + _DELAY_ROW_EXTRA_H if sc.has_delay else ROW_H
             fila = self._build_row(
                 sid, NSMakeRect(PAD, y_(top, alto_fila), W - PAD * 2, alto_fila),
@@ -504,27 +504,27 @@ class ShortcutsController(NSObject):
                 NSMakeRect(PAD, y_(top + alto_fila, 1), W - PAD * 2, 1), theme.HAIRLINE))
             top += alto_fila + 1
 
-        # Mensaje de error/aviso de la fila en captura (shortcuts.validate()
-        # o el rechazo del llamador vía on_change). Uno solo para toda la
-        # ventana: como solo una fila puede estar en captura a la vez, el
-        # mensaje siempre pertenece a esa fila aunque el campo viva fuera de
-        # su rectángulo.
+        # Error/notice message for the row in capture (shortcuts.validate()
+        # or the caller's rejection via on_change). A single one for the
+        # whole window: since only one row can be in capture at a time, the
+        # message always belongs to that row even though the field lives
+        # outside its rectangle.
         #
-        # Finding 3 del review: el informe midió "los tres mensajes reales
-        # de shortcuts.validate", pero _error_text también lleva los de
-        # keys.validate_custom() -son justo los que salen al capturar una
-        # sola tecla, ver apply_capture_-, y el peor caso real de los DOS
-        # validadores juntos se quedaba a menos de 9pt del borde en una
-        # sola línea. Dos líneas (multiline=True, _make_multiline ya existe
-        # en theme.py) le dan aire de verdad en vez de vivir al filo; el
-        # alto sale de _alto_multilinea(), medido con las métricas reales
-        # del font, no de doblar a ojo el 17 de antes. El "top" (H-46) no
-        # se toca: al crecer el alto, el campo gana espacio hacia ABAJO
-        # -hacia el borde de la ventana, donde no hay nada más-, nunca
-        # hacia arriba, donde vive la última fila de atajos.
-        # El botón de Reset ocupa la esquina inferior derecha; el campo de
-        # error cede exactamente ese ancho (sigue dando a dos líneas y el
-        # test del peor caso vigila que el texto más largo quepa igual).
+        # Finding 3 of the review: the report measured "the three real
+        # messages of shortcuts.validate", but _error_text also carries the
+        # keys.validate_custom() ones -exactly the ones that appear when
+        # capturing a single key, see apply_capture_-, and the real worst
+        # case of BOTH validators together sat less than 9pt from the edge
+        # on a single line. Two lines (multiline=True, _make_multiline
+        # already exists in theme.py) give it real air instead of living on
+        # the edge; the height comes from _alto_multilinea(), measured with
+        # the font's real metrics, not by eyeball-doubling the old 17. The
+        # "top" (H-46) is untouched: as the height grows, the field gains
+        # space DOWNWARD -toward the window's edge, where nothing else is-,
+        # never upward, where the last shortcut row lives.
+        # The Reset button occupies the bottom-right corner; the error
+        # field yields exactly that width (it still fits on two lines and
+        # the worst-case test watches that the longest text still fits).
         reset_font = theme.sf(11.5)
         reset_w = math.ceil(theme.text_width(_RESET_TXT, reset_font)) + 26
         error_font = theme.sf(11.5)
@@ -534,11 +534,11 @@ class ShortcutsController(NSObject):
             "", error_font, theme.TEAL_DARK, multiline=True)
         content.addSubview_(self._error)
 
-        # Píldora dibujada a mano + botón invisible encima, el mismo patrón
-        # que las filas: en este macOS el bezel nativo de NSButton no compone
-        # (verificado con screencapture: el título quedaba flotando sin caja,
-        # ilegible sobre el papel — la misma familia de fallo que la pista
-        # del NSSlider más arriba).
+        # Hand-drawn pill + invisible button on top, the same pattern as
+        # the rows: on this macOS the native NSButton bezel does not
+        # composite (verified with screencapture: the title floated boxless,
+        # unreadable over the paper — the same failure family as the
+        # NSSlider track further up).
         pill = NSView.alloc().initWithFrame_(
             NSMakeRect(W - PAD - reset_w, y_(H - 42, 26), reset_w, 26))
         pill.setWantsLayer_(True)
@@ -563,33 +563,33 @@ class ShortcutsController(NSObject):
     def _build_row(self, sid, frame, lado_font, lado_w):
         sc = shortcuts.SHORTCUTS[sid]
         row = NSView.alloc().initWithFrame_(frame)
-        # Capa propia para poder resaltar la fila ENTERA durante la captura
-        # (feedback: no se veía en qué fila estabas). En reposo pinta el
-        # mismo papel que la ventana, así que no se nota que existe.
+        # Its own layer so the ENTIRE row can be highlighted during capture
+        # (feedback: you couldn't see which row you were on). At rest it
+        # paints the same paper as the window, so it goes unnoticed.
         row.setWantsLayer_(True)
         row.layer().setCornerRadius_(8.0)
         row.layer().setBackgroundColor_(theme.PAGE_BG.CGColor())
         rw = frame.size.width
 
-        # Solo Dictation desplaza su contenido: el resto de filas mide
-        # ROW_H (dy=0, sin cambios). Con dy=_DELAY_ROW_EXTRA_H, el título/
-        # subtítulo/keycap/lado terminan EXACTAMENTE donde estarían en una
-        # fila normal de ROW_H (el frame creció por abajo, no por arriba: ver
-        # _build), y la banda [0, dy) que queda libre debajo es donde vive el
-        # slíder — dentro del frame de la fila, no fuera de él.
+        # Only Dictation shifts its content: the other rows measure
+        # ROW_H (dy=0, unchanged). With dy=_DELAY_ROW_EXTRA_H, the title/
+        # subtitle/keycap/side end up EXACTLY where they would be in a
+        # normal ROW_H row (the frame grew at the bottom, not the top: see
+        # _build), and the [0, dy) band left free below is where the
+        # slider lives — inside the row's frame, not outside it.
         dy = _DELAY_ROW_EXTRA_H if sc.has_delay else 0
 
         nombres = list(self._estado.get(sid, {}).get("keys") or [])
 
-        # Zona derecha de la fila, de DERECHA a IZQUIERDA: [campo de chips]
-        # [lado]. El campo (ancho único self._field_w, ver field_width) lleva
-        # dentro un chip por tecla y el lápiz ✎ — la afordancia de editar,
-        # estilo Wispr. El click de verdad lo recibe el botón invisible de
-        # toda la fila, más abajo.
+        # Right-hand zone of the row, from RIGHT to LEFT: [chips field]
+        # [side]. The field (single width self._field_w, see field_width)
+        # holds one chip per key plus the pencil ✎ — the edit affordance,
+        # Wispr style. The real click is received by the whole row's
+        # invisible button, further down.
         field_x = rw - _LADO_MARGEN_D - self._field_w
         lado_x = field_x - _LADO_GAP - lado_w
-        # Título/subtítulo: hasta la etiqueta de lado con holgura. Dinámico =
-        # nunca se solapan aunque el campo crezca con un combo largo.
+        # Title/subtitle: up to the side label with slack. Dynamic =
+        # they never overlap even if the field grows with a long combo.
         titulo_w = max(80, lado_x - 8)
 
         row.addSubview_(theme.label(
@@ -604,8 +604,8 @@ class ShortcutsController(NSObject):
         campo.layer().setCornerRadius_(8.0)
         campo.layer().setBorderWidth_(1.0)
         campo.layer().setBorderColor_(theme.BTN_BORDER.CGColor())
-        # Una captura con muchas teclas no puede desbordar el campo y pisar
-        # el borde de la ventana: se recorta dentro.
+        # A capture with many keys must not overflow the field and step on
+        # the window's edge: it is clipped inside.
         campo.layer().setMasksToBounds_(True)
         row.addSubview_(campo)
         self._fields[sid] = campo
@@ -633,14 +633,14 @@ class ShortcutsController(NSObject):
         row.addSubview_(lado)
         self._sides[sid] = lado
 
-        # Toda la fila arma la captura al pulsarla (Task 10: "clicking a row
-        # starts key capture"), no solo el keycap — un botón invisible del
-        # tamaño de la banda de contenido (0..ROW_H, nunca la banda del
-        # slíder) puesto ENCIMA de las etiquetas para recibir el click. Se
-        # añade antes que el slíder (más abajo) para que este quede por
-        # delante en esa banda si algún día se solapasen; hoy no lo hacen
-        # -viven en bandas [0,dy) y [dy,dy+ROW_H) disjuntas- así que el orden
-        # es solo cinturón y tirantes.
+        # The whole row arms the capture when clicked (Task 10: "clicking a row
+        # starts key capture"), not just the keycap — an invisible button the
+        # size of the content band (0..ROW_H, never the slider band)
+        # placed ON TOP of the labels to receive the click. It is
+        # added before the slider (below) so the latter stays in front
+        # within that band if they ever overlapped; today they don't
+        # -they live in disjoint bands [0,dy) and [dy,dy+ROW_H)- so the order
+        # is just belt and suspenders.
         boton = NSButton.alloc().initWithFrame_(NSMakeRect(0, dy, rw, ROW_H))
         boton.setBordered_(False)
         boton.setBezelStyle_(0)
@@ -651,16 +651,16 @@ class ShortcutsController(NSObject):
         self._fila_boton[sid] = boton
 
         if sc.has_delay:
-            # macOS 26 (Darwin 25, el mismo que obligó a NSWindow en vez de
-            # NSPanel) dibuja un NSSlider recién creado como el pomo solo,
-            # SIN el surco: verificado con screencapture, un círculo blanco
-            # flotando bajo "Hold to talk" y ni rastro de pista aunque se
-            # mire pixel a pixel. stringValue()/doubleValue() sí funcionan
-            # -el control responde-, solo su dibujado nativo no se ve. Una
-            # pista propia, dibujada a mano y por DEBAJO del NSSlider real
-            # (que sigue siendo el que recibe el arrastre), deja esto legible
-            # sin depender de que AppKit pinte lo que promete.
-            pista_y = _DELAY_SLIDER_Y + 9   # centro vertical del slíder
+            # macOS 26 (Darwin 25, the same one that forced NSWindow instead
+            # of NSPanel) draws a freshly created NSSlider as the knob alone,
+            # WITHOUT the groove: verified with screencapture, a white circle
+            # floating under "Hold to talk" and no trace of a track even
+            # looking pixel by pixel. stringValue()/doubleValue() do work
+            # -the control responds-, only its native drawing is unseen. A
+            # track of our own, hand-drawn and BELOW the real NSSlider
+            # (which remains the one receiving the drag), keeps this legible
+            # without depending on AppKit painting what it promises.
+            pista_y = _DELAY_SLIDER_Y + 9   # vertical center of the slider
             pista = theme.rule(NSMakeRect(6, pista_y, 168, 2), theme.BTN_BORDER)
             row.addSubview_(pista)
 
@@ -677,40 +677,40 @@ class ShortcutsController(NSObject):
             row.addSubview_(sl)
             self._slider = sl
 
-            # Finding 1 (CRÍTICO) del review: el slíder no enseñaba ningún
-            # número -ni marcas (setNumberOfTickMarks_ tampoco pinta nada en
-            # este macOS, igual que la pista) ni el valor elegido-. Elegir
-            # un delay era adivinar, no elegir. Lo que faltaba:
+            # Finding 1 (CRITICAL) of the review: the slider showed no
+            # number at all -neither marks (setNumberOfTickMarks_ paints
+            # nothing on this macOS either, same as the track) nor the chosen
+            # value-. Picking a delay was guessing, not choosing. What was missing:
             #
-            # 1. Las marcas, debajo de la pista, en las posiciones REALES
-            #    del pomo: _marca_x() lee knobRectFlipped_ del propio
-            #    slíder en vez de repartir el ancho del control a partes
-            #    iguales (rectOfTickMarkAtIndex_ existe pero no descuenta
-            #    el ancho del pomo y da una numeración que ya no coincide
-            #    con dónde se ve -o se vería- de verdad).
-            # 2. El valor en texto, a la derecha, en teal y negrita.
+            # 1. The marks, below the track, at the knob's REAL
+            #    positions: _marca_x() reads knobRectFlipped_ from the
+            #    slider itself instead of splitting the control's width
+            #    into equal parts (rectOfTickMarkAtIndex_ exists but does
+            #    not subtract the knob's width and gives a numbering that
+            #    no longer matches where it is -or would be- really seen).
+            # 2. The value as text, on the right, in teal and bold.
             #
-            # Los dos anchos se miden con theme.text_width(), no a ojo: la
-            # misma lección de _lado_ancho() y _nota_huerfana_ancho() de
-            # más arriba en este módulo -un campo ajustado de menos recorta
-            # el texto en silencio y stringValue() sigue devolviendo el
-            # texto completo.
+            # Both widths are measured with theme.text_width(), not by eye:
+            # the same lesson as _lado_ancho() and _nota_huerfana_ancho()
+            # higher up in this module -an undersized field clips the
+            # text silently and stringValue() keeps returning the full
+            # text.
             #
-            # OJO, esto mordió de verdad: con align=NSTextAlignmentCenter y
-            # un campo ajustado al ancho medido + holgura, "200" se pintaba
-            # "20" -comprobado con screencapture a pixel, no era una
-            # ilusión de la captura de pantalla-, aunque theme.text_width()
-            # midiera bien y stringValue() siguiera devolviendo "200". La
-            # celda centrada calcula su propio ancho "natural" para
-            # centrar, más ancho que el medido, y si el campo no le sobra
-            # ese margen recorta un carácter aunque el campo mida de sobra
-            # para el ancho REAL del texto (aislado en una ventana de
-            # prueba: el mismo texto con align IZQUIERDA en el mismo campo
-            # de 24pt no recortaba nada). Por eso aquí NO se usa align=
-            # Center: se centra a mano -el origen x resta el ancho medido
-            # del texto (sin holgura) entre dos, no el ancho del campo- y
-            # se deja la etiqueta en alineación izquierda, que es la que de
-            # verdad no recorta.
+            # CAREFUL, this really bit: with align=NSTextAlignmentCenter and
+            # a field fitted to the measured width + slack, "200" painted as
+            # "20" -verified with screencapture at pixel level, it was not
+            # an illusion of the screenshot-, even though theme.text_width()
+            # measured correctly and stringValue() kept returning "200". The
+            # centered cell computes its own "natural" width in order to
+            # center, wider than the measured one, and if the field lacks
+            # that spare margin it clips a character even when the field is
+            # plenty wide for the REAL width of the text (isolated in a
+            # test window: the same text with LEFT align in the same 24pt
+            # field clipped nothing). That is why align=Center is NOT used
+            # here: centering is done by hand -the x origin subtracts half
+            # the measured text width (without slack), not half the field's
+            # width- and the label is left with left alignment, which is
+            # the one that truly does not clip.
             marca_font = theme.sf(_DELAY_MARCA_PT)
             self._delay_ticks = []
             marcas = _marcas_delay()
@@ -735,24 +735,24 @@ class ShortcutsController(NSObject):
         return row
 
     def _marca_x(self, sl, ms):
-        """Centro (eje x) del pomo real de `sl` en el valor `ms`.
+        """Center (x axis) of `sl`'s real knob at value `ms`.
 
-        NSSlider no pinta ni pista ni marcas en este macOS (ver el
-        comentario grande de _build_row), pero el pomo SÍ responde de
-        verdad al valor -stringValue()/doubleValue() funcionan-, así que su
-        rectángulo (knobRectFlipped_) es la posición real a la que hay que
-        alinear la marca, no un reparto a partes iguales del ancho del
-        control: rectOfTickMarkAtIndex_ existe pero mide la pista completa
-        sin descontar el ancho del pomo, y da una numeración que ya no
-        coincide con dónde se ve -o se vería, si este macOS pintase algo-
-        el pomo de verdad (comprobado a mano con las dos: para un slíder de
-        180pt con pomo de 20pt, rectOfTickMarkAtIndex_ reparte 0/45/90/135/
-        180 pero el pomo real viaja de 10 a 170).
+        NSSlider paints neither track nor marks on this macOS (see the
+        big comment in _build_row), but the knob DOES truly respond
+        to the value -stringValue()/doubleValue() work-, so its
+        rectangle (knobRectFlipped_) is the real position the mark must
+        align to, not an equal split of the control's width:
+        rectOfTickMarkAtIndex_ exists but measures the full track
+        without subtracting the knob's width, and gives a numbering that
+        no longer matches where the real knob is seen -or would be, if
+        this macOS painted anything- (checked by hand with both: for a
+        180pt slider with a 20pt knob, rectOfTickMarkAtIndex_ spreads
+        0/45/90/135/180 but the real knob travels from 10 to 170).
 
-        Sube y baja doubleValue_ para leerlo y lo deja como estaba: es una
-        consulta, no un cambio de estado, y no dispara sliderMoved_ porque
-        setDoubleValue_ nunca manda la acción (solo lo hace un arrastre de
-        verdad o un sendAction_to_ explícito).
+        Raises and lowers doubleValue_ to read it and leaves it as it was:
+        it is a query, not a state change, and it does not fire sliderMoved_
+        because setDoubleValue_ never sends the action (only a real drag
+        does, or an explicit sendAction_to_).
         """
         anterior = sl.doubleValue()
         sl.setDoubleValue_(float(ms))
@@ -761,36 +761,36 @@ class ShortcutsController(NSObject):
         return rect.origin.x + rect.size.width / 2.0
 
     def _build_keyboard(self, content, top, height):
-        """Dibuja el teclado. Las casillas (y sus leyendas) se crean UNA vez y
-        luego solo se recolorean: añadir y quitar subviews en cada repintado
-        es lo que hace parpadear una ventana.
+        """Draws the keyboard. The cells (and their legends) are created ONCE
+        and then only recolored: adding and removing subviews on every repaint
+        is what makes a window flicker.
 
-        Las filas salen de keyboard_rows(self._estado), no de KEYBOARD_ROWS
-        directamente (Task 9 fix2, Defecto 1): así, si el estado trae una
-        tecla asignada que el retrato de MacBook no dibuja, aparece en una
-        fila extra en vez de quedarse encendida en la lista y ausente aquí.
-        alto_fila se calcula sobre len(filas), no sobre una constante, para
-        que la fila extra reparta el alto disponible con las demás sin que
-        haga falta agrandar la ventana.
+        The rows come from keyboard_rows(self._estado), not from KEYBOARD_ROWS
+        directly (Task 9 fix2, Defect 1): that way, if the state carries an
+        assigned key the MacBook portrait does not draw, it appears in an
+        extra row instead of staying lit in the list and absent here.
+        alto_fila is computed from len(filas), not from a constant, so that
+        the extra row shares the available height with the others without
+        having to enlarge the window.
 
-        Una casilla sin leyenda no dice qué tecla es — encendida o no, hay
-        que contar posiciones en la fila para saberlo, que es exactamente lo
-        que un teclado dibujado existe para evitar. Cada casilla NOMBRADA
-        lleva su leyenda, construida con key_label([nombre]): la misma
-        función que ya pintan los keycaps de las cuatro filas, para que el
-        teclado y la lista no puedan tener dos ideas distintas de cómo se
-        escribe una tecla. Las casillas de RELLENO ("") se quedan sin
-        leyenda: hoy KEYBOARD_ROWS ya no tiene ninguna (Defectos 3 y 4 de
-        esta ronda), pero la rama se deja como red de seguridad por si algún
-        retrato futuro vuelve a necesitar un hueco puramente decorativo.
+        A cell without a legend does not say which key it is — lit or not,
+        you have to count positions in the row to know, which is exactly
+        what a drawn keyboard exists to avoid. Every NAMED cell
+        carries its legend, built with key_label([nombre]): the same
+        function the keycaps of the four rows already paint with, so the
+        keyboard and the list cannot hold two different ideas of how a
+        key is spelled. FILLER cells ("") stay without a
+        legend: today KEYBOARD_ROWS no longer has any (Defects 3 and 4 of
+        this round), but the branch is kept as a safety net in case some
+        future portrait needs a purely decorative gap again.
 
-        Un nombre `None` (Task 9, tercera ronda, Defecto 1) es distinto de
-        "": cuenta para el reparto de ancho de la fila -para que las
-        casillas huérfanas no hereden el ancho que se le reserva- pero no
-        dibuja NADA, ni siquiera una casilla apagada; si dibujara una
-        casilla vacía sería el mismo "agujero sin leyenda que parece tecla
-        rota" que evita el caso `""`. Por eso el bucle lo salta antes de
-        crear la NSView.
+        A `None` name (Task 9, third round, Defect 1) is different from
+        "": it counts toward the row's width split -so that the orphan
+        cells do not inherit the width reserved for it- but it draws
+        NOTHING, not even an unlit cell; if it drew an empty cell it
+        would be the same "unlabeled hole that looks like a broken key"
+        the `""` case avoids. That is why the loop skips it before
+        creating the NSView.
         """
         filas = keyboard_rows(self._estado)
         marco = NSView.alloc().initWithFrame_(
@@ -808,11 +808,11 @@ class ShortcutsController(NSObject):
         nota_font = theme.sf(_NOTA_HUERFANA_PT)
         nota_w = _nota_huerfana_ancho(nota_font)
 
-        # La fila huérfana es siempre la última de keyboard_rows() cuando la
-        # hay (ver su docstring): compararla contra KEYBOARD_ROWS, no contra
-        # un índice clavado, es lo que deja este bucle correcto tanto si hoy
-        # hay una fila huérfana como si algún día KEYBOARD_ROWS gana una fila
-        # de verdad y dejan de coincidir en longitud.
+        # The orphan row is always the last one from keyboard_rows() when
+        # there is one (see its docstring): comparing against KEYBOARD_ROWS,
+        # not against a hardcoded index, is what keeps this loop correct both
+        # if there is an orphan row today and if KEYBOARD_ROWS someday gains
+        # a real row and their lengths stop matching.
         indice_huerfana = len(filas) - 1 if len(filas) > len(KEYBOARD_ROWS) else -1
 
         ancho = marco.frame().size.width - 16
@@ -846,11 +846,11 @@ class ShortcutsController(NSObject):
                 x += kw + 3
 
             if i == indice_huerfana:
-                # Defecto 2 de la tercera ronda: decir por qué esa tecla está
-                # sola ahí. El hueco reservado por el `None` de arriba es
-                # justo el sitio para el texto -a la derecha, en el mismo
-                # gris secundario que ya usa la etiqueta de lado (side_label)
-                # de las cuatro filas de abajo.
+                # Defect 2 of the third round: say why that key sits alone
+                # there. The gap reserved by the `None` above is
+                # just the spot for the text -on the right, in the same
+                # secondary gray already used by the side label (side_label)
+                # of the four rows below.
                 nota = theme.label(
                     NSMakeRect(8 + ancho - _NOTA_HUERFANA_MARGEN_D - nota_w,
                                fy + 2 + (cy - (nota_font.pointSize() + 8)) / 2,
@@ -861,25 +861,25 @@ class ShortcutsController(NSObject):
                 self._nota_huerfana = nota
 
     def _paint_keyboard(self):
-        """Recolorea las casillas según self._estado. DEBE correr en el hilo
-        principal: lo llama también la captura, que llega por el hilo del
-        listener de pynput.
+        """Recolors the cells according to self._estado. MUST run on the main
+        thread: it is also called by capture, which arrives on the pynput
+        listener thread.
 
-        La leyenda se recolorea en la misma rama que el relleno de su
-        casilla, nunca en un paso aparte: dictation enciende en teal
-        SÓLIDO (theme.TEAL) y ahí el gris oscuro de una leyenda apagada
-        (theme.INK_KEYCAP) sería ilegible, así que pasa a theme.PAGE_BG
-        (el "papel" casi blanco de la marca). El resto de atajos encienden
-        en un teal muy claro (theme.MODEL_BTN_BG) — ahí el mismo gris
-        oscuro de siempre ya se lee bien, así que su leyenda se queda
-        igual que una apagada. Tenerlo en la misma rama que
-        setBackgroundColor_ es lo que impide que relleno y leyenda se
-        desincronicen si mañana cambia uno de los dos colores.
+        The legend is recolored in the same branch as its cell's fill,
+        never in a separate step: dictation lights up in SOLID teal
+        (theme.TEAL) and there the dark gray of an unlit legend
+        (theme.INK_KEYCAP) would be unreadable, so it switches to theme.PAGE_BG
+        (the brand's near-white "paper"). The other shortcuts light up
+        in a very light teal (theme.MODEL_BTN_BG) — there the usual dark
+        gray already reads fine, so their legend stays the same
+        as an unlit one. Keeping it in the same branch as
+        setBackgroundColor_ is what prevents fill and legend from
+        desyncing if one of the two colors changes tomorrow.
 
-        Con una captura armada, el teclado cambia de pregunta: deja de contar
-        "qué hay asignado" y pasa a contar "qué puedes elegir" — ver
-        _paint_keyboard_captura. apply/cancel repintan al salir de la captura
-        y este método vuelve a la vista por asignaciones.
+        With a capture armed, the keyboard changes its question: it stops
+        telling "what is assigned" and starts telling "what you can pick" —
+        see _paint_keyboard_captura. apply/cancel repaint on leaving capture
+        and this method returns to the by-assignment view.
         """
         if self._capturing:
             self._paint_keyboard_captura(self._capturing)
@@ -906,22 +906,22 @@ class ShortcutsController(NSObject):
                     leyenda.setTextColor_(theme.INK_KEYCAP)
 
     def _paint_keyboard_captura(self, sid):
-        """Verde DE VERDAD = usable para este atajo; gris = no.
+        """ACTUAL green = usable for this shortcut; gray = not.
 
-        La verdad la pone shortcuts.validate — el mismo validador que luego
-        acepta o rechaza la captura, así que el color y el resultado no pueden
-        contarse historias distintas. El primer intento pintaba las usables
-        con MODEL_BTN_BG (#EDF5F3), que en pantalla no se distingue del gris
-        de una apagada — Eduardo lo describió como "el teclado se ve completo
-        y las que se pueden no están marcadas". El contraste ES el arreglo:
-        las usables se encienden en el teal SÓLIDO de la marca con la leyenda
-        en color papel; las teclas ya PULSADAS de esta captura suben a
-        TEAL_DARK (feedback en vivo: lo que marcas se refleja aquí); y el
-        resto se apaga con la leyenda en gris tenue — letras, reservadas
-        (esc/shift), teclas de otros atajos y las decorativas (⇪, flechas).
-        Los combos (ctrl+shift+m) se siguen capturando aunque sus letras
-        salgan grises: el color habla de la tecla SOLA.
-        DEBE correr en el hilo principal, como _paint_keyboard.
+        The truth comes from shortcuts.validate — the same validator that
+        later accepts or rejects the capture, so the color and the result
+        cannot tell different stories. The first attempt painted the usable
+        keys with MODEL_BTN_BG (#EDF5F3), which on screen cannot be told
+        apart from an unlit gray — Eduardo described it as "the keyboard
+        looks complete and the ones you can use are not marked". Contrast IS
+        the fix: usable keys light up in the brand's SOLID teal with the
+        legend in paper color; the keys already PRESSED in this capture step
+        up to TEAL_DARK (live feedback: what you press is reflected here);
+        and the rest goes dark with the legend in faint gray — letters,
+        reserved keys (esc/shift), other shortcuts' keys and the decorative
+        ones (⇪, arrows). Combos (ctrl+shift+m) are still captured even
+        though their letters appear gray: the color speaks of the key ALONE.
+        MUST run on the main thread, like _paint_keyboard.
         """
         pulsadas = {keys.canon(n) or n for n in self._capture_pressed}
         for nombre, casilla in self._keys.items():
@@ -943,10 +943,10 @@ class ShortcutsController(NSObject):
                 if leyenda is not None:
                     leyenda.setTextColor_(theme.INK_MUTED)
 
-    # ---------- captura ----------
+    # ---------- capture ----------
     def filaClicked_(self, sender):
-        """Acción del botón invisible de cada fila: clicar en cualquier
-        punto de la fila (no solo el keycap) arma su captura."""
+        """Action of each row's invisible button: clicking anywhere
+        on the row (not just the keycap) arms its capture."""
         for sid, boton in self._fila_boton.items():
             if boton is sender:
                 self.begin_capture_(sid)
@@ -954,49 +954,49 @@ class ShortcutsController(NSObject):
 
     @objc.python_method
     def begin_capture_(self, sid):
-        """Arma la fila `sid` para recibir la próxima combinación.
+        """Arms row `sid` to receive the next combination.
 
-        @objc.python_method: sin él, PyObjC lee el nombre como el selector
-        Objective-C "begin:capture:" (CADA guion bajo -no solo el final- abre
-        un keyword nuevo; ver default_selector en objc/_transform.py) y
-        `objc.BadPrototypeError` revienta al definir la clase, porque ese
-        selector pide 2 argumentos y el método solo recibe uno (`sid`). Nada
-        de esta ventana invoca estos cuatro métodos vía un target/action de
-        Cocoa -los llama solo Python (los tests, filaClicked_,
-        _on_captured_)-, así que no necesitan ser selectores de verdad.
+        @objc.python_method: without it, PyObjC reads the name as the
+        Objective-C selector "begin:capture:" (EVERY underscore -not just
+        the trailing one- opens a new keyword; see default_selector in
+        objc/_transform.py) and `objc.BadPrototypeError` blows up at class
+        definition, because that selector takes 2 arguments and the method
+        only receives one (`sid`). Nothing in this window invokes these four
+        methods via a Cocoa target/action -only Python calls them (the
+        tests, filaClicked_, _on_captured_)-, so they need not be real selectors.
 
-        Si hay un HotkeyManager real conectado (attachHotkey_), desvía
-        también las pulsaciones globales hacia _on_captured_: es la única
-        vía de captura, reutiliza el begin_capture() del listener que ya
-        corre en vez de crear uno propio (ver attachHotkey_).
+        If a real HotkeyManager is attached (attachHotkey_), it also
+        diverts global keystrokes toward _on_captured_: it is the only
+        capture path, reusing the begin_capture() of the listener that is
+        already running instead of creating its own (see attachHotkey_).
         """
         anterior = self._capturing
         self._capturing = sid
         self._capture_pressed = []
-        # Guía clara mientras captura (punto 5 del feedback): el keycap pone
-        # "…" y poco más orientaba; ahora el campo de estado dice qué hacer y
-        # que Esc deja el atajo como estaba. Se limpia al terminar la captura.
+        # Clear guidance while capturing (point 5 of the feedback): the keycap
+        # showed "…" and little else guided you; now the status field says what
+        # to do and that Esc keeps the shortcut as it was. Cleared when capture ends.
         self._error_text = (
             f"Press the keys for {shortcuts.SHORTCUTS[sid].label}… "
             f"(Esc to keep the current one)"
         )
         if anterior and anterior != sid:
-            # Cambiar de fila a mitad de captura no puede dejar el keycap
-            # anterior encallado en "…": esa fila ya no es la que se está
-            # capturando y tiene que volver a mostrar su tecla de verdad.
+            # Switching rows mid-capture must not leave the previous keycap
+            # stranded on "…": that row is no longer the one being
+            # captured and has to show its real key again.
             self._refresh_row(anterior)
         self._refresh_row(sid)
-        # El teclado pasa a la vista de captura: usables en verde, resto en
-        # gris (ver _paint_keyboard_captura). Cambiar de fila a mitad de
-        # captura también repinta — cada atajo tiene sus propias usables.
+        # The keyboard switches to the capture view: usable keys in green,
+        # the rest in gray (see _paint_keyboard_captura). Switching rows mid-
+        # capture also repaints — each shortcut has its own usable keys.
         self._paint_keyboard()
         if self._hotkey is not None:
             self._hotkey.begin_capture(self._on_captured_)
 
     @objc.python_method
     def cancel_capture_(self):
-        """Esc durante la captura: deja el atajo como estaba (convención de
-        macOS). También lo llama el cierre de la ventana."""
+        """Esc during capture: leaves the shortcut as it was (macOS
+        convention). Also called by the window's close path."""
         sid, self._capturing = self._capturing, None
         self._capture_pressed = []
         self._error_text = ""
@@ -1004,20 +1004,20 @@ class ShortcutsController(NSObject):
             self._hotkey.end_capture()
         if sid:
             self._refresh_row(sid)
-            self._paint_keyboard()  # vuelve la vista por asignaciones
+            self._paint_keyboard()  # back to the by-assignment view
 
     @objc.python_method
     def _on_captured_(self, names):
-        """El `cb` de verdad que hotkey.begin_capture() invoca. Llega por el
-        hilo del listener de pynput, nunca el principal — tocar AppKit aquí
-        directamente es el SIGTRAP/EXC_BREAKPOINT de siempre, así que todo lo
-        que sigue pasa por AppHelper.callAfter.
+        """The real `cb` that hotkey.begin_capture() invokes. Arrives on the
+        pynput listener thread, never the main one — touching AppKit here
+        directly is the usual SIGTRAP/EXC_BREAKPOINT, so everything that
+        follows goes through AppHelper.callAfter.
 
-        Esc aborta la captura en vez de ofrecerse como tecla nueva (la misma
-        convención que documenta cancel_capture_): sin este corte, "cancel"
-        -que ya es esc de fábrica- sería el único atajo que se puede
-        reasignar con Esc, y en cualquier otra fila un Esc de pánico se
-        leería como un intento de asignación en vez de como "olvídalo".
+        Esc aborts the capture instead of offering itself as the new key
+        (the same convention cancel_capture_ documents): without this cut,
+        "cancel" -which is already esc from the factory- would be the only
+        shortcut reassignable with Esc, and in any other row a panic Esc
+        would read as an assignment attempt instead of as "forget it".
         """
         from PyObjCTools import AppHelper
 
@@ -1028,13 +1028,13 @@ class ShortcutsController(NSObject):
 
     @objc.python_method
     def apply_capture_(self, names):
-        """Valida y aplica lo capturado. No aplica nada que no pase por
-        shortcuts.validate() ni que el llamador rechace."""
+        """Validates and applies what was captured. Applies nothing that
+        does not pass shortcuts.validate() or that the caller rejects."""
         sid = self._capturing
         if not sid:
             return
-        # Lo pulsado hasta ahora se refleja en vivo: chips en el campo de la
-        # fila y casillas en TEAL_DARK en el teclado, pase o no la validación.
+        # What has been pressed so far is reflected live: chips in the row's
+        # field and TEAL_DARK cells on the keyboard, whether validation passes or not.
         self._capture_pressed = list(names)
         ok, msg = shortcuts.validate(sid, list(names), self._estado)
         if not ok:
@@ -1050,8 +1050,8 @@ class ShortcutsController(NSObject):
 
         aplicado, aviso = self._on_change(sid, fila)
         if not aplicado:
-            # El hotkey rechazó el cambio: el estado de la ventana refleja lo
-            # que suena de verdad, nunca lo que se pidió.
+            # The hotkey rejected the change: the window's state reflects
+            # what is actually live, never what was requested.
             self._error_text = aviso
             self._refresh_row(sid)
             return
@@ -1059,11 +1059,11 @@ class ShortcutsController(NSObject):
         self._estado[sid] = fila
         self._capturing = None
         self._capture_pressed = []
-        self._error_text = aviso or msg    # msg puede traer el aviso de F5 o fn
+        self._error_text = aviso or msg    # msg may carry the F5 or fn notice
         if self._hotkey is not None:
             self._hotkey.end_capture()
         self._refresh_row(sid)
-        self._layout_fields()   # un combo más largo (o más corto) recoloca la columna
+        self._layout_fields()   # a longer (or shorter) combo repositions the column
         self._paint_keyboard()
         if fila.get("delay_ms") is not None and self._slider is not None and sid == "dictation":
             self._slider.setDoubleValue_(float(fila["delay_ms"]))
@@ -1071,7 +1071,7 @@ class ShortcutsController(NSObject):
 
     @objc.python_method
     def set_delay_(self, ms):
-        """El slíder. Solo Dictation lo tiene (shortcuts.SHORTCUTS[…].has_delay)."""
+        """The slider. Only Dictation has one (shortcuts.SHORTCUTS[…].has_delay)."""
         ms = max(0, min(shortcuts.MAX_DELAY_MS, int(ms)))
         fila = dict(self._estado.get("dictation", {}))
         fila["delay_ms"] = ms
@@ -1087,25 +1087,25 @@ class ShortcutsController(NSObject):
         self.set_delay_(int(round(sender.doubleValue())))
 
     def _actualizar_valor_delay(self, ms):
-        """Sincroniza el texto del valor ('400 ms') con el delay real.
+        """Syncs the value text ('400 ms') with the real delay.
 
-        Se llama tanto desde set_delay_ (arrastrar el slíder) como desde
-        apply_capture_ (el salto automático a shortcuts.DEFAULT_DELAY_MS al
-        elegir una tecla con guarda, ver delay_for): las dos vías cambian
-        delay_ms, y las dos tienen que dejar el número visible de acuerdo
-        con el estado, o el Finding 1 del review volvería a repetirse por
-        otro camino.
+        Called both from set_delay_ (dragging the slider) and from
+        apply_capture_ (the automatic jump to shortcuts.DEFAULT_DELAY_MS
+        when choosing a guarded key, see delay_for): both paths change
+        delay_ms, and both must leave the visible number in agreement
+        with the state, or Finding 1 of the review would repeat itself
+        through another path.
         """
         if self._delay_valor is not None:
             self._delay_valor.setStringValue_(_fmt_delay(ms))
 
     def _rebuild_chips(self, sid, nombres=None):
-        """Rehace los chips del campo de `sid`: con `nombres` None pinta el
-        binding del estado; con lista (la captura en vivo) pinta esa.
+        """Rebuilds the chips in `sid`'s field: with `nombres` None it paints
+        the state's binding; with a list (the live capture) it paints that.
 
-        A diferencia de las casillas del teclado, los chips sí se recrean en
-        cada repintado: su NÚMERO cambia con el binding. Solo se tocan los de
-        la fila afectada, así que no hay parpadeo que temer.
+        Unlike the keyboard cells, the chips ARE recreated on every
+        repaint: their NUMBER changes with the binding. Only those of the
+        affected row are touched, so there is no flicker to fear.
         """
         campo = self._fields.get(sid)
         if campo is None:
@@ -1128,13 +1128,13 @@ class ShortcutsController(NSObject):
         self._chips[sid] = chips
         hint = self._hints.get(sid)
         if hint is not None:
-            # El placeholder solo durante la captura y hasta la primera tecla.
+            # The placeholder only during capture and until the first key.
             hint.setHidden_(bool(textos) or self._capturing != sid)
 
     def _layout_fields(self):
-        """Recoloca los cuatro campos cuando cambia el ancho compartido (un
-        combo nuevo más largo, o un reset que lo encoge). La etiqueta de lado
-        se mueve con ellos: la columna entera viaja junta, como en _build_row.
+        """Repositions the four fields when the shared width changes (a new
+        longer combo, or a reset that shrinks it). The side label moves
+        with them: the whole column travels together, as in _build_row.
         """
         nuevo = field_width(self._estado, self._chip_font)
         if nuevo == self._field_w:
@@ -1166,12 +1166,12 @@ class ShortcutsController(NSObject):
             self._rebuild_chips(sid)
 
     def resetDefaults_(self, _sender):
-        """Vuelve los cuatro atajos a fábrica (el "Reset to default" de
-        Wispr, pedido expreso de Eduardo). Cada vuelta pasa por _on_change
-        igual que una captura: si el hotkey real rechaza alguna (colisión
-        transitoria con un binding raro), esa fila se queda como está y el
-        campo de error lo cuenta — un segundo click la suele resolver, con
-        el resto ya en fábrica."""
+        """Returns the four shortcuts to factory defaults (Wispr's "Reset
+        to default", Eduardo's express request). Each return goes through
+        _on_change just like a capture: if the real hotkey rejects one
+        (a transient collision with an odd binding), that row stays as it
+        is and the error field tells it — a second click usually resolves
+        it, with the rest already at factory."""
         if self._capturing:
             self.cancel_capture_()
         avisos = []
@@ -1198,18 +1198,18 @@ class ShortcutsController(NSObject):
             self._actualizar_valor_delay(ms)
 
     def _refresh_row(self, sid):
-        """Repinta una fila entera: resaltado, campo de chips, lado y mensaje.
+        """Repaints an entire row: highlight, chips field, side and message.
 
-        DEBE correr en el hilo principal: apply_capture_ lo llama desde el
-        callback de captura, que llega por el hilo del listener de pynput.
-        Escribir en AppKit desde ahí es el SIGTRAP de siempre.
+        MUST run on the main thread: apply_capture_ calls it from the
+        capture callback, which arrives on the pynput listener thread.
+        Writing to AppKit from there is the usual SIGTRAP.
         """
         nombres = list(self._estado.get(sid, {}).get("keys") or [])
         capturando = self._capturing == sid
         fila = self._rows.get(sid)
         if fila is not None and fila.layer() is not None:
-            # La fila en captura se resalta ENTERA — antes solo cambiaba el
-            # borde del keycap y no se veía dónde estabas.
+            # The row in capture is highlighted as a WHOLE — before, only the
+            # keycap border changed and you couldn't see where you were.
             fila.layer().setBackgroundColor_(
                 (theme.MODEL_BTN_BG if capturando else theme.PAGE_BG).CGColor())
         campo = self._fields.get(sid)
@@ -1224,13 +1224,13 @@ class ShortcutsController(NSObject):
         if self._error is not None:
             self._error.setStringValue_(self._error_text)
 
-    # ---------- ciclo de vida ----------
+    # ---------- lifecycle ----------
     def show(self):
-        # Voooxly es una app de menu-bar: makeKeyAndOrderFront() solo no le
-        # roba el foco a la app que estaba delante y la ventana se abre
-        # DETRÁS (el usuario la pierde de vista). Activar la app la pone
-        # delante; orderFrontRegardless es el cinturón para el caso en que
-        # activate no baste (espacios de trabajo, apps en pantalla completa).
+        # Voooxly is a menu-bar app: makeKeyAndOrderFront() alone does not
+        # steal focus from the app that was in front and the window opens
+        # BEHIND it (the user loses sight of it). Activating the app brings
+        # it forward; orderFrontRegardless is the belt for the case where
+        # activate is not enough (workspaces, full-screen apps).
         from AppKit import NSApp
 
         self._win.center()
@@ -1242,11 +1242,11 @@ class ShortcutsController(NSObject):
         try:
             self._win.close()
         except Exception:
-            log.debug("close() de la ventana de Shortcuts falló", exc_info=True)
+            log.debug("Shortcuts window close() failed", exc_info=True)
 
     def windowShouldClose_(self, _sender):
-        # Cerrar la ventana a mitad de captura no puede dejar el listener de
-        # pynput desviado para siempre hacia una ventana que ya no existe.
+        # Closing the window mid-capture must not leave the pynput listener
+        # diverted forever toward a window that no longer exists.
         if self._capturing:
             self.cancel_capture_()
         return True

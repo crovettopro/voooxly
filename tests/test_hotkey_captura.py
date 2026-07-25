@@ -1,14 +1,14 @@
-"""Capturar teclas para la ventana de Shortcuts, sin un segundo listener.
+"""Capturing keys for the Shortcuts window, without a second listener.
 
-Dos listeners hacen que pynput llame a TIS/TSM desde dos hilos y HIToolbox
-aborta el proceso con SIGABRT, así que la captura la sirve el listener que ya
-está corriendo: mientras captura, _on_press desvía todo al callback y no
-dispara NINGUNA acción. Si dictase mientras el usuario elige tecla, elegir el
-⌘ derecho arrancaría una grabación en mitad del ajuste.
+Two listeners make pynput call TIS/TSM from two threads and HIToolbox aborts
+the process with SIGABRT, so capture is served by the listener that is
+already running: while capturing, _on_press diverts everything to the
+callback and fires NO action at all. If it kept dictating while the user
+picks a key, choosing the right ⌘ would start a recording mid-setup.
 
-El nombre capturado es el mismo que _norm() reportará en runtime. Eso es lo
-que hace que la tecla elegida case de verdad: configurar "cmd_l" a mano no
-casaba nunca, porque pynput reporta "cmd" (ver el header de hotkey.py).
+The captured name is the same one _norm() will report at runtime. That is
+what makes the chosen key actually match: configuring "cmd_l" by hand never
+matched, because pynput reports "cmd" (see the header of hotkey.py).
 """
 import threading
 import time
@@ -40,7 +40,7 @@ def _mk(**cbs):
     return HotkeyManager(**base)
 
 
-def test_capturando_llega_el_nombre_de_la_tecla():
+def test_while_capturing_key_name_arrives():
     visto = []
     hk = _mk()
     hk.begin_capture(visto.append)
@@ -48,7 +48,7 @@ def test_capturando_llega_el_nombre_de_la_tecla():
     assert visto == [["f13"]]
 
 
-def test_capturando_un_combo_llega_entero_y_en_orden():
+def test_while_capturing_combo_arrives_whole_and_in_order():
     visto = []
     hk = _mk()
     hk.begin_capture(visto.append)
@@ -58,9 +58,9 @@ def test_capturando_un_combo_llega_entero_y_en_orden():
     assert visto[-1] == ["ctrl", "shift", "p"]
 
 
-def test_capturando_la_tecla_de_dictado_no_arranca_una_grabacion():
-    # El caso que hace la captura obligatoria: elegir ⌘ derecho no puede
-    # ponerse a grabar en mitad del ajuste.
+def test_capturing_dictation_key_does_not_start_recording():
+    # The case that makes capture mandatory: choosing the right ⌘ cannot
+    # start recording mid-setup.
     started = threading.Event()
     hk = _mk(on_start=started.set)
     hk.begin_capture(lambda names: None)
@@ -69,7 +69,7 @@ def test_capturando_la_tecla_de_dictado_no_arranca_una_grabacion():
     assert not started.is_set(), "capturando arrancó una grabación"
 
 
-def test_capturando_esc_no_cancela_un_dictado():
+def test_capturing_esc_does_not_cancel_dictation():
     fired = threading.Event()
     hk = _mk(on_cancel=fired.set)
     hk.begin_capture(lambda names: None)
@@ -78,7 +78,7 @@ def test_capturando_esc_no_cancela_un_dictado():
     assert not fired.is_set()
 
 
-def test_capturando_el_combo_de_ciclar_no_cicla():
+def test_capturing_cycle_combo_does_not_cycle():
     fired = threading.Event()
     hk = _mk(on_cycle=fired.set)
     hk.begin_capture(lambda names: None)
@@ -89,7 +89,7 @@ def test_capturando_el_combo_de_ciclar_no_cicla():
     assert not fired.is_set(), "el combo disparó durante la captura"
 
 
-def test_end_capture_devuelve_el_comportamiento_normal():
+def test_end_capture_restores_normal_behavior():
     started = threading.Event()
     hk = _mk(on_start=started.set)
     hk.begin_capture(lambda names: None)
@@ -98,9 +98,9 @@ def test_end_capture_devuelve_el_comportamiento_normal():
     assert started.wait(1.0), "tras end_capture la tecla de dictado no arrancó"
 
 
-def test_end_capture_es_idempotente():
-    # Cerrar la ventana a mitad de captura llama a end_capture(); volver a
-    # llamarlo no puede reventar ni dejar el listener mudo.
+def test_end_capture_is_idempotent():
+    # Closing the window mid-capture calls end_capture(); calling it again
+    # must neither blow up nor leave the listener mute.
     hk = _mk()
     hk.begin_capture(lambda names: None)
     hk.end_capture()
@@ -108,7 +108,7 @@ def test_end_capture_es_idempotente():
     assert hk.capturing is False
 
 
-def test_capturing_refleja_el_estado():
+def test_capturing_reflects_state():
     hk = _mk()
     assert hk.capturing is False
     hk.begin_capture(lambda names: None)
@@ -117,21 +117,21 @@ def test_capturing_refleja_el_estado():
     assert hk.capturing is False
 
 
-def test_un_callback_que_revienta_no_deja_el_listener_muerto():
-    # El callback es código de AppKit. Si lanza, la app no puede quedarse sin
-    # hotkeys para siempre.
+def test_a_crashing_callback_does_not_leave_listener_dead():
+    # The callback is AppKit code. If it raises, the app cannot be left
+    # without hotkeys forever.
     hk = _mk()
 
     def explota(names):
         raise RuntimeError("boom")
 
     hk.begin_capture(explota)
-    hk._on_press(keyboard.Key.f13)     # no debe propagar
+    hk._on_press(keyboard.Key.f13)     # must not propagate
     hk.end_capture()
     assert hk.capturing is False
 
 
-def test_soltar_teclas_durante_la_captura_no_dispara_nada():
+def test_releasing_keys_during_capture_fires_nothing():
     stopped = threading.Event()
     hk = _mk(on_stop=stopped.set)
     hk.begin_capture(lambda names: None)
@@ -141,15 +141,14 @@ def test_soltar_teclas_durante_la_captura_no_dispara_nada():
     assert not stopped.is_set()
 
 
-def test_begin_capture_para_una_grabacion_en_curso():
-    # begin_capture() arma la captura de la ventana de Shortcuts limpiando
-    # _started a False sin más. Si hay una grabación real corriendo (on_start
-    # ya se llamó), _on_press/_on_release van a estar tragándose todos los
-    # eventos mientras se captura, así que ni Esc ni la propia tecla de
-    # dictado van a poder cerrarla nunca: el micro se queda abierto para
-    # siempre. begin_capture() tiene que soltarla con on_stop() antes de
-    # barrer las banderas, igual que soltar la tecla en circunstancias
-    # normales.
+def test_begin_capture_for_an_ongoing_recording():
+    # begin_capture() arms the Shortcuts window capture by simply clearing
+    # _started to False. If a real recording is running (on_start was
+    # already called), _on_press/_on_release will be swallowing every event
+    # while capturing, so neither Esc nor the dictation key itself will
+    # ever be able to close it: the mic stays open forever. begin_capture()
+    # has to release it with on_stop() before sweeping the flags, just like
+    # releasing the key under normal circumstances.
     started = threading.Event()
     stopped = threading.Event()
     hk = _mk(on_start=started.set, on_stop=stopped.set, toggle_guard=False)
@@ -159,13 +158,13 @@ def test_begin_capture_para_una_grabacion_en_curso():
     assert stopped.wait(1.0), "begin_capture() dejó la grabación huérfana"
 
 
-def test_begin_capture_para_una_grabacion_fijada_en_latch():
-    # El latch existe justo para esto: soltar la tecla de dictado y hacer
-    # otra cosa -como abrir la ventana de Shortcuts- mientras se sigue
-    # grabando. Si begin_capture() se limita a poner _latched en False, esa
-    # grabación fijada queda huérfana exactamente igual que la del test de
-    # arriba, solo que además nadie la ve "corriendo" porque la tecla ya
-    # estaba soltada.
+def test_begin_capture_for_a_latched_recording():
+    # The latch exists precisely for this: releasing the dictation key and
+    # doing something else -like opening the Shortcuts window- while still
+    # recording. If begin_capture() merely sets _latched to False, that
+    # latched recording is orphaned exactly like the one in the test above,
+    # except no one even sees it "running" because the key was already
+    # released.
     started = threading.Event()
     latched = threading.Event()
     stopped = threading.Event()
@@ -178,11 +177,11 @@ def test_begin_capture_para_una_grabacion_fijada_en_latch():
     assert stopped.wait(1.0), "begin_capture() dejó la grabación fijada huérfana"
 
 
-def test_begin_capture_sin_grabacion_no_dispara_stop():
-    # Caso negativo: sin ningún dictado en curso, begin_capture() no debe
-    # llamar a on_stop(). Sin este test, un arreglo perezoso que disparase
-    # on_stop() a ciegas en cada begin_capture() pasaría igual los dos de
-    # arriba y estaría parando dictados que nunca empezaron.
+def test_begin_capture_without_recording_does_not_fire_stop():
+    # Negative case: with no dictation in progress, begin_capture() must not
+    # call on_stop(). Without this test, a lazy fix that blindly fired
+    # on_stop() on every begin_capture() would still pass the two tests
+    # above while stopping dictations that never started.
     stopped = threading.Event()
     hk = _mk(on_stop=stopped.set)
     hk.begin_capture(lambda names: None)

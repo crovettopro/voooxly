@@ -1,5 +1,5 @@
-"""markdown_to_html cubre EXACTAMENTE lo que emiten los modos: ##/###, bullets,
-numeradas, checkboxes, `code` y ** residual. Y nunca deja HTML sin escapar.
+"""markdown_to_html covers EXACTLY what the modes emit: ##/###, bullets,
+numbered lists, checkboxes, `code` and residual **. And it never leaves HTML unescaped.
 """
 from voooxly import modes, richtext
 
@@ -46,18 +46,18 @@ def test_prosa_sin_markdown_sale_como_parrafos():
     assert html == "<p>Hola equipo.</p>\n<p>Nos vemos el lunes.</p>"
 
 
-def test_cambio_de_ul_a_ol_cierra_la_anterior():
+def test_change_from_ul_to_ol_closes_previous():
     html = richtext.markdown_to_html("- a\n1. b")
     assert "</ul>" in html and "<ol>" in html
     assert html.index("</ul>") < html.index("<ol>")
 
 
-def test_vacio_no_rompe():
+def test_empty_does_not_break():
     assert richtext.markdown_to_html("") == ""
     assert richtext.markdown_to_html(None) == ""
 
 
-# --- qué modos pegan rico ---
+# --- which modes paste rich ---
 
 def test_rich_paste_solo_en_modos_con_estructura():
     ricos = {k for k, v in modes.MODES.items() if v.get("rich_paste")}

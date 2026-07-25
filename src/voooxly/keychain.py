@@ -38,16 +38,16 @@ def get_key(account: str) -> str | None:
         status, data = Security.SecItemCopyMatching(query, None)
         if status != 0 or data is None:
             if status != _ERR_ITEM_NOT_FOUND:
-                log.warning("Llavero: lectura de %r devolvió estado %s", account, status)
+                log.warning("Keychain: read of %r returned status %s", account, status)
             return None
         return bytes(data).decode("utf-8")
     except Exception:
-        log.warning("Llavero: no pude leer %r", account, exc_info=True)
+        log.warning("Keychain: couldn't read %r", account, exc_info=True)
         return None
 
 
 def set_key(account: str, secret: str) -> bool:
-    """Guarda (o reemplaza) el secreto. True si quedó guardado."""
+    """Stores (or replaces) the secret. True if it was saved."""
     try:
         import Security
 
@@ -56,24 +56,24 @@ def set_key(account: str, secret: str) -> bool:
         attrs[Security.kSecValueData] = secret.encode("utf-8")
         status, _ = Security.SecItemAdd(attrs, None)
         if status != 0:
-            log.warning("Llavero: guardar %r devolvió estado %s", account, status)
+            log.warning("Keychain: save of %r returned status %s", account, status)
             return False
         return True
     except Exception:
-        log.warning("Llavero: no pude guardar %r", account, exc_info=True)
+        log.warning("Keychain: couldn't save %r", account, exc_info=True)
         return False
 
 
 def delete_key(account: str) -> bool:
-    """Borra el secreto. True si ya no está (tanto si lo borró como si no existía)."""
+    """Deletes the secret. True if it's gone (whether it deleted it or it never existed)."""
     try:
         import Security
 
-        # A diferencia de SecItemAdd/SecItemCopyMatching (que tienen un
-        # parámetro de salida CFTypeRef y pyobjc los envuelve en tupla),
-        # SecItemDelete no tiene salida: devuelve el OSStatus pelado.
+        # Unlike SecItemAdd/SecItemCopyMatching (which take a CFTypeRef output
+        # parameter that pyobjc wraps in a tuple), SecItemDelete has no
+        # output: it returns the bare OSStatus.
         status = Security.SecItemDelete(_base_query(account))
         return status in (0, _ERR_ITEM_NOT_FOUND)
     except Exception:
-        log.warning("Llavero: no pude borrar %r", account, exc_info=True)
+        log.warning("Keychain: couldn't delete %r", account, exc_info=True)
         return False

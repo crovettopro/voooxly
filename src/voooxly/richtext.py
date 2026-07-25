@@ -1,10 +1,10 @@
-"""Markdown → HTML mínimo para el pegado con doble sabor.
+"""Minimal Markdown → HTML for dual-flavor pasting.
 
-Cubre exactamente el subconjunto que emiten los modos de Voooxly (##/###,
-bullets, numeradas, checkboxes, `code`, **negrita** residual) — no es un
-parser Markdown general. El HTML va al portapapeles JUNTO al texto plano:
-Mail/Gmail/Notion pegan títulos y listas de verdad; Terminal, Obsidian o un
-IDE toman el plano y ven el Markdown crudo. Cada app elige su sabor.
+Covers exactly the subset emitted by Voooxly modes (##/###, bullets, numbered
+lists, checkboxes, `code`, residual **bold**) — it's not a general Markdown
+parser. The HTML goes to the clipboard ALONGSIDE the plain text: Mail/Gmail/Notion
+paste real titles and lists; Terminal, Obsidian, or an IDE take the plain flavor
+and see the raw Markdown. Each app picks its flavor.
 """
 from __future__ import annotations
 

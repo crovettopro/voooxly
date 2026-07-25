@@ -1,15 +1,15 @@
-"""La ventana de decisión que hace usable un modificador izquierdo.
+"""The decision window that makes a left modifier usable.
 
-En modo hold, _on_press dispara on_start() en cuanto cae la tecla. Con el ⌘
-izquierdo de tecla de dictado, eso significa que cada ⌘C, ⌘V y ⌘Tab arranca
-una grabación: la app queda inservible y el usuario no sabe por qué.
+In hold mode, _on_press fires on_start() as soon as the key goes down. With
+the left ⌘ as dictation key, that means every ⌘C, ⌘V and ⌘Tab starts a
+recording: the app becomes unusable and the user has no idea why.
 
-Con guarda, la grabación solo empieza si mantienes la tecla SOLA durante la
-ventana. Cualquier otra tecla dentro de ese rato la cancela y deja pasar el
-combo intacto.
+With the guard, recording only starts if you hold the key ALONE for the
+window. Any other key within that span cancels it and lets the combo through
+untouched.
 
-Los tests usan guard_delay corto para no dormir de verdad; la lógica es la
-misma.
+The tests use a short guard_delay to avoid real sleeping; the logic is the
+same.
 """
 import threading
 import time
@@ -46,15 +46,15 @@ def test_mantener_la_tecla_sola_acaba_grabando():
     assert started.wait(2.0), "la guarda nunca dejó arrancar la grabación"
 
 
-def test_no_graba_antes_de_que_venza_la_ventana():
+def test_does_not_record_before_window_expires():
     started = threading.Event()
     hk = _mk(started.set, lambda: None)
     hk._on_press(keyboard.Key.cmd_l)
     assert not started.is_set(), "arrancó al instante: la guarda no se aplicó"
 
 
-def test_un_combo_dentro_de_la_ventana_no_graba():
-    # ⌘C: el caso que hace inservible la app sin guarda.
+def test_a_combo_inside_window_does_not_record():
+    # ⌘C: the case that makes the app unusable without the guard.
     started = threading.Event()
     hk = _mk(started.set, lambda: None)
     hk._on_press(keyboard.Key.cmd_l)
@@ -63,9 +63,9 @@ def test_un_combo_dentro_de_la_ventana_no_graba():
     assert not started.is_set(), "un ⌘C arrancó una grabación"
 
 
-def test_soltar_dentro_de_la_ventana_no_graba_ni_para():
-    # Un tap suelto del modificador: ni graba ni puede disparar un on_stop
-    # de una grabación que nunca empezó.
+def test_releasing_inside_window_does_not_record_or_stop():
+    # A stray tap of the modifier: it neither records nor can it fire an
+    # on_stop for a recording that never started.
     started, stopped = threading.Event(), threading.Event()
     hk = _mk(started.set, stopped.set)
     hk._on_press(keyboard.Key.cmd_l)
@@ -75,7 +75,7 @@ def test_soltar_dentro_de_la_ventana_no_graba_ni_para():
     assert not stopped.is_set(), "paró una grabación que nunca arrancó"
 
 
-def test_el_ciclo_completo_con_guarda_graba_y_para():
+def test_full_cycle_with_guard_records_and_stops():
     started, stopped = threading.Event(), threading.Event()
     hk = _mk(started.set, stopped.set)
     hk._on_press(keyboard.Key.cmd_l)
@@ -88,13 +88,13 @@ def test_el_latch_sigue_funcionando_con_guarda():
     started, latched = threading.Event(), threading.Event()
     hk = _mk(started.set, lambda: None, on_latch=latched.set)
     hk._on_press(keyboard.Key.cmd_l)
-    assert started.wait(2.0)            # esperar a que la ventana venza
+    assert started.wait(2.0)            # wait for the window to expire
     hk._on_press(keyboard.Key.shift)
     assert latched.wait(2.0)
 
 
 def test_el_shift_dentro_de_la_ventana_cancela_en_vez_de_fijar():
-    # No se puede fijar una grabación que aún no ha empezado.
+    # You cannot latch a recording that has not started yet.
     started, latched = threading.Event(), threading.Event()
     hk = _mk(started.set, lambda: None, on_latch=latched.set)
     hk._on_press(keyboard.Key.cmd_l)
@@ -105,8 +105,8 @@ def test_el_shift_dentro_de_la_ventana_cancela_en_vez_de_fijar():
 
 
 def test_un_tecleo_rapido_no_dispara_la_ventana_de_una_pulsacion_vieja():
-    # El contador de generación: sin él, el timer de una pulsación ya soltada
-    # dispara tarde y arranca una grabación fantasma.
+    # The generation counter: without it, the timer of an already-released
+    # press fires late and starts a phantom recording.
     starts = []
     hk = _mk(lambda: starts.append(1), lambda: None)
     for _ in range(5):
@@ -116,19 +116,19 @@ def test_un_tecleo_rapido_no_dispara_la_ventana_de_una_pulsacion_vieja():
     assert starts == [], f"pulsaciones fantasma: {len(starts)}"
 
 
-def test_sin_guarda_el_arranque_no_espera_a_ninguna_ventana():
-    # La ruta que ya está en producción no cambia: cero regresión. Se usa
-    # wait() y no is_set() porque on_start corre en su propio hilo — con
-    # is_set() el test fallaría de vez en cuando por carrera, no por bug.
+def test_without_guard_start_waits_for_no_window():
+    # The path already in production does not change: zero regression. wait()
+    # is used instead of is_set() because on_start runs in its own thread —
+    # with is_set() the test would fail now and then due to a race, not a bug.
     started = threading.Event()
     hk = _mk(started.set, lambda: None, guard=False)
     hk._on_press(keyboard.Key.cmd_l)
     assert started.wait(1.0), "la tecla sin guarda ya no arranca"
 
 
-def test_sin_guarda_otra_tecla_no_cancela_la_grabacion():
-    # Cancelar a mitad de dictado tira audio ya grabado. Solo es aceptable
-    # DENTRO de la ventana, y sin guarda no hay ventana.
+def test_without_guard_another_key_does_not_cancel_recording():
+    # Canceling mid-dictation throws away already-recorded audio. That is only
+    # acceptable INSIDE the window, and without the guard there is no window.
     started, stopped = threading.Event(), threading.Event()
     hk = _mk(started.set, stopped.set, guard=False)
     hk._on_press(keyboard.Key.cmd_l)
@@ -138,8 +138,8 @@ def test_sin_guarda_otra_tecla_no_cancela_la_grabacion():
     assert not stopped.is_set(), "una tecla suelta mató un dictado en curso"
 
 
-def test_reconfigure_cambia_la_tecla_y_la_guarda_en_caliente():
-    # Es lo que usa el menú de Settings: cambiar de tecla sin reiniciar la app.
+def test_reconfigure_changes_key_and_saves_it_live():
+    # This is what the Settings menu uses: switching keys without restarting the app.
     started = threading.Event()
     hk = _mk(started.set, lambda: None, guard=True)
     hk.reconfigure(toggle_key="f13", toggle_mode="hold", guard=False)
@@ -147,8 +147,8 @@ def test_reconfigure_cambia_la_tecla_y_la_guarda_en_caliente():
     assert started.wait(1.0), "la tecla nueva no arrancó"
 
 
-def test_reconfigure_a_modo_toggle_rehace_el_combo():
-    # En modo toggle la tecla se detecta como combo de una tecla, no como hold.
+def test_reconfigure_to_toggle_mode_rebuilds_combo():
+    # In toggle mode the key is detected as a one-key combo, not as a hold.
     toggled = threading.Event()
     hk = _mk(lambda: None, lambda: None)
     hk.on_toggle = toggled.set
@@ -157,18 +157,18 @@ def test_reconfigure_a_modo_toggle_rehace_el_combo():
     assert toggled.wait(1.0), "el modo toggle no disparó con la tecla nueva"
 
 
-# --- Fix 1 (Critical): la guarda también protege el toggle -----------------
+# --- Fix 1 (Critical): the guard also protects the toggle ------------------
 #
-# Antes de este fix, _on_press solo consultaba self._guard dentro de la rama
-# `toggle_mode == "hold"`. En modo toggle la tecla de dictado pasaba por
-# _toggle_combo y disparaba on_toggle() al instante, sin pasar nunca por la
-# ventana de decisión — pese a que keys.needs_guard() seguía devolviendo True
-# y el menú seguía anunciando "300 ms delay". Con Dictation key = Left ⌘ y
-# Dictation style = "Press to start / stop", cualquier ⌘C/⌘V/⌘S arrancaba una
-# grabación que solo paraba volviendo a tocar ⌘ solo — dos ajustes de menú,
-# cada uno válido por separado, catastróficos juntos. Estos tests prueban que
-# la guarda, una vez armada, dispara on_toggle() en vez de on_start() cuando
-# toggle_mode != "hold", con las mismas reglas de cancelación que en hold.
+# Before this fix, _on_press only consulted self._guard inside the
+# `toggle_mode == "hold"` branch. In toggle mode the dictation key went
+# through _toggle_combo and fired on_toggle() instantly, never passing
+# through the decision window — even though keys.needs_guard() still returned
+# True and the menu still advertised "300 ms delay". With Dictation key =
+# Left ⌘ and Dictation style = "Press to start / stop", any ⌘C/⌘V/⌘S started
+# a recording that only stopped by tapping ⌘ alone again — two menu settings,
+# each valid on its own, catastrophic together. These tests prove that the
+# guard, once armed, fires on_toggle() instead of on_start() when
+# toggle_mode != "hold", with the same cancellation rules as in hold.
 
 
 def test_toggle_con_guarda_no_dispara_al_instante():
@@ -179,7 +179,7 @@ def test_toggle_con_guarda_no_dispara_al_instante():
     assert not toggled.is_set(), "el toggle disparó al instante: la guarda no se aplicó"
 
 
-def test_toggle_con_guarda_dispara_tras_mantener_la_ventana():
+def test_toggle_with_guard_fires_after_holding_window():
     toggled = threading.Event()
     hk = _mk(lambda: None, lambda: None, toggle_mode="toggle")
     hk.on_toggle = toggled.set
@@ -187,10 +187,10 @@ def test_toggle_con_guarda_dispara_tras_mantener_la_ventana():
     assert toggled.wait(2.0), "la guarda nunca dejó pasar el toggle"
 
 
-def test_toggle_con_guarda_un_combo_no_dispara_el_toggle():
-    # El escenario probado en vivo del informe: Dictation key = Left ⌘ +
-    # estilo "Press to start / stop". Sin la guarda aplicada al toggle, un
-    # ⌘C disparaba on_toggle y arrancaba una grabación que no paraba sola.
+def test_toggle_with_guard_a_combo_does_not_fire_toggle():
+    # The live-tested scenario from the report: Dictation key = Left ⌘ +
+    # "Press to start / stop" style. Without the guard applied to the toggle,
+    # a ⌘C fired on_toggle and started a recording that never stopped by itself.
     toggled = threading.Event()
     hk = _mk(lambda: None, lambda: None, toggle_mode="toggle")
     hk.on_toggle = toggled.set
@@ -200,10 +200,10 @@ def test_toggle_con_guarda_un_combo_no_dispara_el_toggle():
     assert not toggled.is_set(), "un ⌘C disparó el toggle"
 
 
-def test_toggle_con_guarda_soltar_dentro_de_la_ventana_no_dispara():
-    # Igual que en hold: soltar antes de que venza la ventana cancela el
-    # intento. Sin este cancel específico de toggle, el timer ya armado
-    # seguiría vivo y dispararía tarde un toggle fantasma tras soltar.
+def test_toggle_with_guard_releasing_inside_window_does_not_fire():
+    # Same as in hold: releasing before the window expires cancels the
+    # attempt. Without this toggle-specific cancel, the already-armed timer
+    # would stay alive and belatedly fire a phantom toggle after release.
     toggled = threading.Event()
     hk = _mk(lambda: None, lambda: None, toggle_mode="toggle")
     hk.on_toggle = toggled.set
@@ -214,8 +214,8 @@ def test_toggle_con_guarda_soltar_dentro_de_la_ventana_no_dispara():
 
 
 def test_toggle_sin_guarda_sigue_disparando_al_instante():
-    # Cero regresión para las teclas del catálogo sin guarda (cmd_r, alt_r,
-    # ctrl_r, F6/F13-15): esa ruta ya está en producción y no debe cambiar.
+    # Zero regression for the guard-free catalog keys (cmd_r, alt_r,
+    # ctrl_r, F6/F13-15): that path is already in production and must not change.
     toggled = threading.Event()
     hk = _mk(lambda: None, lambda: None, guard=False, toggle_mode="toggle")
     hk.on_toggle = toggled.set
@@ -223,12 +223,12 @@ def test_toggle_sin_guarda_sigue_disparando_al_instante():
     assert toggled.wait(1.0), "una tecla sin guarda ya no dispara el toggle al instante"
 
 
-def test_reconfigure_a_modo_toggle_con_guarda_aplica_la_ventana():
-    # El camino real de Settings: cambiar de tecla/estilo en caliente sin
-    # reiniciar la app. Antes del fix, reconfigure() guardaba guard=True en
-    # self._guard pero nada lo consultaba en modo toggle.
+def test_reconfigure_to_toggle_with_guard_applies_window():
+    # The real Settings path: changing key/style on the fly without
+    # restarting the app. Before the fix, reconfigure() stored guard=True in
+    # self._guard but nothing consulted it in toggle mode.
     toggled = threading.Event()
-    hk = _mk(lambda: None, lambda: None, guard=False)  # arranca en hold sin guarda
+    hk = _mk(lambda: None, lambda: None, guard=False)  # starts in hold without a guard
     hk.on_toggle = toggled.set
     hk.reconfigure(toggle_key="cmd_l", toggle_mode="toggle", guard=True)
     hk._on_press(keyboard.Key.cmd_l)

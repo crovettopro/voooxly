@@ -1,12 +1,12 @@
-"""deliver() debe informar de cómo quedó la entrega, para que la UI avise
-cuando el pegado falla y el texto queda "solo" en el portapapeles."""
+"""deliver() must report how the delivery went, so the UI can warn
+when the paste fails and the text ends up "only" in the clipboard."""
 import voooxly.output as output
 
 
 def _patch(monkeypatch, paste_ok: bool):
     monkeypatch.setattr(output, "copy_to_clipboard", lambda text, html=None: None)
     monkeypatch.setattr(output, "paste_frontmost", lambda: paste_ok)
-    # sin esperas reales en tests
+    # no real waits in tests
     monkeypatch.setattr(output.time, "sleep", lambda s: None)
 
 

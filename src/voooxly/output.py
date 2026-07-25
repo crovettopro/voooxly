@@ -1,9 +1,9 @@
-"""Output: copiar al portapapeles y/o pegar en la app activa con Cmd+V.
+"""Output: copy to the clipboard and/or paste into the active app with Cmd+V.
 
-El pegado simula Cmd+V posteando eventos CGEvent vía pynput.Controller. Eso queda
-cubierto por el permiso de Accesibilidad (que la app ya necesita para el hotkey).
-NO usamos osascript/System Events: requiere el permiso de Automatización
-(NSAppleEventsUsageDescription + prompt aparte) y sin él se cuelga hasta timeout.
+Pasting simulates Cmd+V by posting CGEvent events via pynput.Controller. That is
+covered by the Accessibility permission (which the app already needs for the hotkey).
+We do NOT use osascript/System Events: it requires the Automation permission
+(NSAppleEventsUsageDescription + separate prompt) and without it it hangs until timeout.
 """
 from __future__ import annotations
 
@@ -17,13 +17,14 @@ log = logging.getLogger("voooxly.output")
 
 
 def html_flavor(html: str | None) -> str | None:
-    """El HTML tal como debe ir al pasteboard: con charset declarado.
+    """The HTML as it must go onto the pasteboard: with a declared charset.
 
-    NSPasteboard guarda el string, pero la app receptora lee BYTES del sabor
-    public.html: sin `<meta charset>` el estándar HTML manda decodificar como
-    Windows-1252 y cada tilde UTF-8 se rompe ("ó" → "Ã³"). Pasó de verdad con
-    un dictado en modo notas pegado en un editor web. markdown_to_html se queda
-    como generador de fragmentos puro; la declaración es cosa del portapapeles.
+    NSPasteboard stores the string, but the receiving app reads BYTES of the
+    public.html flavor: without `<meta charset>` the HTML standard mandates
+    decoding as Windows-1252 and every UTF-8 accent breaks ("ó" → "Ã³"). It
+    really happened with a notes-mode dictation pasted into a web editor.
+    markdown_to_html stays a pure fragment generator; the declaration is the
+    clipboard's business.
     """
     if not html or html.startswith('<meta charset="utf-8">'):
         return html
@@ -33,12 +34,12 @@ def html_flavor(html: str | None) -> str | None:
 def copy_to_clipboard(text: str, html: str | None = None) -> None:
     if not text:
         return
-    # NSPasteboard directo: pbcopy interpreta stdin según LANG/LC_CTYPE, y al
-    # lanzar la .app desde Finder no hay locale -> asume Mac Roman y rompe las
-    # tildes (í -> √≠). Escribir el NSString evita la codificación por completo.
-    # Si llega `html`, se añade como segundo sabor (public.html): las apps de
-    # texto rico (Mail, Gmail, Notion) pegan títulos/listas renderizados y las
-    # de texto plano (Terminal, Obsidian, IDEs) siguen tomando el plano.
+    # Direct NSPasteboard: pbcopy interprets stdin per LANG/LC_CTYPE, and when
+    # launching the .app from Finder there's no locale -> it assumes Mac Roman
+    # and breaks accents (í -> √≠). Writing the NSString avoids the encoding
+    # entirely. If `html` arrives, it's added as a second flavor (public.html):
+    # rich-text apps (Mail, Gmail, Notion) paste rendered headings/lists and
+    # plain-text ones (Terminal, Obsidian, IDEs) keep taking the plain one.
     try:
         from AppKit import NSPasteboard, NSPasteboardTypeString
 
@@ -48,12 +49,12 @@ def copy_to_clipboard(text: str, html: str | None = None) -> None:
         if html:
             pb.setString_forType_(html_flavor(html), "public.html")
     except Exception as e:
-        log.error("NSPasteboard falló (%s); fallback a pbcopy", e)
+        log.error("NSPasteboard failed (%s); falling back to pbcopy", e)
         try:
             env = {**os.environ, "LC_CTYPE": "UTF-8"}
             subprocess.run(["pbcopy"], input=text.encode("utf-8"), env=env, check=True)
         except Exception as e2:
-            log.error("pbcopy falló: %s", e2)
+            log.error("pbcopy failed: %s", e2)
 
 
 _kb = None
@@ -61,16 +62,16 @@ _kb_lock = threading.Lock()
 
 
 def _controller():
-    """El Controller de pynput, construido UNA sola vez.
+    """pynput's Controller, built ONE single time.
 
-    Su __init__ consulta la distribución de teclado vía TIS/TSM. Construirlo en
-    cada pegado (desde el hilo worker de _process) lo hacía coincidir tarde o
-    temprano con otro hilo tocando TSM —el listener del hotkey— y entonces
-    HIToolbox mata el proceso: SIGTRAP en dispatch_assert_queue, que NO es una
-    excepción de Python y ningún try/except puede atrapar.
+    Its __init__ queries the keyboard layout via TIS/TSM. Building it on
+    every paste (from _process's worker thread) made it coincide sooner or
+    later with another thread touching TSM —the hotkey listener— and then
+    HIToolbox kills the process: SIGTRAP in dispatch_assert_queue, which is
+    NOT a Python exception and no try/except can catch.
 
-    press()/release() solo usan el mapping ya cacheado y CGEventPost, así que
-    con una única construcción el pegado deja de tocar TSM. Ver warmup().
+    press()/release() only use the already-cached mapping and CGEventPost, so
+    with a single construction pasting stops touching TSM. See warmup().
     """
     global _kb
     with _kb_lock:
@@ -82,17 +83,17 @@ def _controller():
 
 
 def warmup() -> bool:
-    """Paga el coste de TSM al arrancar, desde el main thread y sin hilos aún vivos."""
+    """Pays the TSM cost at startup, from the main thread with no threads alive yet."""
     try:
         _controller()
         return True
     except Exception as e:
-        log.warning("No pude preparar el teclado para pegar: %s", e)
+        log.warning("Couldn't prep the keyboard for pasting: %s", e)
         return False
 
 
 def paste_frontmost() -> bool:
-    """Simula Cmd+V en la app activa posteando eventos de teclado (Accesibilidad)."""
+    """Simulates Cmd+V in the active app by posting keyboard events (Accessibility)."""
     try:
         from pynput.keyboard import Key
 
@@ -104,23 +105,23 @@ def paste_frontmost() -> bool:
         kb.release(Key.cmd)
         return True
     except Exception as e:
-        log.error("Paste falló (¿Accesibilidad concedida?): %s", e)
+        log.error("Paste failed (Accessibility granted?): %s", e)
         return False
 
 
 def deliver(text: str, auto_paste: bool, copy: bool, html: str | None = None) -> str:
-    """Entrega el texto y devuelve cómo quedó, para que la UI pueda avisar:
+    """Delivers the text and returns how it went, so the UI can report:
 
-    - "pasted": pegado en la app activa (lo normal).
-    - "copied": no se pegó, pero está en el portapapeles (⌘V manual).
-    - "failed": ni pegado ni copiado.
+    - "pasted": pasted into the active app (the usual).
+    - "copied": not pasted, but it's on the clipboard (manual ⌘V).
+    - "failed": neither pasted nor copied.
     """
     if not text:
         return "failed"
     if copy:
         copy_to_clipboard(text, html)
     if auto_paste:
-        # pequeño delay para que el portapapeles se asiente
+        # small delay so the clipboard settles
         time.sleep(0.08)
         ok = paste_frontmost()
         if ok:

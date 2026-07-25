@@ -1,42 +1,42 @@
-"""El submenú Shortcuts de la barra: key_label y menu_summary (feedback v1.6).
+"""The menu bar Shortcuts submenu: key_label and menu_summary (v1.6 feedback).
 
-Puro shortcuts.py: sin AppKit, como el resto de la lógica de atajos. La tabla
-de símbolos vivía en settings_window.py y subió aquí para que la ventana, el
-menú y la guía escriban cada tecla de una única forma.
+Pure shortcuts.py: no AppKit, like the rest of the shortcut logic. The symbol
+table used to live in settings_window.py and moved up here so the window, the
+menu and the guide spell each key in one single way.
 """
 from voooxly import shortcuts
 
 
-# --- key_label: la leyenda única de un binding ---
+# --- key_label: the single legend of a binding ---
 
-def test_key_label_traduce_combos_a_simbolos():
+def test_key_label_translates_combos_to_symbols():
     assert shortcuts.key_label(["ctrl", "shift", "m"]) == "⌃⇧M"
     assert shortcuts.key_label(["cmd_r"]) == "⌘"
     assert shortcuts.key_label(["shift"]) == "⇧"
 
 
-def test_key_label_deja_esc_y_fn_en_minuscula():
-    # esc y fn se leen como palabra, no como letra: "ESC" parecería otra tecla.
+def test_key_label_keeps_esc_and_fn_lowercase():
+    # esc and fn read as words, not letters: "ESC" would look like another key.
     assert shortcuts.key_label(["esc"]) == "esc"
     assert shortcuts.key_label(["fn"]) == "fn"
 
 
-def test_key_label_sube_letras_a_mayuscula():
+def test_key_label_uppercases_letters():
     assert shortcuts.key_label(["a"]) == "A"
     assert shortcuts.key_label([]) == ""
     assert shortcuts.key_label(None) == ""
 
 
-def test_settings_window_sigue_usando_la_misma_tabla():
-    """El alias de settings_window apunta a ESTA función: si alguien vuelve a
-    copiar la tabla allí, chips y menú podrían escribir la misma tecla de dos
-    formas — el bug que la Task 9 cazó una vez."""
+def test_settings_window_still_uses_same_table():
+    """The settings_window alias points to THIS function: if someone copies
+    the table back there, chips and menu could spell the same key in two
+    ways — the bug that Task 9 caught once."""
     from voooxly import settings_window
 
     assert settings_window.key_label is shortcuts.key_label
 
 
-# --- menu_summary: una fila por atajo con su binding real ---
+# --- menu_summary: one row per shortcut with its real binding ---
 
 def _estado_de_fabrica():
     return {
@@ -47,22 +47,22 @@ def _estado_de_fabrica():
     }
 
 
-def test_menu_summary_una_fila_por_atajo_en_orden():
+def test_menu_summary_one_row_per_shortcut_in_order():
     filas = shortcuts.menu_summary(_estado_de_fabrica())
     assert [sid for sid, _ in filas] == list(shortcuts.SHORTCUTS)
 
 
-def test_menu_summary_pinta_el_binding_de_fabrica():
+def test_menu_summary_paints_factory_binding():
     filas = dict(shortcuts.menu_summary(_estado_de_fabrica()))
     assert "⌘" in filas["dictation"]
-    assert "right" in filas["dictation"]      # el lado, la misma verdad que la ventana
-    assert "hold" in filas["dictation"]       # el estilo, que un ⌘ solo no cuenta
+    assert "right" in filas["dictation"]      # the side, the same truth as the window
+    assert "hold" in filas["dictation"]       # the style, which a lone ⌘ does not convey
     assert "⌃⇧M" in filas["cycle_mode"]
-    assert "either side" in filas["latch"]    # latch ensancha shift a ambos lados
+    assert "either side" in filas["latch"]    # latch widens shift to both sides
     assert "esc" in filas["cancel"]
 
 
-def test_menu_summary_refleja_un_atajo_personalizado():
+def test_menu_summary_reflects_custom_shortcut():
     estado = _estado_de_fabrica()
     estado["dictation"] = {"keys": ["fn"], "delay_ms": 0, "style": "toggle"}
     filas = dict(shortcuts.menu_summary(estado))
@@ -71,9 +71,9 @@ def test_menu_summary_refleja_un_atajo_personalizado():
     assert "toggle" in filas["dictation"]
 
 
-def test_menu_summary_cae_a_fabrica_con_estado_roto():
-    """prefs.json lo edita gente a mano: un estado a medias no puede dejar el
-    submenú vacío ni lanzar — mismo contrato que resolve()."""
+def test_menu_summary_falls_back_to_factory_with_broken_state():
+    """prefs.json gets hand-edited by people: a half-formed state cannot leave
+    the submenu empty nor raise — same contract as resolve()."""
     filas = dict(shortcuts.menu_summary({}))
     assert "⌘" in filas["dictation"]
     filas = dict(shortcuts.menu_summary({"dictation": "basura"}))

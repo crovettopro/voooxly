@@ -1,9 +1,9 @@
-"""Actualizar desde v1.3.0 no puede cambiarle el comportamiento a nadie.
+"""Upgrading from v1.3.0 cannot change anyone's behavior.
 
-El formato viejo eran dos claves sueltas (dictation_key, dictation_mode) y un
-delay que no se elegía: 300 ms si la tecla necesitaba guarda, 0 si no. La
-migración tiene que reproducir EXACTAMENTE eso. Subir a quien tenía 300 hasta
-el nuevo default de 400 sería cambiarle el tacto de la app por la cara.
+The old format was two loose keys (dictation_key, dictation_mode) and a
+delay that was not chosen: 300 ms if the key needed a guard, 0 if not. The
+migration has to reproduce EXACTLY that. Bumping someone who had 300 up to
+the new default of 400 would change the app's feel behind their back.
 """
 from voooxly import shortcuts
 
@@ -28,8 +28,8 @@ def test_quien_no_tenia_guarda_conserva_0():
 
 
 def test_no_pisa_un_bloque_shortcuts_que_ya_existe():
-    # Si el usuario ya usó la ventana, sus elecciones mandan sobre las claves
-    # viejas, que se quedan escritas dos versiones por si vuelve atrás.
+    # If the user already used the window, their choices win over the old
+    # keys, which stay written for two versions in case they roll back.
     prefs = {
         "dictation_key": "cmd_l",
         "shortcuts": {"dictation": {"keys": ["f13"], "delay_ms": 0}},
@@ -38,13 +38,13 @@ def test_no_pisa_un_bloque_shortcuts_que_ya_existe():
     assert prefs["shortcuts"]["dictation"]["keys"] == ["f13"]
 
 
-def test_no_borra_las_claves_viejas():
+def test_does_not_delete_old_keys():
     prefs = {"dictation_key": "alt_r", "dictation_mode": "hold"}
     shortcuts.migrate(prefs)
     assert prefs["dictation_key"] == "alt_r"
 
 
-def test_sin_claves_viejas_no_hace_nada():
+def test_without_old_keys_does_nothing():
     prefs = {"sounds": True}
     assert shortcuts.migrate(prefs) is False
     assert "shortcuts" not in prefs

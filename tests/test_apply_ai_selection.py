@@ -1,14 +1,14 @@
-"""apply_ai_selection(): la config VIVA que queda tras elegir/restaurar un
-proveedor de IA. Vive a nivel de módulo (igual que ai_menu_labels/
-ai_engine_title) precisamente para poder testearla sin instanciar VoooxlyApp
-(AppKit no corre en pytest)."""
+"""apply_ai_selection(): the LIVE config left after choosing/restoring an
+AI provider. It lives at module level (just like ai_menu_labels/
+ai_engine_title) precisely so it can be tested without instantiating
+VoooxlyApp (AppKit does not run under pytest)."""
 
 from voooxly import ai_settings, app, providers
 
 
 class _FakeCfg:
-    """Config fake que solo registra las llamadas a _set_path, sin escribir
-    nada de verdad."""
+    """Fake config that only records the _set_path calls, without writing
+    anything for real."""
 
     def __init__(self):
         self.escrituras: dict[str, object] = {}
@@ -18,10 +18,10 @@ class _FakeCfg:
 
 
 def test_claude_no_pisa_llm_openai_base_url():
-    """Hallazgo 1: Claude tiene base_url == "" por diseño (el SDK de
-    anthropic gestiona su propio endpoint). Conectar Claude no puede dejar
-    llm.openai.base_url = "" en la config viva, o rompe la ruta
-    OpenAI-compatible hasta el próximo proveedor openai-kind conectado."""
+    """Finding 1: Claude has base_url == "" by design (the anthropic SDK
+    manages its own endpoint). Connecting Claude cannot leave
+    llm.openai.base_url = "" in the live config, or it breaks the
+    OpenAI-compatible path until the next openai-kind provider is connected."""
     sel = ai_settings.Selection(providers.get("claude"), "", "claude-sonnet-5")
     cfg = _FakeCfg()
 
@@ -43,9 +43,9 @@ def test_ollama_escribe_su_propio_host_nunca_openai_base_url():
     assert "llm.openai.base_url" not in cfg.escrituras
 
 
-def test_groq_openai_kind_con_base_url_real_si_se_escribe():
-    """Groq es kind="openai" con una base_url de verdad (no vacía como
-    Claude): esa sí debe llegar a llm.openai.base_url, exactamente igual."""
+def test_groq_openai_kind_with_real_base_url_writes_through():
+    """Groq is kind="openai" with a real base_url (not empty like
+    Claude): that one MUST reach llm.openai.base_url, exactly as-is."""
     sel = ai_settings.Selection(
         providers.get("groq"), "https://api.groq.com/openai/v1", "llama-3.3-70b-versatile"
     )
@@ -58,7 +58,7 @@ def test_groq_openai_kind_con_base_url_real_si_se_escribe():
     assert cfg.escrituras["llm.backend"] == "openai"
 
 
-def test_sel_none_no_escribe_nada():
+def test_sel_none_writes_nothing():
     cfg = _FakeCfg()
 
     app.apply_ai_selection(cfg, None)

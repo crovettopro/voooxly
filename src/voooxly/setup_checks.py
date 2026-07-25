@@ -1,10 +1,10 @@
-"""Estado de los requisitos del sistema: micrófono, Accesibilidad, modelo y motor IA.
+"""State of system requirements: microphone, Accessibility, model, and AI engine.
 
-La lógica va separada de la ventana de onboarding para poder testearla sin AppKit.
+The logic is kept separate from the onboarding window so it can be tested without AppKit.
 
-Todo se comprueba en tiempo real, no con un flag guardado en preferencias: si el
-usuario revoca un permiso en Ajustes (o lo pierde tras reinstalar la app, que
-invalida la firma), Voooxly tiene que enterarse y volver a guiarle.
+Everything is checked in real time, not via a flag saved in preferences: if the
+user revokes a permission in Settings (or loses it after reinstalling the app,
+which invalidates the signature), Voooxly has to notice and guide them again.
 """
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ def microphone_status() -> int:
 
         return int(AVCaptureDevice.authorizationStatusForMediaType_(AVMediaTypeAudio))
     except Exception as e:
-        log.debug("No pude leer el estado del micrófono: %s", e)
+        log.debug("Couldn't read microphone state: %s", e)
         return _AV_NOT_DETERMINED
 
 
@@ -54,11 +54,11 @@ def has_microphone() -> bool:
 
 
 def open_microphone_settings() -> None:
-    """Abre Ajustes › Privacidad › Micrófono (cuando el permiso ya se denegó)."""
+    """Opens Settings › Privacy › Microphone (when the permission was denied)."""
     try:
         subprocess.run(["open", MICROPHONE_PANE], check=False, timeout=5)
     except Exception as e:
-        log.warning("No pude abrir Ajustes de micrófono: %s", e)
+        log.warning("Couldn't open Microphone settings: %s", e)
 
 
 def request_microphone(callback=None) -> None:
@@ -67,7 +67,7 @@ def request_microphone(callback=None) -> None:
         from AVFoundation import AVCaptureDevice, AVMediaTypeAudio
 
         def _done(granted):
-            log.info("Permiso de micrófono: %s", "concedido" if granted else "denegado")
+            log.info("Microphone permission: %s", "concedido" if granted else "denegado")
             if callback:
                 try:
                     callback(bool(granted))
@@ -76,7 +76,7 @@ def request_microphone(callback=None) -> None:
 
         AVCaptureDevice.requestAccessForMediaType_completionHandler_(AVMediaTypeAudio, _done)
     except Exception as e:
-        log.warning("No pude pedir permiso de micrófono: %s", e)
+        log.warning("Couldn't request microphone permission: %s", e)
         if callback:
             callback(False)
 
@@ -88,7 +88,7 @@ def has_accessibility() -> bool:
 
         return bool(AXIsProcessTrusted())
     except Exception as e:
-        log.debug("No pude leer el estado de Accesibilidad: %s", e)
+        log.debug("Couldn't read Accessibility state: %s", e)
         return False
 
 
@@ -97,7 +97,7 @@ def open_accessibility_settings() -> None:
     try:
         subprocess.run(["open", ACCESSIBILITY_PANE], check=False, timeout=5)
     except Exception as e:
-        log.warning("No pude abrir Ajustes: %s", e)
+        log.warning("Couldn't open Settings: %s", e)
 
 
 def has_model() -> bool:

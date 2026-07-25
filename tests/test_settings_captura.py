@@ -1,9 +1,9 @@
-"""Capturar una tecla desde la ventana y ajustar el delay.
+"""Capturing a key from the window and adjusting the delay.
 
-La regla que más cuesta acertar es el salto automático del slíder: elegir el
-⌘ izquierdo con 0 ms deja la app inservible (cada ⌘C arranca una grabación),
-así que el slíder salta a 400 solo. Pero elegir el ⌘ derecho NO puede subir a
-nadie de 0 a 400: sería cambiarle el tacto de la app por la cara.
+The rule that is hardest to get right is the slider's automatic jump: picking
+the left ⌘ with 0 ms leaves the app unusable (every ⌘C starts a recording),
+so the slider jumps to 400 on its own. But picking the right ⌘ must NOT bump
+anyone from 0 to 400: that would change the app's feel behind their back.
 """
 from AppKit import NSFontAttributeName, NSStringDrawingUsesLineFragmentOrigin, NSString
 from Foundation import NSMakeSize
@@ -26,12 +26,12 @@ def _ctl(on_change=None):
 
 
 class _HotkeyFalso:
-    """Doble de HotkeyManager para test (Finding 2 del review). NUNCA es el
-    de verdad: instanciar un segundo `keyboard.Listener` de verdad hace que
-    macOS aborte con SIGABRT (TIS/TSM llamado desde dos hilos, ver
-    attachHotkey_ en settings_window.py), así que el doble solo registra la
-    llamada y guarda el callback para que el test lo dispare a mano, como
-    haría pynput desde su propio hilo."""
+    """Test double for HotkeyManager (Finding 2 of the review). NEVER the
+    real one: instantiating a second real `keyboard.Listener` makes
+    macOS abort with SIGABRT (TIS/TSM called from two threads, see
+    attachHotkey_ in settings_window.py), so the double only records the
+    call and stores the callback for the test to fire by hand, the way
+    pynput would from its own thread."""
 
     def __init__(self):
         self.capturas = 0
@@ -46,21 +46,21 @@ class _HotkeyFalso:
         self.canceladas += 1
 
 
-def test_una_tecla_conflictiva_sube_el_delay_al_default():
+def test_conflicting_key_raises_delay_to_default():
     assert settings_window.delay_for(["cmd_l"], 0) == shortcuts.DEFAULT_DELAY_MS
 
 
-def test_una_tecla_sin_conflicto_conserva_el_delay_anterior():
-    # Cero regresión: quien tenía 0 con ⌘ derecho sigue con 0.
+def test_non_conflicting_key_keeps_previous_delay():
+    # Zero regression: whoever had 0 with the right ⌘ keeps 0.
     assert settings_window.delay_for(["cmd_r"], 0) == 0
 
 
-def test_una_tecla_sin_conflicto_no_baja_un_delay_ya_elegido():
-    # Si el usuario había puesto 600 a mano, cambiar de tecla no se lo pisa.
+def test_non_conflicting_key_does_not_lower_an_already_chosen_delay():
+    # If the user had set 600 by hand, changing the key does not clobber it.
     assert settings_window.delay_for(["cmd_r"], 600) == 600
 
 
-def test_capturar_aplica_la_tecla_y_avisa_al_llamador():
+def test_capturing_applies_key_and_notifies_caller():
     visto = []
     c = _ctl(lambda sid, fila: (visto.append((sid, fila)), (True, ""))[1])
     c.begin_capture_("cancel")
@@ -70,17 +70,17 @@ def test_capturar_aplica_la_tecla_y_avisa_al_llamador():
     c.close()
 
 
-def test_una_tecla_en_conflicto_no_se_aplica():
+def test_conflicting_key_is_not_applied():
     visto = []
     c = _ctl(lambda sid, fila: (visto.append(sid), (True, ""))[1])
     c.begin_capture_("dictation")
-    c.apply_capture_(["esc"])          # ya es la de cancelar
+    c.apply_capture_(["esc"])          # it is already the cancel key
     assert visto == [], "se aplicó una tecla en conflicto"
     assert c._estado["dictation"]["keys"] == ["cmd_r"]
     c.close()
 
 
-def test_una_tecla_en_conflicto_deja_mensaje_en_la_fila():
+def test_conflicting_key_leaves_message_in_row():
     c = _ctl()
     c.begin_capture_("dictation")
     c.apply_capture_(["esc"])
@@ -88,10 +88,10 @@ def test_una_tecla_en_conflicto_deja_mensaje_en_la_fila():
     c.close()
 
 
-def test_si_el_llamador_rechaza_el_cambio_el_estado_no_se_toca():
-    # on_change devuelve (False, msg) cuando hotkey.rebind() rechaza: el
-    # estado de la ventana tiene que reflejar lo que suena de verdad, no lo
-    # que se pidió, o el keycap mentiría.
+def test_if_caller_rejects_change_state_is_not_touched():
+    # on_change returns (False, msg) when hotkey.rebind() rejects: the
+    # window's state has to reflect what is actually in effect, not what
+    # was requested, or the keycap would lie.
     c = _ctl(lambda sid, fila: (False, "nope"))
     c.begin_capture_("cancel")
     c.apply_capture_(["f13"])
@@ -100,7 +100,7 @@ def test_si_el_llamador_rechaza_el_cambio_el_estado_no_se_toca():
     c.close()
 
 
-def test_cancelar_la_captura_deja_el_atajo_como_estaba():
+def test_canceling_capture_leaves_shortcut_as_it_was():
     c = _ctl()
     c.begin_capture_("dictation")
     c.cancel_capture_()
@@ -109,7 +109,7 @@ def test_cancelar_la_captura_deja_el_atajo_como_estaba():
     c.close()
 
 
-def test_el_delay_se_recorta_al_rango():
+def test_delay_is_clamped_to_range():
     c = _ctl()
     c.set_delay_(9999)
     assert c._estado["dictation"]["delay_ms"] == shortcuts.MAX_DELAY_MS
@@ -118,7 +118,7 @@ def test_el_delay_se_recorta_al_rango():
     c.close()
 
 
-def test_capturar_repinta_el_teclado():
+def test_capturing_repaints_keyboard():
     c = _ctl()
     c.begin_capture_("cancel")
     c.apply_capture_(["f13"])
@@ -126,11 +126,11 @@ def test_capturar_repinta_el_teclado():
     c.close()
 
 
-# ---------- Finding 1 (CRÍTICO): el valor del delay ahora se lee ----------
+# ---------- Finding 1 (CRITICAL): the delay value now gets read ----------
 
-def test_el_valor_del_delay_sigue_al_estado_tras_set_delay():
-    # El requisito estructural del brief: el texto mostrado tiene que seguir
-    # a _estado["dictation"]["delay_ms"], no solo el pomo del slíder.
+def test_delay_value_follows_state_after_set_delay():
+    # The structural requirement of the brief: the displayed text has to
+    # follow _estado["dictation"]["delay_ms"], not just the slider knob.
     c = _ctl()
     c.set_delay_(600)
     assert c._delay_valor.stringValue() == "600 ms"
@@ -138,10 +138,10 @@ def test_el_valor_del_delay_sigue_al_estado_tras_set_delay():
     c.close()
 
 
-def test_el_valor_del_delay_tambien_sigue_al_salto_automatico():
-    # apply_capture_ también puede cambiar delay_ms (delay_for salta al
-    # default con una tecla que necesita guarda) sin pasar por set_delay_:
-    # el valor tiene que sincronizarse por esa vía también.
+def test_delay_value_also_follows_automatic_jump():
+    # apply_capture_ can also change delay_ms (delay_for jumps to the
+    # default with a key that needs a guard) without going through set_delay_:
+    # the value has to stay in sync through that path too.
     c = _ctl()
     c.begin_capture_("dictation")
     c.apply_capture_(["cmd_l"])
@@ -157,9 +157,9 @@ def test_las_marcas_del_delay_son_0_200_400_600_800():
     c.close()
 
 
-def test_las_marcas_del_delay_estan_alineadas_con_el_slider_de_izquierda_a_derecha():
-    # No es un reparto a ojo: cada marca vive en la posición real del pomo
-    # para su valor (_marca_x), así que tienen que salir en orden creciente.
+def test_delay_marks_are_aligned_with_slider_left_to_right():
+    # Not an eyeballed spread: each tick lives at the knob's real position
+    # for its value (_marca_x), so they have to come out in increasing order.
     c = _ctl()
     xs = [m.frame().origin.x for m in c._delay_ticks]
     assert xs == sorted(xs)
@@ -167,11 +167,11 @@ def test_las_marcas_del_delay_estan_alineadas_con_el_slider_de_izquierda_a_derec
     c.close()
 
 
-def test_ningun_campo_nuevo_del_delay_mide_menos_que_su_texto():
-    # La misma lección que ya escarmentó a _lado_ancho(): un campo ajustado
-    # a ojo se recorta en silencio y stringValue() sigue devolviendo el
-    # texto completo. Nada de constantes de píxeles clavadas: se compara
-    # contra theme.text_width() con el font real de cada campo.
+def test_no_new_delay_field_is_smaller_than_its_text():
+    # The same lesson that already burned _lado_ancho(): a field sized by
+    # eye gets clipped in silence while stringValue() keeps returning the
+    # full text. No hardcoded pixel constants: we compare
+    # against theme.text_width() with each field's real font.
     c = _ctl()
     for campo in [*c._delay_ticks, c._delay_valor]:
         necesita = theme.text_width(campo.stringValue(), campo.font())
@@ -179,9 +179,9 @@ def test_ningun_campo_nuevo_del_delay_mide_menos_que_su_texto():
     c.close()
 
 
-# ---------- Finding 2 (Importante): captura real con un doble ----------
+# ---------- Finding 2 (Important): real capture with a double ----------
 
-def test_filaclicked_arma_la_fila_y_llama_a_begin_capture_del_doble():
+def test_filaclicked_builds_row_and_calls_double_begin_capture():
     hk = _HotkeyFalso()
     c = _ctl()
     c.attachHotkey_(hk)
@@ -191,10 +191,10 @@ def test_filaclicked_arma_la_fila_y_llama_a_begin_capture_del_doble():
     c.close()
 
 
-def test_on_captured_con_combinacion_valida_aplica_al_estado(monkeypatch):
-    # callAfter se sustituye por un espía que SÍ ejecuta la función (para
-    # poder comprobar el efecto), pero de forma síncrona: en el test no hay
-    # un run loop de verdad esperando al otro lado.
+def test_on_captured_with_valid_combo_applies_to_state(monkeypatch):
+    # callAfter is replaced by a spy that DOES run the function (so the
+    # effect can be checked), but synchronously: in the test there is no
+    # real run loop waiting on the other side.
     monkeypatch.setattr(AppHelper, "callAfter", lambda fn, *a, **kw: fn(*a, **kw))
     hk = _HotkeyFalso()
     c = _ctl()
@@ -206,7 +206,7 @@ def test_on_captured_con_combinacion_valida_aplica_al_estado(monkeypatch):
     c.close()
 
 
-def test_on_captured_con_esc_cancela_sin_tocar_el_estado(monkeypatch):
+def test_on_captured_with_esc_cancels_without_touching_state(monkeypatch):
     monkeypatch.setattr(AppHelper, "callAfter", lambda fn, *a, **kw: fn(*a, **kw))
     hk = _HotkeyFalso()
     c = _ctl()
@@ -215,17 +215,17 @@ def test_on_captured_con_esc_cancela_sin_tocar_el_estado(monkeypatch):
     c._on_captured_(["esc"])
     assert c._capturing is None
     assert c._estado["dictation"]["keys"] == ["cmd_r"]
-    assert hk.canceladas == 1  # cancel_capture_ llamó a end_capture() del doble
+    assert hk.canceladas == 1  # cancel_capture_ called the double's end_capture()
     c.close()
 
 
-def test_on_captured_no_toca_appkit_directo_siempre_pasa_por_callafter(monkeypatch):
-    # El invariante MÁS importante del Finding 2: _on_captured_ llega por el
-    # hilo del listener de pynput, y tocar AppKit ahí directamente es el
-    # SIGTRAP/EXC_BREAKPOINT de siempre. Aquí el espía NO ejecuta la función
-    # que le pasan -solo la registra-, así que si _on_captured_ mutase el
-    # estado o AppKit por otro camino que no fuera callAfter, este test lo
-    # vería: el estado tendría que seguir intacto.
+def test_on_captured_never_touches_appkit_directly_uses_callafter(monkeypatch):
+    # The MOST important invariant of Finding 2: _on_captured_ arrives on
+    # the pynput listener thread, and touching AppKit there directly is the
+    # usual SIGTRAP/EXC_BREAKPOINT. Here the spy does NOT run the function
+    # it is handed -it only records it-, so if _on_captured_ mutated the
+    # state or AppKit through any path other than callAfter, this test
+    # would see it: the state would have to remain intact.
     llamadas = []
     monkeypatch.setattr(
         AppHelper, "callAfter",
@@ -240,26 +240,26 @@ def test_on_captured_no_toca_appkit_directo_siempre_pasa_por_callafter(monkeypat
     fn, args, _kwargs = llamadas[0]
     assert fn == c.apply_capture_
     assert list(args[0]) == ["f13"]
-    # Como el espía no ejecutó la función diferida, nada tiene que haber
-    # cambiado todavía.
+    # Since the spy did not run the deferred function, nothing should have
+    # changed yet.
     assert c._estado["cancel"]["keys"] == ["esc"]
     assert c._capturing == "cancel"
     c.close()
 
 
-# ---------- Finding 3 (Menor): el campo de error, con aire de verdad ----------
+# ---------- Finding 3 (Minor): the error field, with real breathing room ----------
 
 def _peor_caso_error(font):
-    """El mensaje más ancho que puede acabar en _error_text, mirando los DOS
-    validadores -shortcuts.validate Y keys.validate_custom(), no solo el
-    primero: ese fue justo el defecto que dejó el campo al filo- sobre
-    nombres de tecla realmente alcanzables por una captura de una sola
-    tecla: las letras y dígitos que reporta pynput.keyboard.KeyCode.char, y
-    el catálogo entero de pynput.keyboard.Key (los "media_volume_..." son
-    justo el caso "del enum de pynput" que menciona el review)."""
+    """The widest message that can end up in _error_text, checking BOTH
+    validators -shortcuts.validate AND keys.validate_custom(), not just the
+    first one: that was exactly the defect that left the field on the edge-
+    over key names actually reachable by a single-key capture: the letters
+    and digits reported by pynput.keyboard.KeyCode.char, and the entire
+    pynput.keyboard.Key catalog (the "media_volume_..." ones are precisely
+    the "from the pynput enum" case the review mentions)."""
     nombres = set("abcdefghijklmnopqrstuvwxyz0123456789")
     nombres |= {k.name for k in Key}
-    nombres |= {"ctrl", "alt", "cmd", "shift"}  # modificadores sin lado
+    nombres |= {"ctrl", "alt", "cmd", "shift"}  # side-less modifiers
 
     mensajes = set()
     for nombre in nombres:
@@ -284,10 +284,10 @@ def _peor_caso_error(font):
 
 
 def _alto_necesario(texto, font, ancho):
-    """Alto real (con AppKit) que necesita `texto` para no recortarse
-    envuelto a `ancho` puntos con `font` -la misma API que usaría un
-    NSTextField multilínea para hacer layout de verdad, no una división a
-    ojo de theme.text_width() entre el ancho del campo."""
+    """Real height (via AppKit) that `texto` needs to avoid clipping when
+    wrapped at `ancho` points with `font` -the same API a multiline
+    NSTextField would use to do real layout, not an eyeballed division of
+    theme.text_width() by the field width."""
     rect = NSString.stringWithString_(texto).boundingRectWithSize_options_attributes_(
         NSMakeSize(ancho, 1_000_000.0),
         NSStringDrawingUsesLineFragmentOrigin,
@@ -295,14 +295,14 @@ def _alto_necesario(texto, font, ancho):
     return rect.size.height
 
 
-def test_el_campo_de_error_puede_dar_a_dos_lineas():
+def test_error_field_can_span_two_lines():
     c = _ctl()
     assert c._error.cell().wraps()
     assert not c._error.usesSingleLineMode()
     c.close()
 
 
-def test_el_campo_de_error_no_recorta_el_peor_caso_de_los_dos_validadores():
+def test_error_field_does_not_clip_worst_case_of_both_validators():
     c = _ctl()
     peor = _peor_caso_error(c._error.font())
     necesita = _alto_necesario(peor, c._error.font(), c._error.frame().size.width)

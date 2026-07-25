@@ -1,10 +1,10 @@
-"""Paleta de marca y widgets base, compartidos por las ventanas de AppKit.
+"""Brand palette and base widgets, shared by the AppKit windows.
 
-Vivían en onboarding.py hasta que hubo una segunda ventana (Shortcuts).
-Duplicar la paleta garantiza que se desincronice en el primer retoque de
-marca, y acabar con dos ventanas de colores distintos en la misma app.
+They lived in onboarding.py until there was a second window (Shortcuts).
+Duplicating the palette guarantees it desyncs at the first branding
+touch-up, and ending up with two differently colored windows in the same app.
 
-Los colores son los de voooxly.com y make-icon.py: teal + papel.
+The colors are those of voooxly.com and make-icon.py: teal + paper.
 """
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ def hex_(s, a=1.0):
         int(s[0:2], 16) / 255.0, int(s[2:4], 16) / 255.0, int(s[4:6], 16) / 255.0, a)
 
 
-# ---- paleta de marca: teal + papel (voooxly.com / make-icon.py) ----
+# ---- brand palette: teal + paper (voooxly.com / make-icon.py) ----
 TEAL = hex_("#107A69")
 TEAL_DARK = hex_("#085448")
 INK = hex_("#1B241F")
@@ -49,7 +49,7 @@ KEYCAP_BG2 = hex_("#EEF4F1")
 KEYCAP_EDGE = hex_("#DEE9E4")
 
 
-# ---------------- fuentes ----------------
+# ---------------- fonts ----------------
 def sf(size, weight=0.0):
     return NSFont.systemFontOfSize_weight_(float(size), float(weight))
 
@@ -62,13 +62,13 @@ def mono(size, weight=0.0):
 
 
 def text_width(text, font):
-    """Ancho en puntos que ocupa `text` dibujado con `font`.
+    """Width in points that `text` occupies drawn with `font`.
 
-    Para dimensionar un campo por medición real de AppKit en vez de a ojo:
-    un número de puntos fijo se queda corto en cuanto el texto cambia (le
-    pasó a la etiqueta de lado de settings_window.py, pensada para "right" y
-    reventada por "either side"), pero el ancho medido con el font real
-    nunca se desincroniza de lo que AppKit va a pintar.
+    For sizing a field by real AppKit measurement instead of by eye:
+    a fixed number of points falls short as soon as the text changes (it
+    happened to settings_window.py's side label, designed for "right" and
+    blown up by "either side"), but the width measured with the real font
+    never desyncs from what AppKit is going to paint.
     """
     return NSString.stringWithString_(text or "").sizeWithAttributes_(
         {NSFontAttributeName: font}).width
@@ -79,7 +79,7 @@ def serif(size, semibold=False):
         f = NSFont.fontWithName_size_(name, float(size))
         if f is not None:
             return f
-    try:  # diseño serif del sistema (New York) como respaldo
+    try:  # system serif design (New York) as backup
         d = NSFont.systemFontOfSize_(float(size)).fontDescriptor()
         d = d.fontDescriptorWithDesign_("NSCTFontUIFontDesignSerif")
         f = NSFont.fontWithDescriptor_size_(d, float(size))
@@ -90,7 +90,7 @@ def serif(size, semibold=False):
     return NSFont.boldSystemFontOfSize_(float(size)) if semibold else NSFont.systemFontOfSize_(float(size))
 
 
-# ---------------- helpers de vistas ----------------
+# ---------------- view helpers ----------------
 def label(rect, text, font, color=None, align=NSTextAlignmentLeft, multiline=False):
     f = NSTextField.alloc().initWithFrame_(rect)
     f.setStringValue_(text)
@@ -109,49 +109,50 @@ def label(rect, text, font, color=None, align=NSTextAlignmentLeft, multiline=Fal
 
 
 def rule(rect, color):
-    """Línea hairline (divisor / separador de filas)."""
+    """Hairline line (divider / row separator)."""
     v = NSView.alloc().initWithFrame_(rect)
     v.setWantsLayer_(True)
     v.layer().setBackgroundColor_(color.CGColor())
     return v
 
 
-# Aire entre el ancho medido de un glifo (text_width) y el campo que lo
-# pinta dentro de keycap(): la misma holgura de 6pt que ya usan
-# _LADO_HOLGURA y _NOTA_HUERFANA_HOLGURA en settings_window.py, aquí
-# también hace falta -incluso en alineación IZQUIERDA- para que el propio
-# NSTextField no recorte su último carácter (ver el "OJO" en la docstring
-# de keycap()).
+# Air between a glyph's measured width (text_width) and the field that
+# paints it inside keycap(): the same 6pt slack that _LADO_HOLGURA and
+# _NOTA_HUERFANA_HOLGURA already use in settings_window.py, here it is
+# also needed -even in LEFT alignment- so the NSTextField itself
+# doesn't clip its last character (see the "CAREFUL" in keycap()'s
+# docstring).
 _KEYCAP_LABEL_HOLGURA = 6
 
 
 def keycap(rect, text, glyph_font, radius, gradient=False):
-    """Tecla estilizada: papel/blanco redondeado con borde y borde-inferior en
-    relieve (profundidad). El glifo centrado.
+    """Stylized keycap: rounded paper/white with a border and an embossed
+    bottom edge (depth). The glyph centered.
 
-    El centrado NO usa NSTextAlignmentCenter (Task 10, Defecto 2 -fix2-): un
-    NSTextField centrado calcula su propio ancho "natural" para pintar el
-    texto, más ancho que lo que text_width() mide de verdad, y si el campo no
-    le sobra ese margen recorta el último glifo en silencio -mismo defecto,
-    exactamente la misma familia de bug que ya escarmentó al valor del delay
-    en settings_window.py (ver el comentario largo de _build_row ahí: "200"
-    se pintaba "20" con align=Center aunque el campo midiera de sobra el
-    ancho REAL del texto con text_width()). Aquí se centra a mano: el ancho
-    real del glifo sale de text_width() con el font que de verdad se va a
-    pintar, y el campo se coloca ya centrado dentro del keycap, en alineación
-    IZQUIERDA -la que de verdad no recorta-, en vez de fiarse de que
-    NSTextAlignmentCenter reserve el margen que ese cálculo interno pide.
+    The centering does NOT use NSTextAlignmentCenter (Task 10, Defect 2
+    -fix2-): a centered NSTextField computes its own "natural" width to paint
+    the text, wider than what text_width() really measures, and if the field
+    doesn't have that margin to spare it clips the last glyph silently -same
+    defect, exactly the same family of bug that already burned the delay
+    value in settings_window.py (see _build_row's long comment there: "200"
+    was painted as "20" with align=Center even though the field measured
+    the text's REAL width with text_width() with room to spare). Here the
+    centering is done by hand: the glyph's real width comes from text_width()
+    with the font that will actually be painted, and the field is placed
+    already centered inside the keycap, in LEFT alignment -the one that
+    truly doesn't clip-, instead of trusting NSTextAlignmentCenter to
+    reserve the margin that internal calculation demands.
 
-    OJO, esto mordió de verdad en la propia comprobación visual de este
-    arreglo: la primera versión medía el campo EXACTO a text_width(), sin
-    holgura, y "esc" se pintaba "es" -comprobado con screencapture, no una
-    ilusión de la captura-, aunque text_width() ya midiera bien y
-    stringValue() siguiera devolviendo "esc" completo. Ni siquiera la
-    alineación izquierda se libra de necesitar aire de sobra (la misma
-    lección, otra vez, que ya escarmentó a los campos del delay en
-    settings_window.py): el campo se ensancha con _KEYCAP_LABEL_HOLGURA de
-    más y el origen se sigue centrando sobre el ancho SIN holgura, así que
-    el sobrante queda a la derecha, donde no se nota."""
+    CAREFUL, this really bit during the visual check of this very fix: the
+    first version sized the field EXACTLY to text_width(), with no slack,
+    and "esc" was painted as "es" -verified with screencapture, not an
+    illusion of the capture-, even though text_width() already measured
+    right and stringValue() kept returning the full "esc". Not even left
+    alignment is exempt from needing spare air (the same lesson, again,
+    that already burned the delay fields in settings_window.py): the field
+    is widened by an extra _KEYCAP_LABEL_HOLGURA and the origin keeps being
+    centered over the width WITHOUT the slack, so the surplus stays on the
+    right, where it goes unnoticed."""
     w, h = rect.size.width, rect.size.height
     v = NSView.alloc().initWithFrame_(rect)
     v.setWantsLayer_(True)
@@ -187,7 +188,7 @@ def keycap(rect, text, glyph_font, radius, gradient=False):
 
 
 def _make_multiline(field):
-    """Deja que un NSTextField ocupe varias líneas (para descripciones largas)."""
+    """Lets an NSTextField span several lines (for long descriptions)."""
     try:
         field.setUsesSingleLineMode_(False)
         field.cell().setWraps_(True)

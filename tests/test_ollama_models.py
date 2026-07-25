@@ -1,7 +1,7 @@
-"""Descubrir qué modelos tiene instalados el Ollama del usuario.
+"""Discover which models the user's Ollama has installed.
 
-Fijar un modelo por defecto a fuego presupone cuál tiene: el usuario conecta SU
-modelo, así que hay que preguntárselo a su servidor.
+Hard-coding a default model presumes which one they have: the user connects THEIR
+model, so we have to ask their server.
 """
 
 import requests
@@ -34,13 +34,13 @@ def test_sin_modelos_devuelve_lista_vacia(monkeypatch):
     assert refine.list_ollama_models("http://localhost:11434") == []
 
 
-def test_si_ollama_no_responde_devuelve_lista_vacia_sin_lanzar(monkeypatch):
+def test_if_ollama_does_not_respond_returns_empty_list_without_raising(monkeypatch):
     monkeypatch.setattr(requests, "get", _fake_get(boom=requests.ConnectionError("nope")))
     assert refine.list_ollama_models("http://localhost:11434") == []
 
 
-def test_cuerpo_con_forma_inesperada_no_lanza(monkeypatch):
-    """Se llama al construir un diálogo: si lanza, el menú se rompe."""
+def test_unexpected_body_shape_does_not_raise(monkeypatch):
+    """Called while building a dialog: if it raises, the menu breaks."""
     for payload in ({}, {"models": "no soy una lista"}, {"models": [{}]}, None):
         monkeypatch.setattr(requests, "get", _fake_get(payload))
         assert isinstance(refine.list_ollama_models("http://localhost:11434"), list)

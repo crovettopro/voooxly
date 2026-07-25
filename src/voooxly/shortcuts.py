@@ -1,15 +1,15 @@
-"""Registro de atajos, su resolución y sus conflictos.
+"""Shortcut registry, its resolution and its conflicts.
 
-Un módulo de datos, sin AppKit y sin pynput, por el mismo motivo que keys.py:
-instanciar la ventana de Shortcuts construye AppKit y no se puede hacer en un
-test. Aquí vive toda la lógica que se puede verificar; settings_window.py solo
-pinta lo que esto decide.
+A data module, no AppKit and no pynput, for the same reason as keys.py:
+instantiating the Shortcuts window builds AppKit and can't be done in a
+test. All the verifiable logic lives here; settings_window.py only
+paints what this decides.
 
-La resolución es la parte delicada. config.yaml es el valor de fábrica y
-prefs.json lo que eligió el usuario, y ninguno de los dos puede dejar la app
-sin atajos: los dos los edita gente a mano y un tipo equivocado es un error de
-tecleo, no un caso de laboratorio. Todo lo que no pasa validate_custom cae al
-default en silencio, igual que hacía keys.resolve().
+Resolution is the delicate part. config.yaml is the factory value and
+prefs.json what the user chose, and neither of the two can leave the app
+without shortcuts: both are hand-edited by people and a wrong type is a
+typing mistake, not a laboratory case. Anything that fails validate_custom
+falls back to the default silently, just like keys.resolve() did.
 """
 from __future__ import annotations
 
@@ -18,10 +18,10 @@ from dataclasses import dataclass
 
 from . import keys
 
-# Rango del slíder de la ventana. El default NO se aplica a todo el mundo: solo
-# aparece cuando la tecla elegida necesita guarda (ver _delay_seguro). Poner
-# 400 ms de fábrica al ⌘ derecho le metería 0,4 s de espera al arranque de
-# dictado a todos los usuarios actuales, que perderían las primeras sílabas.
+# Range of the window's slider. The default is NOT applied to everyone: it only
+# appears when the chosen key needs the guard (see _delay_seguro). Setting
+# 400 ms out of the box on the right ⌘ would add a 0.4 s wait to the start of
+# dictation for every current user, who would lose the first syllables.
 DEFAULT_DELAY_MS = 400
 MAX_DELAY_MS = 800
 
@@ -30,15 +30,15 @@ DEFAULT_STYLE = "hold"
 
 @dataclass(frozen=True)
 class Shortcut:
-    id: str                    # API estable, no renombrar
-    label: str                 # UI, en inglés
-    subtitle: str              # UI, en inglés
-    default: tuple[str, ...]   # nombres pynput
+    id: str                    # stable API, do not rename
+    label: str                 # UI, in English
+    subtitle: str              # UI, in English
+    default: tuple[str, ...]   # pynput names
     has_delay: bool
 
 
-# El orden es el de la ventana. Los ids son API estable: se escriben en
-# prefs.json y renombrar uno le borra el atajo al usuario en silencio.
+# The order is the window's. The ids are stable API: they are written to
+# prefs.json and renaming one silently erases the user's shortcut.
 SHORTCUTS: dict[str, Shortcut] = {
     "dictation": Shortcut(
         "dictation", "Dictation", "Hold to talk", ("cmd_r",), True),
@@ -53,7 +53,7 @@ SHORTCUTS: dict[str, Shortcut] = {
         ("esc",), False),
 }
 
-# De dónde sale el valor de fábrica de cada atajo en config.yaml.
+# Where each shortcut's factory value in config.yaml comes from.
 _RUTA_YAML = {
     "dictation": "hotkeys.toggle",
     "cycle_mode": "hotkeys.cycle_mode",
@@ -63,7 +63,7 @@ _RUTA_YAML = {
 
 
 def _teclas_validas(valor) -> list[str] | None:
-    """¿`valor` es una lista de nombres de tecla usable? None si no."""
+    """Is `valor` a usable list of key names? None if not."""
     if not isinstance(valor, list) or not valor:
         return None
     fuera = []
@@ -74,21 +74,21 @@ def _teclas_validas(valor) -> list[str] | None:
         if not n:
             return None
         fuera.append(n)
-    # Los combos de múltiples teclas (como ctrl+shift+m) se devuelven sin
-    # validar: un modificador sin lado como 'ctrl' es ilegal como tecla de
-    # dictado suelta (validate_custom lo rechaza) pero perfectamente legítimo
-    # en un combo. Solo las teclas individuales necesitan validación.
+    # Multi-key combos (like ctrl+shift+m) are returned without
+    # validating: a sideless modifier such as 'ctrl' is illegal as a lone
+    # dictation key (validate_custom rejects it) but perfectly legitimate
+    # in a combo. Only individual keys need validation.
     if len(fuera) == 1:
         return fuera if keys.validate_custom(fuera[0])[0] else None
     return fuera
 
 
 def _delay_seguro(valor, teclas: list[str]) -> int:
-    """Delay en ms, recortado al rango y con un default que no rompe nada.
+    """Delay in ms, clamped to the range and with a default that breaks nothing.
 
-    Si el valor no es usable, el fallback NO es 0: con una tecla que necesita
-    guarda, 0 ms significa que cada ⌘C arranca una grabación. Se cae al
-    default (400) cuando hace falta guarda y a 0 cuando no.
+    If the value isn't usable, the fallback is NOT 0: with a key that needs
+    the guard, 0 ms means every ⌘C starts a recording. It falls back to the
+    default (400) when the guard is needed and to 0 when it isn't.
     """
     if isinstance(valor, bool) or not isinstance(valor, (int, float)):
         return DEFAULT_DELAY_MS if keys.needs_guard(teclas[0]) else 0
@@ -98,11 +98,11 @@ def _delay_seguro(valor, teclas: list[str]) -> int:
 
 
 def resolve(prefs: dict, cfg) -> dict[str, dict]:
-    """Estado efectivo de los cuatro atajos: prefs por encima del YAML.
+    """Effective state of the four shortcuts: prefs on top of the YAML.
 
-    Devuelve {sid: {"keys": [...]}}, más "delay_ms" y "style" solo en dictation
-    (que es el único con has_delay=True). Los otros tres (cycle_mode, latch, cancel)
-    llevan solo "keys".
+    Returns {sid: {"keys": [...]}}, plus "delay_ms" and "style" only in dictation
+    (the only one with has_delay=True). The other three (cycle_mode, latch, cancel)
+    carry only "keys".
     """
     guardado = prefs.get("shortcuts") if isinstance(prefs, dict) else None
     if not isinstance(guardado, dict):
@@ -136,21 +136,22 @@ def resolve(prefs: dict, cfg) -> dict[str, dict]:
     return fuera
 
 
-# El delay que la v1.3.0 aplicaba sin preguntar a las teclas con guarda. NO es
-# DEFAULT_DELAY_MS: quien actualiza conserva su tacto de siempre y solo ve 400
-# si cambia de tecla desde la ventana nueva.
+# The delay v1.3.0 applied without asking to guarded keys. It is NOT
+# DEFAULT_DELAY_MS: whoever updates keeps their usual feel and only sees 400
+# if they change keys from the new window.
 _DELAY_HEREDADO_MS = 300
 
 
 def migrate(prefs: dict) -> bool:
-    """Traduce el formato de v1.3.0 al bloque `shortcuts`. Muta `prefs`.
+    """Translates the v1.3.0 format into the `shortcuts` block. Mutates `prefs`.
 
-    Solo migra `dictation`: los otros tres nunca fueron configurables, así que
-    resolve() ya les da el default correcto sin ayuda.
+    Only migrates `dictation`: the other three were never configurable, so
+    resolve() already gives them the correct default with no help.
 
-    Las claves viejas se dejan escritas a propósito. Si el usuario vuelve a
-    una versión anterior, se las encuentra intactas; y si no vuelve, en dos
-    versiones se limpian. Borrarlas aquí haría el downgrade destructivo.
+    The old keys are left written on purpose. If the user goes back to a
+    previous version, they find them intact; and if they don't, they get
+    cleaned up in two versions. Deleting them here would make the downgrade
+    destructive.
     """
     if not isinstance(prefs, dict):
         return False
@@ -172,13 +173,13 @@ def migrate(prefs: dict) -> bool:
     return True
 
 
-# Nombre pynput → símbolo de macOS. Lo que el usuario ve en un teclado. Vivía
-# en settings_window.py, pero la subió aquí el submenú "Shortcuts" de la barra
-# (feedback v1.6: los atajos tienen que verse sin abrir ninguna ventana): la
-# barra necesita las mismas leyendas y este módulo es el único sin AppKit que
-# pueden compartir la ventana, el menú y los tests. Sigue siendo LA tabla
-# única — una segunda copia en el sitio de dibujado es el bug que
-# settings_window lleva evitando desde la Task 9.
+# pynput name → macOS symbol. What the user sees on a keyboard. It lived
+# in settings_window.py, but the menu bar's "Shortcuts" submenu moved it up
+# here (v1.6 feedback: shortcuts have to be visible without opening any
+# window): the bar needs the same legends and this module is the only
+# AppKit-free one that the window, the menu and the tests can share. It is
+# still THE single table — a second copy at the drawing site is the bug
+# settings_window has been avoiding since Task 9.
 SIMBOLO = {
     "cmd": "⌘", "cmd_l": "⌘", "cmd_r": "⌘",
     "alt": "⌥", "alt_l": "⌥", "alt_r": "⌥", "alt_gr": "⌥",
@@ -186,20 +187,20 @@ SIMBOLO = {
     "shift": "⇧", "shift_l": "⇧", "shift_r": "⇧",
     "space": "␣", "enter": "⏎", "tab": "⇥", "backspace": "⌫",
     "caps_lock": "⇪",
-    # "arrows" no es un nombre de tecla pynput (keys.validate_custom lo
-    # rechaza): es el nombre sintético de la casilla de relleno que
-    # representa el bloque de flechas del teclado visual de settings_window
-    # (Task 9, Defecto 4 — un rectángulo vacío ahí se leía como tecla rota).
+    # "arrows" is not a pynput key name (keys.validate_custom rejects
+    # it): it is the synthetic name of the filler cell that represents
+    # the arrow block of settings_window's visual keyboard
+    # (Task 9, Defect 4 — an empty rectangle there read as a broken key).
     "arrows": "◀▼▶",
 }
 
 
 def key_label(names: list[str]) -> str:
-    """['ctrl','shift','m'] → '⌃⇧M'. La leyenda de un binding en cualquier UI.
+    """['ctrl','shift','m'] → '⌃⇧M'. The legend of a binding in any UI.
 
-    La usan los keycaps y chips de settings_window, el submenú Shortcuts de la
-    barra y la guía: todos escriben la misma tecla de la misma forma porque
-    todos pasan por aquí.
+    Used by settings_window's keycaps and chips, the menu bar's Shortcuts
+    submenu and the guide: they all write the same key the same way because
+    they all go through here.
     """
     fuera = []
     for n in names or []:
@@ -214,12 +215,12 @@ def key_label(names: list[str]) -> str:
 
 
 def menu_summary(state: dict[str, dict]) -> list[tuple[str, str]]:
-    """[(sid, "Dictation:  ⌘  (right, hold)"), …] para el submenú de la barra.
+    """[(sid, "Dictation:  ⌘  (right, hold)"), …] for the menu bar's submenu.
 
-    Una fila por atajo con su binding REAL (feedback v1.6: los atajos son lo
-    más importante de la app y estaban enterrados en una ventana). El lado
-    sale de side_hint — la misma verdad que la ventana — y dictation añade su
-    estilo (hold/toggle), que un ⌘ solo no cuenta.
+    One row per shortcut with its REAL binding (v1.6 feedback: shortcuts are
+    the most important part of the app and were buried in a window). The side
+    comes from side_hint — the same truth as the window — and dictation adds
+    its style (hold/toggle), which a lone ⌘ doesn't tell.
     """
     fuera = []
     for sid, sc in SHORTCUTS.items():
@@ -241,47 +242,47 @@ def menu_summary(state: dict[str, dict]) -> list[tuple[str, str]]:
     return fuera
 
 
-# Nombres pynput SIN lado: son la IZQUIERDA (pynput colapsa cmd_l/alt_l/
-# ctrl_l/shift_l en el nombre plano, ver keys._ALIAS_IZQUIERDA) — pero en el
-# atajo latch también ensanchan a la derecha, porque hotkey.py:421 casa por
-# PREFIJO (`name.startswith(self._latch_key + "_")`) y no por igualdad.
+# Sideless pynput names: they are the LEFT (pynput collapses cmd_l/alt_l/
+# ctrl_l/shift_l into the plain name, see keys._ALIAS_IZQUIERDA) — but in the
+# latch shortcut they also widen to the right, because hotkey.py:421 matches
+# by PREFIX (`name.startswith(self._latch_key + "_")`) and not by equality.
 _MODIFICADORES_SIN_LADO = {"cmd", "alt", "ctrl", "shift"}
 
-# Nombres pynput que identifican la tecla derecha sin ambigüedad posible: no
-# existe un "<nombre>_r_algo" con el que el prefijo de latch pueda seguir
-# ensanchando, así que estos casan un único lado pase lo que pase el atajo.
+# pynput names that identify the right key with no possible ambiguity: there
+# is no "<name>_r_something" the latch prefix could keep widening with, so
+# these match a single side no matter the shortcut.
 _MODIFICADORES_DERECHA = {"cmd_r", "alt_r", "ctrl_r", "shift_r"}
 
 
 def matched_keys(sid: str, names: list[str]) -> set[str]:
-    """Nombres canónicos de las teclas FÍSICAS que `hotkey.py` casa de
-    verdad en runtime para el atajo `sid` con `names` como binding actual.
+    """Canonical names of the PHYSICAL keys that `hotkey.py` actually
+    matches at runtime for shortcut `sid` with `names` as the current binding.
 
-    Es el hecho único del que derivan tanto `side_hint()` (lo resume en una
-    palabra para la fila) como `lit_keys()` de settings_window.py (enciende
-    casillas con él): antes cada uno lo recalculaba a su manera y se podían
-    desincronizar — el bug real de la Task 9, con "shift" encendido en el
-    teclado y "shift_r" apagado mientras la fila decía "either side".
+    It is the single fact both `side_hint()` (summarizes it in a word for
+    the row) and settings_window.py's `lit_keys()` (lights up cells with it)
+    derive from: before, each recomputed it its own way and they could fall
+    out of sync — the real Task 9 bug, with "shift" lit on the keyboard and
+    "shift_r" off while the row said "either side".
 
-    Cada nombre de `names` se traduce por separado con `keys.canon()`. Un
-    combo (len(names) != 1, como el ctrl+shift+m de cycle_mode) no ensancha
-    nada: hotkey.py:439 compara el conjunto de teclas pulsadas por IGUALDAD
-    exacta con el combo (`_combo_names`), no por prefijo, así que cada tecla
-    del combo casa solo su propio lado.
+    Each name in `names` is translated separately with `keys.canon()`. A
+    combo (len(names) != 1, like cycle_mode's ctrl+shift+m) widens
+    nothing: hotkey.py:439 compares the set of pressed keys by exact
+    EQUALITY with the combo (`_combo_names`), not by prefix, so each key
+    in the combo matches only its own side.
 
-    Con una tecla suelta (len(names) == 1), `latch` es el único que
-    ensancha: hotkey.py:421 casa por PREFIJO
+    With a lone key (len(names) == 1), `latch` is the only one that
+    widens: hotkey.py:421 matches by PREFIX
     (`name == self._latch_key or name.startswith(self._latch_key + "_")`).
-    Ese prefijo solo alarga el resultado cuando la tecla configurada es uno
-    de los cuatro modificadores SIN lado (`_MODIFICADORES_SIN_LADO`): el
-    único sufijo que pynput reporta de verdad para esos cuatro nombres es
-    "_r" (la izquierda ya llega colapsada en el nombre sin lado — ver
-    `keys._ALIAS_IZQUIERDA` — así que nunca hay un "<nombre>_l" que casar).
-    Una tecla que ya tiene lado propio (p.ej. cmd_r) no ensancha nada: no
-    existe un "cmd_r_algo" con el que el prefijo pueda seguir alargando.
-    Los otros tres atajos (dictation, cancel, cycle_mode de una sola tecla)
-    casan por igualdad exacta (hotkey.py:397 y :432), así que nunca ensanchan
-    pase lo que pase el nombre.
+    That prefix only lengthens the result when the configured key is one
+    of the four SIDELESS modifiers (`_MODIFICADORES_SIN_LADO`): the
+    only suffix pynput actually reports for those four names is
+    "_r" (the left already arrives collapsed into the sideless name — see
+    `keys._ALIAS_IZQUIERDA` — so there is never a "<name>_l" to match).
+    A key that already has its own side (e.g. cmd_r) widens nothing: there
+    is no "cmd_r_something" the prefix could keep lengthening with.
+    The other three shortcuts (dictation, cancel, single-key cycle_mode)
+    match by exact equality (hotkey.py:397 and :432), so they never widen
+    no matter the name.
     """
     fuera: set[str] = set()
     for n in names:
@@ -295,22 +296,22 @@ def matched_keys(sid: str, names: list[str]) -> set[str]:
 
 
 def side_hint(sid: str, names: list[str]) -> str:
-    """'right' / 'left' / 'either side' / '' — qué lado(s) de la tecla casan
-    de VERDAD en runtime para el atajo `sid`, con `names` como binding actual.
+    """'right' / 'left' / 'either side' / '' — which side(s) of the key
+    REALLY match at runtime for shortcut `sid`, with `names` as the binding.
 
-    Vive aquí y no en settings_window.py porque es una decisión sobre
-    semántica de atajos (qué hace hotkey.py con este nombre), no de pintado.
-    Deriva de `matched_keys()`: no repite su lógica de ensanchado, solo
-    traduce el CONJUNTO que esa función calcula a la palabra que se lee en
-    la fila. Así las dos vistas -el texto de la fila y las casillas
-    encendidas del teclado- son necesariamente la misma verdad.
+    Lives here and not in settings_window.py because it's a decision about
+    shortcut semantics (what hotkey.py does with this name), not about
+    painting. It derives from `matched_keys()`: it doesn't repeat its
+    widening logic, it only translates the SET that function computes into
+    the word read in the row. That way the two views -the row text and the
+    lit cells of the keyboard- are necessarily the same truth.
 
-    Un combo (len(names) != 1) no tiene lado: son varias teclas a la vez y
-    ninguna combinación de manos es "la" respuesta — cycle_mode con su
-    ctrl+shift+m de fábrica cae aquí.
+    A combo (len(names) != 1) has no side: several keys at once and no
+    combination of hands is "the" answer — cycle_mode with its factory
+    ctrl+shift+m falls here.
 
-    Una tecla suelta que no es ni un modificador sin lado ni uno con lado
-    propio (una letra, "esc", una F) no tiene lado que anunciar: "".
+    A lone key that is neither a sideless modifier nor one with its own
+    side (a letter, "esc", an F key) has no side to announce: "".
     """
     if len(names) != 1:
         return ""
@@ -323,20 +324,20 @@ def side_hint(sid: str, names: list[str]) -> str:
 
 
 def _firma(names: list[str]) -> frozenset[str]:
-    """Conjunto canónico de un binding, para comparar dos atajos.
+    """Canonical set of a binding, to compare two shortcuts.
 
-    Canonicalizado a propósito: cmd_l y cmd son la misma tecla física en
-    macOS y compararlos como strings crudos dejaría pasar la colisión.
+    Canonicalized on purpose: cmd_l and cmd are the same physical key on
+    macOS and comparing them as raw strings would let the collision through.
     """
     return frozenset(keys.canon(n) for n in names)
 
 
 def validate(sid: str, names: list[str], actuales: dict[str, dict]) -> tuple[bool, str]:
-    """¿Se puede asignar `names` a `sid`? Devuelve (ok, mensaje).
+    """Can `names` be assigned to `sid`? Returns (ok, message).
 
-    El mensaje va en INGLÉS: sale tal cual en la fila de la ventana. Cuando
-    ok es True el mensaje puede traer un aviso (F5) - es informativo, no un
-    rechazo, porque elegir F5 es legítimo aunque sea mala idea.
+    The message is in ENGLISH: it shows up as-is in the window row. When
+    ok is True the message may carry a warning (F5) - it is informative, not a
+    rejection, because choosing F5 is legitimate even if it's a bad idea.
     """
     if not names:
         return False, "Press the keys you want to use."
@@ -351,11 +352,11 @@ def validate(sid: str, names: list[str], actuales: dict[str, dict]) -> tuple[boo
             msg = "That shortcut is already used by “" + label + "”. Pick another one."
             return False, msg
 
-    # Reasignarse su propia tecla actual (p.ej. confirmar la fila sin
-    # cambiar nada) nunca es un conflicto, aunque esa tecla esté en
-    # keys._RESERVADAS: "esc" y "shift" son precisamente las teclas de
-    # fábrica de "cancel" y "latch", así que sin este corte caerían en
-    # validate_custom() y se rechazarían como si fueran ajenas.
+    # Reassigning its own current key (e.g. confirming the row without
+    # changing anything) is never a conflict, even if that key is in
+    # keys._RESERVADAS: "esc" and "shift" are precisely the factory keys
+    # of "cancel" and "latch", so without this cut they would fall into
+    # validate_custom() and get rejected as if they belonged to others.
     propia = actuales.get(sid)
     if isinstance(propia, dict) and _firma(list(propia.get("keys") or [])) == mia:
         return True, ""
@@ -363,13 +364,13 @@ def validate(sid: str, names: list[str], actuales: dict[str, dict]) -> tuple[boo
     if len(names) == 1:
         canon1 = keys.canon(names[0])
         if canon1 in ("cmd", "alt", "ctrl"):
-            # Capturado del teclado, el nombre sin lado ES la tecla izquierda
-            # (pynput colapsa cmd_l→cmd): validate_custom lo rechaza porque
-            # su público es texto TECLEADO en config.yaml, donde "cmd" es una
-            # intención ambigua que hay que devolver a su autor. Aquí no hay
-            # ambigüedad — la tecla ya se pulsó — y rechazarla dejaría el ⌘
-            # izquierdo, que DICTATION_KEYS ofrece con su delay, sin ningún
-            # camino posible en la ventana.
+            # Captured from the keyboard, the sideless name IS the left key
+            # (pynput collapses cmd_l→cmd): validate_custom rejects it because
+            # its audience is text TYPED into config.yaml, where "cmd" is an
+            # ambiguous intent that must be returned to its author. Here there
+            # is no ambiguity — the key was already pressed — and rejecting it
+            # would leave the left ⌘, which DICTATION_KEYS offers with its
+            # delay, with no possible path in the window.
             if sid == "dictation":
                 return True, ("Left modifier: dictation starts after the "
                               "delay below, so combos like ⌘C keep working.")
@@ -383,8 +384,8 @@ def validate(sid: str, names: list[str], actuales: dict[str, dict]) -> tuple[boo
         msg = "Heads up: F5 is the macOS Dictation key, so macOS may react to it too."
         return True, msg
     if "fn" in bajos:
-        # La elección de fábrica de Wispr Flow; macOS también la escucha
-        # (emoji, cambio de idioma…), así que se aconseja sin bloquear.
+        # Wispr Flow's factory choice; macOS also listens to it
+        # (emoji, language switching…), so it's advised without blocking.
         msg = ("Tip: set “Press 🌐 key to” to “Do Nothing” in System Settings → "
                "Keyboard so macOS doesn't react to it too.")
         return True, msg

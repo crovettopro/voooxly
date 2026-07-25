@@ -10,7 +10,7 @@ from .config import get_config
 
 def _setup_logging(level: str):
     handlers: list[logging.Handler] = [logging.StreamHandler()]
-    # en .app bundle (console=False) stderr se pierde -> log también a archivo
+    # in .app bundle (console=False) stderr is lost -> also log to file
     try:
         import os
         from pathlib import Path
@@ -68,7 +68,7 @@ def main():
         AppHelper.runEventLoop()
         return
 
-    # arranca la app de menú
+    # starts the menu-bar app
     from .app import VoooxlyApp
 
     VoooxlyApp().run()

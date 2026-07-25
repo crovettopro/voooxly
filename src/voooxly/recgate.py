@@ -1,20 +1,20 @@
-"""La máquina de estados de la grabación, serializada entre hilos.
+"""The recording state machine, serialized across threads.
 
     IDLE -> STARTING -> RECORDING -> PROCESSING -> IDLE
 
-Un módulo de datos sin AppKit (mismo motivo que keys.py o shortcuts.py:
-instanciar VoooxlyApp construye menús y no corre en un test). app.py delega
-aquí TODAS las transiciones.
+A data module without AppKit (same reason as keys.py or shortcuts.py:
+instantiating VoooxlyApp builds menus and doesn't run in a test). app.py
+delegates ALL transitions here.
 
-Por qué existe: on_start y on_stop llegan del hotkey en hilos separados sin
-orden garantizado. Con un tap rápido de la tecla de dictado, el stop podía
-ejecutarse ANTES de que el estado llegara a RECORDING — era un no-op — y el
-arranque terminaba después: grabación huérfana que nadie paraba hasta
-audio.max_duration (5 minutos de micro abierto, el bug de Jeff). También
-podían pasar dos press seguidos el chequeo de IDLE y abrir DOS recorders, el
-primero huérfano para siempre. Las dos carreras se cierran igual: reservar
-IDLE→STARTING de forma atómica y anotar el stop que llegue durante STARTING
-para aplicarlo en cuanto el arranque termine.
+Why it exists: on_start and on_stop arrive from the hotkey on separate
+threads with no guaranteed order. With a fast tap of the dictation key, the
+stop could run BEFORE the state reached RECORDING — it was a no-op — and the
+start finished afterwards: an orphan recording nobody stopped until
+audio.max_duration (5 minutes of open mic, Jeff's bug). Two consecutive
+presses could also pass the IDLE check and open TWO recorders, the
+first one orphaned forever. Both races are closed the same way: reserving
+IDLE→STARTING atomically and noting a stop arriving during STARTING
+to apply it as soon as the start finishes.
 """
 from __future__ import annotations
 
@@ -38,10 +38,10 @@ class RecordingGate:
             return self._state
 
     def try_begin(self) -> bool:
-        """Reserva IDLE→STARTING de forma atómica.
+        """Reserves IDLE→STARTING atomically.
 
-        False si ya hay un dictado en marcha (o arrancando): quien llama NO
-        debe crear otro recorder — este es el cierre del doble arranque.
+        False if a dictation is already underway (or starting): the caller
+        must NOT create another recorder — this is the double-start closure.
         """
         with self._lock:
             if self._state != IDLE:
@@ -51,10 +51,10 @@ class RecordingGate:
             return True
 
     def begin_done(self) -> bool:
-        """El arranque terminó: STARTING→RECORDING.
+        """The start finished: STARTING→RECORDING.
 
-        Devuelve True si durante el arranque llegó un stop (o un Esc): el
-        llamador debe cerrar la grabación YA. Antes ese evento se perdía.
+        Returns True if a stop (or an Esc) arrived during the start: the
+        caller must close the recording NOW. Before, that event got lost.
         """
         with self._lock:
             if self._state == STARTING:
@@ -63,18 +63,18 @@ class RecordingGate:
             return pending
 
     def begin_failed(self) -> None:
-        """El arranque reventó: vuelta a IDLE, sin dejar un stop rancio."""
+        """The start blew up: back to IDLE, without leaving a stale stop."""
         with self._lock:
             self._state = IDLE
             self._stop_pending = False
 
     def request_stop(self) -> str:
-        """Qué hacer con un stop que acaba de llegar.
+        """What to do with a stop that just arrived.
 
-        - "stop": hay grabación de verdad — el llamador debe pararla.
-        - "deferred": el arranque sigue en su hilo — queda anotado y
-          begin_done() lo devolverá; el llamador no hace nada más.
-        - "no": no hay nada que parar (IDLE o ya PROCESSING).
+        - "stop": there's a real recording — the caller must stop it.
+        - "deferred": the start is still on its thread — it gets noted and
+          begin_done() will return it; the caller does nothing else.
+        - "no": there's nothing to stop (IDLE or already PROCESSING).
         """
         with self._lock:
             if self._state == RECORDING:

@@ -1,7 +1,7 @@
-"""Cada modo debe ser DIFERENCIAL: su prompt tiene que pedir de verdad lo que
-promete el label (un prompt de IA estructurado, Markdown real, un spec…), no una
-vaguedad de una línea. Estos tests fijan las instrucciones clave de cada modo
-para que una edición descuidada no las diluya.
+"""Every mode must be DIFFERENTIAL: its prompt has to genuinely ask for what
+the label promises (a structured AI prompt, real Markdown, a spec…), not a
+one-line vagueness. These tests pin down each mode's key instructions so a
+careless edit does not dilute them.
 """
 from voooxly import modes
 
@@ -10,10 +10,10 @@ def _prompt(mode: str) -> str:
     return modes.system_prompt(mode, None)
 
 
-# --- Reglas base (aplican a todos los modos con LLM) ---
+# --- Base rules (apply to every LLM-backed mode) ---
 
 def test_base_prohibe_responder_en_vez_de_transformar():
-    """El fallo clásico: dictas una pregunta y el LLM la CONTESTA."""
+    """The classic failure: you dictate a question and the LLM ANSWERS it."""
     for mode in ("ordenar", "prompt", "resumir", "codigo", "notas"):
         assert "do NOT answer or execute it" in _prompt(mode), mode
 
@@ -28,7 +28,7 @@ def test_base_prohibe_inventar():
     assert "Never invent facts" in _prompt("ordenar")
 
 
-# --- Diferenciales por modo ---
+# --- Per-mode differentials ---
 
 def test_ordenar_limpia_y_detecta_respuestas():
     p = _prompt("ordenar")
@@ -37,12 +37,12 @@ def test_ordenar_limpia_y_detecta_respuestas():
     assert "[fill in: ...]" in p
 
 
-def test_prompt_estructura_y_no_responde():
+def test_prompt_structures_and_does_not_answer():
     p = _prompt("prompt")
     assert "Never fulfill the request yourself" in p
     for section in ("**Context:**", "**Requirements:**", "**Output:**"):
         assert section in p
-    assert "Example — dictated:" in p  # lleva few-shot
+    assert "Example — dictated:" in p  # carries a few-shot example
 
 
 def test_resumir_limita_bullets_y_conserva_datos():
@@ -69,7 +69,7 @@ def test_codigo_es_spec_sin_implementacion():
     assert "backticks" in p
 
 
-def test_notas_exige_markdown_de_verdad():
+def test_notes_requires_real_markdown():
     p = _prompt("notas")
     assert "`##` title" in p
     assert "`###` subheadings" in p
@@ -78,20 +78,20 @@ def test_notas_exige_markdown_de_verdad():
 
 
 def test_notas_prohibe_negritas():
-    """Los ** se pegan como asteriscos literales fuera de apps Markdown."""
+    """The ** get pasted as literal asterisks outside Markdown apps."""
     p = _prompt("notas")
     assert "no bold, no italics" in p
     assert "Bold the key terms" not in p
 
 
-def test_literal_se_salta_el_llm():
+def test_literal_skips_llm():
     assert modes.system_prompt("literal", None) == ""
     assert modes.system_prompt("literal", "en") == ""
 
 
 def test_comando_ejecuta_el_encargo_en_vez_de_transformarlo():
-    """El único modo que SÍ cumple la instrucción (Command Mode, idea de
-    Wispro): su base no puede llevar la regla anti-ejecución de los demás."""
+    """The only mode that DOES fulfill the instruction (Command Mode, a
+    Wispro idea): its base cannot carry the others' anti-execution rule."""
     p = _prompt("comando")
     assert "DO fulfill the request" in p
     assert "do NOT answer or execute it" not in p
@@ -105,13 +105,13 @@ def test_comando_no_inventa_y_marca_los_huecos():
 
 
 def test_comando_sin_encargo_cae_a_dictado_normal():
-    """Dictar contenido plano en Command no puede producir un texto inventado:
-    el prompt ordena tratarlo como dictado y limpiarlo."""
+    """Dictating plain content in Command cannot produce invented text:
+    the prompt orders treating it as dictation and cleaning it up."""
     p = _prompt("comando")
     assert "treat it as dictation" in p
 
 
-# --- Integridad del catálogo ---
+# --- Catalog integrity ---
 
 def test_todos_los_modos_tienen_label_y_hint():
     for key, spec in modes.MODES.items():
@@ -120,7 +120,7 @@ def test_todos_los_modos_tienen_label_y_hint():
 
 
 def test_las_claves_de_modo_no_cambian():
-    """Config, prefs y TCC referencian estas claves: son API estable."""
+    """Config, prefs and TCC reference these keys: they are stable API."""
     assert set(modes.MODES.keys()) == {
         "ordenar",
         "prompt",
@@ -138,12 +138,12 @@ def test_modo_desconocido_cae_en_ordenar():
     assert modes.system_prompt("no-existe", None) == modes.system_prompt("ordenar", None)
 
 
-# --- Flash del HUD al ciclar (feedback de Ctrl+Shift+M) ---
+# --- HUD flash when cycling (Ctrl+Shift+M feedback) ---
 
 def test_flash_parts_muestra_nombre_posicion_y_hint():
     title, body = modes.flash_parts("prompt")
     assert "AI prompt" in title
-    assert "2/9" in title  # segundo modo del ciclo (9 modos desde Command)
+    assert "2/9" in title  # second mode of the cycle (9 modes since Command)
     assert body == modes.MODES["prompt"]["hint"]
 
 
@@ -153,6 +153,6 @@ def test_flash_parts_de_todos_los_modos_tiene_titulo_y_cuerpo():
         assert title.startswith("❯ ") and body, key
 
 
-def test_flash_parts_con_modo_desconocido_no_lanza():
+def test_flash_parts_with_unknown_mode_does_not_raise():
     title, _ = modes.flash_parts("no-existe")
     assert "Organize" in title
