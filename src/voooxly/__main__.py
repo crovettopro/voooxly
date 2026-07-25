@@ -1,4 +1,4 @@
-"""Punto de entrada: `python -m voooxly` o `voooxly` tras instalar."""
+"""Entry point: `python -m voooxly`, or `voooxly` once installed."""
 from __future__ import annotations
 
 import argparse

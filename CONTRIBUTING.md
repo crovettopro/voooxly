@@ -20,7 +20,7 @@ uv run python -m voooxly
 UV_PROJECT_ENVIRONMENT=~/.voooxly/venv uv run pytest tests/ -q
 ```
 
-(550+ tests. First run is slow — cold pyobjc imports.)
+(650+ tests. First run is slow — cold pyobjc imports.)
 
 ## Ground rules
 
