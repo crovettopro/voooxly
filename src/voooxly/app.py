@@ -733,7 +733,11 @@ class VoooxlyApp(rumps.App):
         # retrasa la grabación. Un solo intento por pegado: pending se vacía ya.
         pending, self._pending_learn = self._pending_learn, None
         if pending and self._prefs.get("auto_learn", True):
-            threading.Thread(target=self._auto_learn_check, args=(pending,), daemon=True).start()
+            try:
+                threading.Thread(target=self._auto_learn_check, args=(pending,), daemon=True).start()
+            except Exception:
+                # Ni el caso imposible (no poder crear el hilo) puede tocar la grabación.
+                log.debug("auto-learn: no pude lanzar el hilo", exc_info=True)
         # Push-to-talk (auto_stop=False): el usuario controla el fin con la tecla,
         # desactivamos el auto-stop por silencio para que no cierre al pausar a pensar.
         # Menú/toggle (auto_stop=True): la grabación se cierra sola tras el silencio.
