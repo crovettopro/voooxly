@@ -53,6 +53,8 @@
 
 Download the [latest DMG](https://github.com/crovettopro/voooxly/releases/latest/download/Voooxly.dmg), open, drag to Applications. Updates install themselves.
 
+**Requires a Mac with Apple Silicon (M1 or later) on macOS 13 or later.** Intel Macs aren't supported yet — other platforms are planned.
+
 First launch asks for two permissions: **Microphone** (to hear you) and **Accessibility** (to paste where your cursor is). Both are required.
 
 ## En español
