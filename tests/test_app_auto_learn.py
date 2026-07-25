@@ -13,6 +13,7 @@ Two things live here that the pure watch loop cannot own:
   showed "✨ Learned" at the end of the NEXT dictation — or never. Worse, the
   one-time "turn it off" line was consumed by a notice nobody saw.
 """
+import logging
 import threading
 
 from voooxly import app as app_mod
@@ -240,6 +241,48 @@ def test_a_field_left_untouched_teaches_nothing_and_keeps_the_fallback(
     assert aprendido == []
     assert not (tmp_path / "dict.json").exists()
     assert state.take_pending() == PEGADO
+
+
+def test_the_window_reports_what_it_did(tmp_path, monkeypatch, caplog):
+    """Nine of the fifteen gate cases are "nothing must happen". Without a
+    positive trace, a window that never ran looks exactly like one that ran
+    and correctly stayed quiet — and every adversarial case passes for the
+    wrong reason."""
+    monkeypatch.setattr(dictionary, "DICT_FILE", tmp_path / "dict.json")
+    state = LearnState()
+    gen, stop = state.start(PEGADO)
+    reloj = _Reloj()
+
+    with caplog.at_level(logging.INFO, logger="voooxly"):
+        _watch_and_learn(
+            config.Config({}), state, PEGADO, gen, stop,
+            read=_lecturas(PEGADO, FIX), clock=reloj, sleep=reloj.sleep,
+        )
+
+    texto = caplog.text.lower()
+    assert "auto-learn" in texto
+    assert "watching" in texto  # arrancó
+    assert "learned 1" in texto  # y cuántas se llevó
+
+
+def test_the_window_never_logs_the_contents_of_the_field(tmp_path, monkeypatch, caplog):
+    """The field holds whatever the user has written, not only our paste. It is
+    the promise in the guide and in the README: nothing of it is ever logged."""
+    monkeypatch.setattr(dictionary, "DICT_FILE", tmp_path / "dict.json")
+    campo = "Contraseña del banco: 4321. " + FIX + " Y mis notas privadas."
+    state = LearnState()
+    gen, stop = state.start(PEGADO)
+    reloj = _Reloj()
+
+    with caplog.at_level(logging.DEBUG, logger="voooxly"):
+        _watch_and_learn(
+            config.Config({}), state, PEGADO, gen, stop,
+            read=_lecturas(PEGADO, campo), clock=reloj, sleep=reloj.sleep,
+        )
+
+    assert "Contraseña" not in caplog.text
+    assert "4321" not in caplog.text
+    assert "privadas" not in caplog.text
 
 
 def test_the_config_values_reach_the_watch(monkeypatch):

@@ -328,11 +328,17 @@ def _watch_and_learn(cfg, state: LearnState, pasted: str, gen: int, stop, read=N
     file wholesale (no merge): without them, an existing install gets None.
     """
     learned: list[str] = []
+    window_s = cfg.get("learn.window_seconds", 15.0)
+    # Counts only, never the field: what the user has written around our paste
+    # is theirs. But SOMETHING has to be said — most of the manual gate is
+    # cases where nothing may happen, and without a trace a window that never
+    # ran looks exactly like one that ran and correctly stayed quiet.
+    log.info("Auto-learn: watching the pasted field for up to %ss.", window_s)
     try:
         field = learn.watch_field(
             pasted,
             read or axfield.app_locked_reader(),
-            window_s=cfg.get("learn.window_seconds", 15.0),
+            window_s=window_s,
             poll_s=cfg.get("learn.poll_interval", 2.0),
             stable_s=cfg.get("learn.stable_seconds", 3.0),
             acquire_s=cfg.get("learn.acquire_seconds", 4.0),
@@ -342,6 +348,10 @@ def _watch_and_learn(cfg, state: LearnState, pasted: str, gen: int, stop, read=N
         learned = learn.auto_learn_from(pasted, field or "")
     except Exception:
         log.debug("auto-learn (window) silent", exc_info=True)
+    if learned:
+        log.info("Auto-learn: learned %d correction(s).", len(learned))
+    else:
+        log.info("Auto-learn: nothing learned.")
     state.done(gen, "\n".join(learned) if learned else None)
     return learned
 
