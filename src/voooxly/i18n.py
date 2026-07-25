@@ -42,6 +42,8 @@ MENU_STRINGS = [
     "How to use Voooxly…", "Correct last dictation…",
     # --- submenú de idioma de dictado (auto-lock de langlock) ---
     "Dictation language", "Auto",
+    # --- auto-learn (aviso de transparencia + toggle en Ajustes) ---
+    "Learn from my corrections", "✨ Learned", "Turn off in Settings if you prefer.",
     # --- estado de la barra de menú (_refresh_title) ---
     "Mode", "ready", "recording", "processing",
     # --- botones del diálogo de quit-to-install ---
@@ -67,6 +69,10 @@ MENU_STRINGS = [
 # similares) quedan en inglés — traducirlos implica localizar también las
 # descripciones que arma dictionary.add (learn.learn_from / dictionary.add),
 # que viven fuera de este módulo. Se retoma en un fix dedicado.
+# EXCEPCIÓN deliberada: el título del HUD del auto-learn ("✨ Learned") y su
+# pista de desactivación SÍ se traducen — son el aviso de transparencia del
+# feature (el usuario debe entender qué acaba de aprender la app y cómo
+# apagarlo). El cuerpo (descripciones de dictionary.add) sigue en inglés.
 ES = {
     # --- menú ---
     "Ready": "Listo",
@@ -91,6 +97,10 @@ ES = {
     # --- submenú de idioma de dictado ---
     "Dictation language": "Idioma de dictado",
     "Auto": "Automático",
+    # --- auto-learn ---
+    "Learn from my corrections": "Aprender de mis correcciones",
+    "✨ Learned": "✨ Aprendido",
+    "Turn off in Settings if you prefer.": "Desactívalo en Ajustes si lo prefieres.",
     # --- estado de la barra de menú (_refresh_title) ---
     "Mode": "Modo",
     "ready": "listo",
