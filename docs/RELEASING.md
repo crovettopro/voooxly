@@ -137,9 +137,20 @@ Refresh `updates.WHATS_NEW` too (and its `i18n.ES` entry) **in the same commit
 that bumps the version**: that is the pop-up shown right after installing, and
 a test now fails if it still describes the behaviour the release retired.
 
+Y despliega con el script del repo `voooxly-web`, no con `vercel --prod` a mano:
+
 ```bash
-cd web && vercel --prod
+cd ../voooxly-web && ./deploy.sh
 ```
+
+Desde 1.9.0 el botón de descarga sirve `/Voooxly.dmg` **desde voooxly.com**, no
+un redirect a GitHub, así que el DMG es un fichero estático del deploy. Eso
+significa que un deploy sin copiar el DMG nuevo dejaría la web repartiendo una
+build vieja mientras el appcast anuncia la nueva, sin que nadie lo note.
+`deploy.sh` monta el DMG, compara su `CFBundleShortVersionString` con la
+`version` del appcast y **se niega a desplegar si no coinciden**; también
+comprueba Gatekeeper antes y los bytes servidos después. `--dry-run` hace las
+comprobaciones sin desplegar.
 
 > **Gate for the release that ships the post-paste learning window.** The site
 > copy for it is already written (the "Learns your words by itself" card and the
