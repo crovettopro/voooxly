@@ -127,6 +127,16 @@ gh release create v1.0.0 ~/.voooxly/release/Voooxly-1.0.0.dmg \
 In `web/appcast.json`, set the new version and the DMG URL. Already-installed
 apps check it on startup and show "Update to 1.0.0 →" in the menu.
 
+Write **both** `notes` and `notes_es`: they are the only user-facing strings the
+app does not own, so they cannot go through `i18n.t()` — `updates._notes()`
+picks by UI language and falls back to English when `notes_es` is missing.
+Leaving it out shows a Spanish user an English pop-up in an otherwise Spanish
+interface.
+
+Refresh `updates.WHATS_NEW` too (and its `i18n.ES` entry) **in the same commit
+that bumps the version**: that is the pop-up shown right after installing, and
+a test now fails if it still describes the behaviour the release retired.
+
 ```bash
 cd web && vercel --prod
 ```
