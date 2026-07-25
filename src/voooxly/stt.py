@@ -59,21 +59,27 @@ _TRANSCRIBE_TIMEOUT_CEILING = 180.0
 # dure lo que dure el audio real. `audio_ctx` por petición recorta esa ventana:
 # -51% de latencia medida en dictados cortos con CERO divergencia de texto
 # (scratchpad/latency-experiments.md). El margen 1.5x (75 frames/s) y el corte
-# a 18s existen porque un contexto menor que el audio corrompe el final en
-# bucle de alucinación — reproducido en el experimento con 19s de audio.
+# existen porque un contexto menor que el audio corrompe el final en bucle de
+# alucinación — reproducido en el experimento con 19s de audio.
+#
+# SOLO múltiplos de 256: los kernels Metal de whisper.cpp 1.9.1 solo van
+# rápidos con el contexto alineado (medido en este Mac: 309/320/384 → ~4s;
+# 256/512/768/1024 → 0.4-1.1s, mismo audio y mismo texto). Por encima de 1280
+# el siguiente escalón útil ya casi es la ventana completa: contexto nativo.
 _AUDIO_CTX_FRAMES_PER_S = 75
-_AUDIO_CTX_MAX_S = 18.0
-_AUDIO_CTX_FLOOR = 256
-_AUDIO_CTX_CEILING = 1500
+_AUDIO_CTX_STEP = 256
+_AUDIO_CTX_MAX = 1280
 
 
 def audio_ctx_for(duration_s: float) -> int | None:
     """Frames de contexto para el encoder, o None (= contexto completo)."""
     import math
 
-    if duration_s <= 0 or duration_s > _AUDIO_CTX_MAX_S:
+    if duration_s <= 0:
         return None
-    return min(_AUDIO_CTX_CEILING, max(_AUDIO_CTX_FLOOR, math.ceil(duration_s * _AUDIO_CTX_FRAMES_PER_S)))
+    frames = duration_s * _AUDIO_CTX_FRAMES_PER_S
+    ctx = max(1, math.ceil(frames / _AUDIO_CTX_STEP)) * _AUDIO_CTX_STEP
+    return ctx if ctx <= _AUDIO_CTX_MAX else None
 
 
 def _transcribe_timeout(audio: np.ndarray) -> float:
