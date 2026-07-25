@@ -1,14 +1,14 @@
-"""Vista previa interactiva del onboarding (sin arrancar toda la app).
+"""Interactive preview of the onboarding (without starting the whole app).
 
     ~/.voooxly/venv/bin/python scripts/preview_onboarding.py
 
-Se abre la ventana real de bienvenida: prueba los botones (Microphone,
-Accessibility, Continue → …), el botón amarillo de MINIMIZAR y cerrar con la
-cruz roja. Al cerrar, la app vuelve a policy Accessory y termina.
+The real welcome window opens: try the buttons (Microphone,
+Accessibility, Continue → …), the yellow MINIMIZE button and closing via the
+red cross. On close, the app returns to the Accessory policy and exits.
 
-Nota: lanzado desde la terminal, macOS ya deja la ventana activa; el bug de
-'botones muertos' era específico del .app empaquetado bajo rumps en macOS 26,
-que es justo lo que arreglan setActivationPolicy(Regular) + la re-activación.
+Note: launched from the terminal, macOS already leaves the window active; the
+'dead buttons' bug was specific to the packaged .app under rumps on macOS 26,
+which is exactly what setActivationPolicy(Regular) + the re-activation fix.
 """
 import logging
 import sys

@@ -1,14 +1,14 @@
 #!/bin/bash
-# Benchmark reproducible de latencia STT: genera 3 audios con `say`,
-# los pasa por whisper-server y reporta el tiempo de /inference.
-# Uso: ./scripts/bench_latency.sh   (requiere la app abierta o
-#      whisper-server corriendo en el puerto de config, default 8080)
+# Reproducible STT latency benchmark: generates 3 audio clips with `say`,
+# runs them through whisper-server and reports the /inference time.
+# Usage: ./scripts/bench_latency.sh   (requires the app open, or
+#        whisper-server running on the config port, default 8080)
 set -euo pipefail
 PORT="${1:-8080}"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-# Comprobación de vida: verifica que whisper-server responde
+# Liveness check: verify that whisper-server responds
 if ! curl -sS --max-time 5 -o /dev/null "http://127.0.0.1:$PORT/"; then
   echo "ERROR: whisper-server no responde en el puerto $PORT. Abre Voooxly (o arranca whisper-server) y reintenta." >&2
   exit 1
@@ -19,17 +19,17 @@ frases=(
   "the quarterly report needs three more charts before the board meeting"
   "hola qué tal quería confirmar la reunión del jueves a las cinco"
 )
-# Idioma conocido de cada frase: el bench mide lo que la app hace de verdad
-# (con lock de idioma y audio_ctx por petición), no el peor caso de auto-detección.
+# Known language for each phrase: the bench measures what the app really does
+# (with language lock and per-request audio_ctx), not the auto-detection worst case.
 langs=(es en es)
 i=0
 for f in "${frases[@]}"; do
   i=$((i+1))
   say -o "$TMP/f$i.aiff" "$f"
   afconvert -f WAVE -d LEI16@16000 -c 1 "$TMP/f$i.aiff" "$TMP/f$i.wav"
-  # Misma fórmula que stt.audio_ctx_for: 75 frames/s redondeados al múltiplo
-  # de 256 superior (los kernels Metal solo van rápidos alineados), tope 1280,
-  # por encima contexto completo. Se calcula ANTES de t0: no contamina la medición.
+  # Same formula as stt.audio_ctx_for: 75 frames/s rounded up to the next
+  # multiple of 256 (Metal kernels are only fast when aligned), capped at 1280,
+  # full context above that. Computed BEFORE t0: it does not pollute the measurement.
   ctx=$(python3 -c "
 import math, sys, wave
 w = wave.open(sys.argv[1])

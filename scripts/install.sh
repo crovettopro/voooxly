@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Instalación de Voooxly en macOS (Apple Silicon).
-# Mantiene el venv y los modelos FUERA de iCloud (~/.voooxly) para evitar
-# los cuelgues por evicción de iCloud en ~/Desktop.
+# Voooxly installation on macOS (Apple Silicon).
+# Keeps the venv and the models OUTSIDE iCloud (~/.voooxly) to avoid
+# the hangs caused by iCloud eviction in ~/Desktop.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -15,7 +15,7 @@ echo "    Datos    : $DATA_DIR (venv + modelos, fuera de iCloud)"
 
 mkdir -p "$DATA_DIR/venv" "$DATA_DIR/models" "$DATA_DIR/logs"
 
-# 1) dependencias de sistema
+# 1) system dependencies
 echo "==> 1) Dependencias de sistema"
 if ! brew list portaudio >/dev/null 2>&1; then
   echo "    Instalando portaudio…"; brew install portaudio
@@ -24,7 +24,7 @@ if ! brew list whisper-cpp >/dev/null 2>&1; then
   echo "    Instalando whisper-cpp…"; brew install whisper-cpp
 else echo "    whisper-cpp OK"; fi
 
-# 2) entorno Python con uv (venv fuera de iCloud)
+# 2) Python environment with uv (venv outside iCloud)
 echo "==> 2) Entorno Python (uv)"
 uv sync
 
@@ -34,7 +34,7 @@ if [ ! -f .env ]; then
   echo "    Creado .env (edítalo si quieres Claude/OpenAI)"
 fi
 
-# 4) modelo whisper.cpp (~1.6GB)
+# 4) whisper.cpp model (~1.6GB)
 MODEL="$DATA_DIR/models/ggml-large-v3-turbo.bin"
 if [ ! -f "$MODEL" ]; then
   echo "==> 4) Descargando modelo ggml-large-v3-turbo (~1.6GB)…"

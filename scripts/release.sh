@@ -1,27 +1,28 @@
 #!/bin/bash
-# Release público de Voooxly: build + firma Developer ID + notarización + DMG.
+# Public release of Voooxly: build + Developer ID signing + notarization + DMG.
 #
-# A diferencia de deploy.sh (desarrollo local, firma autofirmada que solo vale en
-# esta máquina), esto produce un DMG que se abre en el Mac de cualquiera.
+# Unlike deploy.sh (local development, self-signed cert only valid on this
+# machine), this produces a DMG that opens on anyone's Mac.
 #
-# Requisitos, una sola vez — ver docs/RELEASING.md:
-#   1. Certificado "Developer ID Application" instalado en el llavero
-#   2. Perfil de notarización guardado:
+# Requirements, one time only — see docs/RELEASING.md:
+#   1. "Developer ID Application" certificate installed in the keychain
+#   2. Notarization profile stored:
 #        xcrun notarytool store-credentials voooxly \
 #          --apple-id <email> --team-id <TEAMID> --password <app-specific-password>
 #
-# Uso: ./scripts/release.sh
-#      ./scripts/release.sh --dry-run   (firma con el cert local y NO notariza:
-#                                        valida toda la mecánica sin cuenta Apple)
+# Usage: ./scripts/release.sh
+#        ./scripts/release.sh --dry-run   (signs with the local cert and does NOT
+#                                          notarize: validates the whole mechanics
+#                                          without an Apple account)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VENV="${VOOOXLY_VENV:-$HOME/.voooxly/venv}"
 PROFILE="${NOTARY_PROFILE:-voooxly}"
 ENTITLEMENTS="$ROOT/voooxly.entitlements"
-# El repo vive en ~/Desktop, que es iCloud: reinyecta atributos extendidos
-# continuamente y la firma muere con "resource fork ... detritus not allowed".
-# Todo el firmado y empaquetado ocurre fuera de iCloud.
+# The repo lives in ~/Desktop, which is iCloud: it keeps re-injecting extended
+# attributes and signing dies with "resource fork ... detritus not allowed".
+# All signing and packaging happens outside iCloud.
 WORK="$HOME/.voooxly/release"
 APP="$WORK/Voooxly.app"
 
@@ -30,14 +31,14 @@ DRY_RUN=0
 
 cd "$ROOT"
 
-# ---------- comprobaciones previas (fallar aquí es barato; a mitad de notarización no) ----------
+# ---------- preflight checks (failing here is cheap; halfway through notarization it is not) ----------
 if [ "$DRY_RUN" = "1" ]; then
-  # Ensayo: cualquier identidad local sirve para comprobar que el bucle de firma,
-  # dmgbuild y el DMG funcionan. El resultado NO es distribuible.
+  # Rehearsal: any local identity is enough to check that the signing loop,
+  # dmgbuild and the DMG work. The result is NOT distributable.
   IDENTITY="${RELEASE_IDENTITY:-Voooxly Dev}"
-  # El cert lo crea scripts/make-cert.sh. Si no está (p.ej. quedó el del nombre
-  # viejo del proyecto), se tira de cualquier otra identidad local ANUNCIÁNDOLO:
-  # descubrir esto tras un build entero de PyInstaller cuesta minutos.
+  # The cert is created by scripts/make-cert.sh. If it is missing (e.g. only the
+  # project's old-name cert is left), fall back to any other local identity while
+  # ANNOUNCING IT: discovering this after a full PyInstaller build costs minutes.
   if ! security find-identity -v -p codesigning 2>/dev/null | grep -q "\"$IDENTITY\""; then
     ALT="$(security find-identity -v -p codesigning 2>/dev/null \
       | grep -v "Developer ID Application" | grep -o '"[^"]*"' | head -1 | tr -d '"' || true)"
@@ -78,7 +79,7 @@ echo "→ Versión   : $VERSION"
 echo
 
 # ---------- build ----------
-# vendor/whisper no viaja en git (binarios de Homebrew): se regenera al vuelo
+# vendor/whisper is not tracked in git (Homebrew binaries): regenerated on the fly
 if [ -z "$(ls -A "$ROOT/vendor/whisper" 2>/dev/null)" ]; then
   echo "→ vendor/whisper vacío: vendorizando whisper-server desde Homebrew…"
   bash "$ROOT/scripts/bundle-whisper.sh" >/dev/null
@@ -94,10 +95,10 @@ mkdir -p "$WORK"
 cp -R "$ROOT/dist/Voooxly.app" "$APP"
 xattr -cr "$APP"
 
-# ---------- firma ----------
-# De DENTRO AFUERA: primero cada Mach-O anidado, el bundle al final. Los
-# libggml-* se cargan por dlopen y necesitan firma propia o la notarización
-# los rechaza. --timestamp y --options runtime son obligatorios para notarizar.
+# ---------- signing ----------
+# From the INSIDE OUT: each nested Mach-O first, the bundle last. The
+# libggml-* are loaded via dlopen and need their own signature or notarization
+# rejects them. --timestamp and --options runtime are mandatory for notarizing.
 echo "→ Firmando binarios internos…"
 signed=0
 while IFS= read -r -d '' f; do
@@ -112,7 +113,7 @@ echo "→ Firmando el bundle…"
 codesign --force --timestamp --options runtime --entitlements "$ENTITLEMENTS" -s "$IDENTITY" "$APP"
 codesign --verify --deep --strict --verbose=2 "$APP"
 
-# ---------- notarización de la app ----------
+# ---------- app notarization ----------
 if [ "$DRY_RUN" = "1" ]; then
   echo "→ (dry run: notarización de la app omitida)"
 else
@@ -129,10 +130,10 @@ fi
 echo "→ Construyendo el DMG…"
 DMG="$WORK/Voooxly-$VERSION.dmg"
 rm -f "$DMG"
-# dmgbuild escribe el .DS_Store con el layout de la ventana y el icono del
-# volumen, cosas que `hdiutil create` a pelo no puede poner. Sin Finder de por
-# medio: determinista y sin permiso de Automatización. El symlink a
-# /Applications lo crea él, así que ya no hace falta carpeta de staging.
+# dmgbuild writes the .DS_Store with the window layout and the volume icon,
+# things a bare `hdiutil create` cannot set. No Finder involved: deterministic
+# and no Automation permission needed. It creates the /Applications symlink
+# itself, so a staging folder is no longer necessary.
 [ -x "$VENV/bin/dmgbuild" ] || { echo "ERROR: falta dmgbuild en $VENV"; \
   echo "       uv pip install --python $VENV/bin/python 'dmgbuild>=1.6'"; exit 1; }
 "$VENV/bin/dmgbuild" -s "$ROOT/scripts/dmg_settings.py" \
@@ -156,8 +157,8 @@ echo "→ Notarizando el DMG…"
 xcrun notarytool submit "$DMG" --keychain-profile "$PROFILE" --wait
 xcrun stapler staple "$DMG"
 
-# ---------- verificación final ----------
-# Esto es literalmente lo que ejecuta Gatekeeper en el Mac de quien lo descargue.
+# ---------- final verification ----------
+# This is literally what Gatekeeper runs on the Mac of whoever downloads it.
 echo
 echo "→ Verificación final (Gatekeeper):"
 spctl -a -vvv -t install "$DMG"

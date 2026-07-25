@@ -1,13 +1,13 @@
 #!/bin/bash
-# Build + deploy local de Voooxly.app a /Applications.
+# Local build + deploy of Voooxly.app to /Applications.
 #
-# - Compila con PyInstaller (el spec ya lleva bundle_identifier + info_plist correctos)
-# - Firma SIEMPRE en /Applications (en dist/ iCloud re-inyecta xattrs y la firma
-#   falla con "resource fork ... detritus not allowed")
-# - Firma con la primera identidad disponible: "Voooxly Dev" (autofirmada, la
-#   crea scripts/make-cert.sh) o el Developer ID. Cualquiera de las dos mantiene
-#   los permisos TCC estables entre rebuilds; ad-hoc los invalida en cada build
-#   y hay que re-conceder Accesibilidad/Monitorización/Micrófono.
+# - Builds with PyInstaller (the spec already carries the correct bundle_identifier + info_plist)
+# - ALWAYS signs in /Applications (in dist/ iCloud re-injects xattrs and signing
+#   fails with "resource fork ... detritus not allowed")
+# - Signs with the first available identity: "Voooxly Dev" (self-signed, created
+#   by scripts/make-cert.sh) or the Developer ID. Either one keeps the TCC
+#   permissions stable across rebuilds; ad-hoc invalidates them on every build
+#   and Accessibility/Input Monitoring/Microphone must be re-granted.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -15,7 +15,7 @@ VENV="${VOOOXLY_VENV:-$HOME/.voooxly/venv}"
 APP=/Applications/Voooxly.app
 
 cd "$ROOT"
-# vendor/whisper no viaja en git (binarios de Homebrew): se regenera al vuelo
+# vendor/whisper is not tracked in git (Homebrew binaries): regenerated on the fly
 if [ -z "$(ls -A vendor/whisper 2>/dev/null)" ]; then
   echo "→ vendor/whisper vacío: vendorizando whisper-server desde Homebrew…"
   bash scripts/bundle-whisper.sh >/dev/null
@@ -27,8 +27,8 @@ echo "→ Compilando con PyInstaller…"
 echo "→ Desplegando a /Applications…"
 osascript -e 'quit app "Voooxly"' 2>/dev/null || true
 pkill -x Voooxly 2>/dev/null || true
-# el whisper-server hijo sobrevive al pkill del padre; si queda vivo, la app
-# nueva reutiliza el puerto y sigue sirviendo el MODELO VIEJO ya cargado
+# the whisper-server child survives its parent's pkill; if it stays alive, the
+# new app reuses the port and keeps serving the OLD MODEL already loaded
 pkill -f whisper-server 2>/dev/null || true
 sleep 1
 rm -rf "$APP"

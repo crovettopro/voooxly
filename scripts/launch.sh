@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Arranca Voooxly (dev, desde fuente) en segundo plano (menu bar). Logs en ~/.voooxly/logs.
-# El venv vive en ~/.voooxly/venv (fuera de iCloud) vía UV_PROJECT_ENVIRONMENT.
+# Starts Voooxly (dev, from source) in the background (menu bar). Logs in ~/.voooxly/logs.
+# The venv lives in ~/.voooxly/venv (outside iCloud) via UV_PROJECT_ENVIRONMENT.
 cd "$(dirname "$0")/.."
 export UV_PROJECT_ENVIRONMENT="$HOME/.voooxly/venv"
 LOG="$HOME/.voooxly/logs/voooxly.log"
@@ -13,7 +13,7 @@ esac
 
 mkdir -p "$(dirname "$LOG")"
 
-# idempotente: cierra una instancia previa de voooxly (el whisper-server se reutiliza solo)
+# idempotent: closes a previous voooxly instance (the whisper-server is reused on its own)
 if pgrep -f "voooxly/venv/bin/voooxly" >/dev/null 2>&1 || pgrep -f "uv run voooxly" >/dev/null 2>&1; then
   echo "Cerrando instancia previa…"
   pkill -f "voooxly/venv/bin/voooxly" 2>/dev/null

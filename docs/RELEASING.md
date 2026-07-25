@@ -1,49 +1,49 @@
-# Publicar una versión de Voooxly
+# Releasing a version of Voooxly
 
-Cómo pasar del código a un DMG que cualquiera pueda descargar e instalar.
+How to go from the code to a DMG anyone can download and install.
 
-Casi todo lo automatiza `scripts/release.sh`. Lo que no puede automatizarse es
-la configuración inicial de la cuenta de Apple: son **cuatro pasos, una sola vez**.
+Almost everything is automated by `scripts/release.sh`. What cannot be automated
+is the initial Apple account setup: **four steps, one time only**.
 
 ---
 
-## Preparación (una sola vez)
+## Setup (one time only)
 
-### 1. Crear el certificado Developer ID Application
+### 1. Create the Developer ID Application certificate
 
-Es lo que permite que macOS abra la app en un Mac que no es el tuyo. Requiere el
-Apple Developer Program (99 $/año, el mismo que ya usas para las apps de la App
-Store).
+It is what lets macOS open the app on a Mac that is not yours. Requires the
+Apple Developer Program ($99/year, the same one you already use for the App
+Store apps).
 
-1. Abre **Xcode → Settings → Accounts**, selecciona tu cuenta y pulsa **Manage
+1. Open **Xcode → Settings → Accounts**, select your account and click **Manage
    Certificates…**
-2. Pulsa **+** abajo a la izquierda y elige **Developer ID Application**.
-3. Xcode lo crea y lo instala en el llavero.
+2. Click **+** at the bottom left and choose **Developer ID Application**.
+3. Xcode creates it and installs it in the keychain.
 
-> Alternativa manual: en developer.apple.com → Certificates, IDs & Profiles →
-> Certificates → **+** → Developer ID Application. Descarga el `.cer` y haz doble
-> clic para instalarlo.
+> Manual alternative: at developer.apple.com → Certificates, IDs & Profiles →
+> Certificates → **+** → Developer ID Application. Download the `.cer` and
+> double-click it to install it.
 
-Comprueba que está:
+Check that it is there:
 
 ```bash
 security find-identity -v -p codesigning | grep "Developer ID Application"
 ```
 
-Debe aparecer una línea con `Developer ID Application: Eduardo Crovetto (TH7LG6UP8H)`.
+A line with `Developer ID Application: Eduardo Crovetto (TH7LG6UP8H)` should appear.
 
-### 2. Crear una contraseña específica de app
+### 2. Create an app-specific password
 
-La notarización no acepta tu contraseña normal de Apple ID.
+Notarization does not accept your regular Apple ID password.
 
-1. Entra en [appleid.apple.com](https://appleid.apple.com) → **Sign-In and Security**
+1. Go to [appleid.apple.com](https://appleid.apple.com) → **Sign-In and Security**
    → **App-Specific Passwords**.
-2. Genera una nueva (nómbrala "voooxly-notarization") y **cópiala**: solo se muestra
-   una vez.
+2. Generate a new one (name it "voooxly-notarization") and **copy it**: it is only
+   shown once.
 
-### 3. Guardar el perfil de notarización
+### 3. Store the notarization profile
 
-Esto deja las credenciales en el llavero para que el script no las pida cada vez:
+This leaves the credentials in the keychain so the script does not ask for them every time:
 
 ```bash
 xcrun notarytool store-credentials voooxly \
@@ -52,30 +52,30 @@ xcrun notarytool store-credentials voooxly \
   --password <la-contraseña-específica-del-paso-2>
 ```
 
-Verifica:
+Verify:
 
 ```bash
 xcrun notarytool history --keychain-profile voooxly
 ```
 
-### 4. Instalar dmgbuild en el venv de release
+### 4. Install dmgbuild in the release venv
 
-`release.sh` lo usa para el layout de la ventana del DMG y el icono del
-volumen. El venv está hecho con uv y no trae `pip`, así que se instala así:
+`release.sh` uses it for the DMG window layout and the volume icon. The venv
+is made with uv and does not ship `pip`, so it is installed like this:
 
 ```bash
 uv pip install --python ~/.voooxly/venv/bin/python 'dmgbuild>=1.6'
 ```
 
-Verifica:
+Verify:
 
 ```bash
 ~/.voooxly/venv/bin/dmgbuild --help
 ```
 
-### 5. Crear el repositorio de GitHub para las descargas
+### 5. Create the GitHub repository for the downloads
 
-Los DMG se sirven desde GitHub Releases (gratis y sin límite de tráfico):
+The DMGs are served from GitHub Releases (free and with no traffic limit):
 
 ```bash
 gh repo create voooxly --public --source=. --remote=origin
@@ -83,49 +83,49 @@ gh repo create voooxly --public --source=. --remote=origin
 
 ---
 
-## Publicar una versión
+## Releasing a version
 
-### 1. Subir el número de versión
+### 1. Bump the version number
 
-En `Voooxly.spec`, ambos campos a la vez:
+In `Voooxly.spec`, both fields at once:
 
 ```python
 "CFBundleVersion": "1.0.0",
 "CFBundleShortVersionString": "1.0.0",
 ```
 
-### 2. Ensayo (opcional pero recomendado)
+### 2. Dry run (optional but recommended)
 
-Valida toda la mecánica —build, firma de los 145 binarios internos, DMG— sin
-gastar una notarización:
+Validates the whole mechanics —build, signing of the 145 internal binaries,
+DMG— without spending a notarization:
 
 ```bash
 ./scripts/release.sh --dry-run
 ```
 
-### 3. Release de verdad
+### 3. The real release
 
 ```bash
 ./scripts/release.sh
 ```
 
-Hace, en orden: compila → copia fuera de iCloud → firma de dentro afuera con
-hardened runtime → notariza la app (unos minutos) → staplea → crea el DMG →
-firma y notariza el DMG → verifica con `spctl` lo mismo que verá Gatekeeper.
+It does, in order: build → copy outside iCloud → sign from the inside out with
+hardened runtime → notarize the app (a few minutes) → staple → create the DMG →
+sign and notarize the DMG → verify with `spctl` exactly what Gatekeeper will see.
 
-El resultado queda en `~/.voooxly/release/Voooxly-<versión>.dmg`.
+The result ends up in `~/.voooxly/release/Voooxly-<version>.dmg`.
 
-### 4. Subir el DMG a GitHub Releases
+### 4. Upload the DMG to GitHub Releases
 
 ```bash
 gh release create v1.0.0 ~/.voooxly/release/Voooxly-1.0.0.dmg \
   --title "Voooxly 1.0.0" --notes "Qué ha cambiado…"
 ```
 
-### 5. Actualizar el appcast y desplegar la web
+### 5. Update the appcast and deploy the web
 
-En `web/appcast.json`, poner la versión nueva y la URL del DMG. Las apps ya
-instaladas lo consultan al arrancar y muestran "Update to 1.0.0 →" en el menú.
+In `web/appcast.json`, set the new version and the DMG URL. Already-installed
+apps check it on startup and show "Update to 1.0.0 →" in the menu.
 
 ```bash
 cd web && vercel --prod
@@ -133,34 +133,34 @@ cd web && vercel --prod
 
 ---
 
-## Por qué el proyecto está montado así
+## Why the project is set up this way
 
-**Por qué no el Mac App Store.** Voooxly necesita un hotkey global y pegar texto en
-apps de terceros; el sandbox obligatorio del App Store prohíbe ambas cosas. Es el
-mismo motivo por el que Wispr Flow, superwhisper y MacWhisper se distribuyen
-fuera de la tienda.
+**Why not the Mac App Store.** Voooxly needs a global hotkey and to paste text
+into third-party apps; the App Store's mandatory sandbox forbids both. It is the
+same reason Wispr Flow, superwhisper and MacWhisper are distributed outside
+the store.
 
-**Por qué se firma fuera de iCloud.** El repo vive en `~/Desktop`, que iCloud
-sincroniza, y iCloud reinyecta atributos extendidos continuamente. Firmar allí
-falla con `resource fork, Finder information, or similar detritus not allowed`.
-El script copia el bundle a `~/.voooxly/release/` antes de tocarlo.
+**Why signing happens outside iCloud.** The repo lives in `~/Desktop`, which
+iCloud syncs, and iCloud keeps re-injecting extended attributes. Signing there
+fails with `resource fork, Finder information, or similar detritus not allowed`.
+The script copies the bundle to `~/.voooxly/release/` before touching it.
 
-**Por qué se firman los binarios internos uno a uno.** Los `libggml-*` se cargan
-por `dlopen` en tiempo de ejecución, así que necesitan firma propia: sin ella la
-notarización rechaza el paquete. La firma va de dentro afuera porque firmar el
-bundle invalida cualquier firma añadida después dentro de él.
+**Why the internal binaries are signed one by one.** The `libggml-*` are loaded
+via `dlopen` at runtime, so they need their own signature: without it,
+notarization rejects the package. Signing goes from the inside out because
+signing the bundle invalidates any signature added inside it afterwards.
 
-**Por qué solo Apple Silicon.** El `whisper-server` vendorizado en `vendor/` es
-arm64. Para dar soporte a Intel habría que compilar un binario universal.
+**Why Apple Silicon only.** The `whisper-server` vendored in `vendor/` is
+arm64. Supporting Intel would require building a universal binary.
 
 ---
 
-## Si algo falla
+## If something fails
 
-| Síntoma | Causa y solución |
+| Symptom | Cause and fix |
 |---|---|
-| `no hay certificado 'Developer ID Application'` | Falta el paso 1 de la preparación |
-| `no existe el perfil de notarización 'voooxly'` | Falta el paso 3 |
-| `resource fork ... detritus not allowed` | Algo se está firmando dentro de iCloud; el script ya lo evita, revisa que no hayas cambiado `WORK` |
-| Notarización rechazada | `xcrun notarytool log <submission-id> --keychain-profile voooxly` da el motivo exacto, normalmente un binario sin firmar o sin hardened runtime |
-| La app abre pero el hotkey no va | Accesibilidad no concedida; el onboarding lo guía. Al reinstalar cambia la firma y macOS revoca el permiso |
+| `no hay certificado 'Developer ID Application'` | Setup step 1 is missing |
+| `no existe el perfil de notarización 'voooxly'` | Step 3 is missing |
+| `resource fork ... detritus not allowed` | Something is being signed inside iCloud; the script already avoids this, check you have not changed `WORK` |
+| Notarization rejected | `xcrun notarytool log <submission-id> --keychain-profile voooxly` gives the exact reason, usually a binary that is unsigned or lacks hardened runtime |
+| The app opens but the hotkey does nothing | Accessibility not granted; the onboarding walks through it. Reinstalling changes the signature and macOS revokes the permission |

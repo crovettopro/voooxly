@@ -1,12 +1,12 @@
 #!/bin/bash
-# Vendoriza whisper-server (de Homebrew) dentro del repo → vendor/whisper/
-# para que Voooxly.app lo lleve EMBEBIDO y el receptor no necesite Homebrew.
+# Vendors whisper-server (from Homebrew) into the repo → vendor/whisper/
+# so Voooxly.app carries it EMBEDDED and the recipient does not need Homebrew.
 #
-# - Copia el binario + clausura de dylibs (libwhisper, libggml*)
-# - IMPORTANTE: ggml carga sus backends (libggml-cpu/metal/blas) por dlopen
-#   desde su propio directorio → se copian TODOS los libggml-*
-# - Reescribe los install names a @loader_path (todo plano en un dir)
-# - Re-firma ad-hoc cada Mach-O (la firma final la pone deploy/package)
+# - Copies the binary + dylib closure (libwhisper, libggml*)
+# - IMPORTANT: ggml loads its backends (libggml-cpu/metal/blas) via dlopen
+#   from its own directory → ALL the libggml-* get copied
+# - Rewrites the install names to @loader_path (everything flat in one dir)
+# - Re-signs each Mach-O ad-hoc (the final signature is applied by deploy/package)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -19,7 +19,7 @@ SEARCH_DIRS=(/opt/homebrew/opt/whisper-cpp/lib /opt/homebrew/opt/ggml/lib /opt/h
 rm -rf "$OUT"; mkdir -p "$OUT"
 cp -f "$(realpath "$BIN")" "$OUT/whisper-server"
 
-resolve() {  # dep ref → ruta real en disco
+resolve() {  # dep ref → real path on disk
   local ref="$1"
   if [[ "$ref" == @rpath/* ]]; then
     local name="${ref#@rpath/}"
@@ -31,7 +31,7 @@ resolve() {  # dep ref → ruta real en disco
   [ -e "$ref" ] && realpath "$ref"
 }
 
-# clausura BFS de dependencias de homebrew/@rpath
+# BFS closure of homebrew/@rpath dependencies
 copied=1
 while [ "$copied" -eq 1 ]; do
   copied=0
@@ -47,16 +47,16 @@ while [ "$copied" -eq 1 ]; do
   done
 done
 
-# backends dlopen de ggml (Metal/CPU/BLAS): viven como .so en libexec/ y ggml
-# los busca en una ruta COMPILADA que no existe en otros Macs → se copian aquí
-# y stt.py exporta GGML_BACKEND_PATH al lanzar el server embebido.
+# ggml's dlopen backends (Metal/CPU/BLAS): they live as .so in libexec/ and ggml
+# looks for them at a COMPILED-IN path that does not exist on other Macs → copy
+# them here and stt.py exports GGML_BACKEND_PATH when launching the embedded server.
 for lib in /opt/homebrew/opt/ggml/libexec/*.so; do
   [ -e "$lib" ] || continue
   name="$(basename "$lib")"
   [ -e "$OUT/$name" ] || cp -f "$(realpath "$lib")" "$OUT/$name"
 done
 
-# segunda pasada de clausura: los .so también traen deps
+# second closure pass: the .so files bring deps of their own
 for f in "$OUT"/*.so; do
   [ -e "$f" ] || continue
   while IFS= read -r dep; do
@@ -68,7 +68,7 @@ for f in "$OUT"/*.so; do
   done < <(otool -L "$f" | tail -n +2 | awk '{print $1}' | grep -E '^(@rpath/|/opt/homebrew/)' || true)
 done
 
-# reescritura de install names → @loader_path (dir plano)
+# install-name rewrite → @loader_path (flat dir)
 for f in "$OUT"/*; do
   base="$(basename "$f")"
   if [[ "$base" == *.dylib || "$base" == *.so ]]; then

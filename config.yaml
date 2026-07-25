@@ -1,118 +1,118 @@
-# Configuración de Voooxly. Cárgala con config.load_config().
-# Los valores de entorno (.env) tienen prioridad sobre lo de aquí.
+# Voooxly configuration. Load it with config.load_config().
+# Environment values (.env) take precedence over what is set here.
 
 # --- STT (speech to text) — whisper.cpp ---
 stt:
-  # whisper.cpp usa un modelo ggml .bin. Se busca automáticamente en
-  # ~/.voooxly/models/ggml-large-v3-turbo-q5_0.bin (o -turbo / -large-v3 / -medium).
-  # El q5_0 cuantizado (~550MB) es el recomendado: en Macs de 8GB no se pagina.
-  # Sobreescribe con la ruta que quieras vía env VOOOXLY_STT_MODEL_FILE.
+  # whisper.cpp uses a ggml .bin model. It is looked up automatically in
+  # ~/.voooxly/models/ggml-large-v3-turbo-q5_0.bin (or -turbo / -large-v3 / -medium).
+  # The quantized q5_0 (~550MB) is the recommended one: on 8GB Macs it does not page out.
+  # Override with whatever path you want via env VOOOXLY_STT_MODEL_FILE.
   model: "ggml-large-v3-turbo"
-  # Diccionario personal: nombres propios, marcas y jerga que Whisper suele
-  # escribir mal. Se pasan como "initial prompt" y sesgan la transcripción
-  # hacia estas grafías exactas. Añade los tuyos.
+  # Personal dictionary: proper names, brands and jargon that Whisper tends
+  # to misspell. They are passed as the "initial prompt" and bias the
+  # transcription toward these exact spellings. Add your own.
   dictionary: []
-  server_port: 8080       # puerto del whisper-server local
-  threads: 4              # hilos CPU para el decoder
-  language: "auto"        # "auto" = idioma del sistema. Forzar un idioma ahorra
-                          # ~1.4s/petición frente a que Whisper lo detecte solo;
-                          # null = detección automática. Fija "es"/"en"/… si
-                          # dictas en un idioma distinto al de tu Mac.
-                          # El modo Traducir EN→ES fuerza "en" por su cuenta.
-  sample_rate: 16000      # Whisper quiere 16kHz mono
-  partial_interval: 2.0   # segundos entre transcripciones del buffer (overlay en vivo)
-  partial_window: 5.0     # ventana corta = parciales rápidos que no encolan la final
-                          # (el whisper-server procesa en serie)
-  keepalive_min: 4        # ping cada N min para mantener el modelo en RAM y evitar
-                          # el arranque frío de 10-19s tras inactividad (0 = off)
-  transcribe_timeout_floor: 30    # mínimo del timeout de /inference: un dictado
-                                  # corto contra un server encallado tiene que
-                                  # seguir fallando rápido. El timeout real crece
-                                  # con la duración del audio (ver stt.py) — esto
-                                  # es solo el piso.
-  transcribe_timeout_ceiling: 180 # techo duro del timeout aunque el audio sea
-                                  # larguísimo: un server colgado no puede dejar
-                                  # la app esperando sin fin. A los 300s de
-                                  # audio.max_duration el cálculo da 150s, así
-                                  # que en la práctica no debería activarse.
+  server_port: 8080       # local whisper-server port
+  threads: 4              # CPU threads for the decoder
+  language: "auto"        # "auto" = system language. Forcing a language saves
+                          # ~1.4s/request versus letting Whisper detect it;
+                          # null = automatic detection. Set "es"/"en"/… if you
+                          # dictate in a language other than your Mac's.
+                          # The Translate EN→ES mode forces "en" on its own.
+  sample_rate: 16000      # Whisper wants 16kHz mono
+  partial_interval: 2.0   # seconds between buffer transcriptions (live overlay)
+  partial_window: 5.0     # short window = fast partials that do not queue up the final
+                          # (the whisper-server processes serially)
+  keepalive_min: 4        # ping every N min to keep the model in RAM and avoid
+                          # the 10-19s cold start after inactivity (0 = off)
+  transcribe_timeout_floor: 30    # minimum /inference timeout: a short
+                                  # dictation against a stuck server still has
+                                  # to fail fast. The real timeout grows
+                                  # with the audio duration (see stt.py) — this
+                                  # is only the floor.
+  transcribe_timeout_ceiling: 180 # hard ceiling for the timeout even if the
+                                  # audio is very long: a hung server cannot
+                                  # leave the app waiting forever. At the 300s
+                                  # of audio.max_duration the formula gives
+                                  # 150s, so in practice it should never fire.
 
 # --- Audio / VAD ---
 audio:
-  device: null            # null = dispositivo por defecto. Índice int o nombre.
-  vad_aggressiveness: 2   # 0-3 (webrtcvad). 2 = buen balance.
-  silence_to_stop: 1.2    # segundos de silencio para auto-cerrar la grabación
-  max_duration: 300       # seguridad: cierra a los 5 min aunque no haya silencio.
-                          # No bajar a 60: anula el latch, que existe para los
-                          # dictados largos, y se pierde todo lo posterior.
-  min_duration: 0.4       # descarta pulsaciones de menos de 0.4s
-  min_rms: 50             # RMS int16 mínimo: por debajo = micro sin señal (TCC
-                          # denegado o mute) y se descarta sin llamar a Whisper
-  pause_media: true       # pausa Spotify/Music al dictar y los reanuda al soltar
-                          # (solo si estaban sonando; pide Automatización 1ª vez)
+  device: null            # null = default device. Int index or name.
+  vad_aggressiveness: 2   # 0-3 (webrtcvad). 2 = good balance.
+  silence_to_stop: 1.2    # seconds of silence to auto-stop the recording
+  max_duration: 300       # safety: stops at 5 min even if there is no silence.
+                          # Do not lower to 60: it defeats the latch, which exists
+                          # for long dictations, and everything after is lost.
+  min_duration: 0.4       # discards presses shorter than 0.4s
+  min_rms: 50             # minimum int16 RMS: below it = mic with no signal (TCC
+                          # denied or muted) and it is discarded without calling Whisper
+  pause_media: true       # pauses Spotify/Music while dictating and resumes on release
+                          # (only if they were playing; asks for Automation the 1st time)
 
 # --- Hotkeys (pynput key strings) ---
 hotkeys:
-  # Modo del botón de dictado:
-  #   "hold"   = push-to-talk: mantén pulsado para hablar, suelta para terminar (estilo Wispr)
-  #   "toggle" = pulsa para empezar, pulsa/te callas para terminar
+  # Dictation button mode:
+  #   "hold"   = push-to-talk: hold to speak, release to finish (Wispr style)
+  #   "toggle" = press to start, press again/go silent to finish
   toggle_mode: "hold"
-  # Tecla de dictado. En modo "hold" debe ser UNA tecla (p.ej. "cmd_r", "alt_r", "f6").
-  # El menú (Settings → Dictation key) solo ofrece los seis modificadores de la
-  # fila de abajo; cualquier otra tecla válida se pone aquí a mano.
+  # Dictation key. In "hold" mode it must be ONE key (e.g. "cmd_r", "alt_r", "f6").
+  # The menu (Settings → Dictation key) only offers the six modifiers of the
+  # bottom row; any other valid key is set here by hand.
   #
-  # EVITA F5: en un Mac es la tecla de Dictado del sistema. Al pulsarla macOS
-  # cambia la fuente de entrada e invalida la caché de TIS/TSM, y hasta la
-  # versión actual eso mataba el proceso con SIGTRAP (HIToolbox exige el hilo
-  # principal para reconstruir esa lista, y pynput la tocaba desde el hilo de
-  # su listener). Ya no crashea — hotkey._warm_input_sources y no rearrancar el
-  # listener lo cierran — pero sigue siendo mala elección: macOS se queda el
-  # evento para su propio dictado. Igual con otras teclas con función de
-  # sistema.
+  # AVOID F5: on a Mac it is the system Dictation key. When pressed, macOS
+  # switches the input source and invalidates the TIS/TSM cache, and up to the
+  # current version that killed the process with SIGTRAP (HIToolbox demands the
+  # main thread to rebuild that list, and pynput touched it from its listener
+  # thread). It no longer crashes — hotkey._warm_input_sources plus not
+  # restarting the listener close it — but it is still a bad choice: macOS
+  # keeps the event for its own dictation. Same for other keys with a system
+  # function.
   toggle: ["cmd_r"]
-  # Cambiar al modo siguiente
+  # Switch to the next mode
   cycle_mode: ["ctrl","shift","m"]
-  # Cancelar el dictado en curso (grabando o procesando): descarta todo,
-  # no se pega nada. UNA tecla.
+  # Cancel the dictation in progress (recording or processing): discards
+  # everything, nothing is pasted. ONE key.
   cancel: ["esc"]
-  # Latch (solo modo hold): si el dictado va para largo, pulsa esta tecla SIN
-  # soltar la de dictado y la grabación queda fijada — puedes soltar. Un tap
-  # de la tecla de dictado termina. Esc también lo deshace. UNA tecla.
+  # Latch (hold mode only): if the dictation is running long, press this key
+  # WITHOUT releasing the dictation key and the recording is pinned — you can
+  # let go. A tap of the dictation key finishes. Esc also undoes it. ONE key.
   latch: ["shift"]
 
 # --- Output ---
 output:
-  auto_paste: true        # true = simular Cmd+V en la app activa; false = solo portapapeles
+  auto_paste: true        # true = simulate Cmd+V in the active app; false = clipboard only
   copy_to_clipboard: true
 
-# --- Refinamiento LLM ---
+# --- LLM refinement ---
 llm:
   # Backend: "auto" | "ollama" | "claude" | "openai" | "none"
-  # "auto" detecta en cascada: Ollama corriendo → ANTHROPIC_API_KEY →
-  # OPENAI_API_KEY → none (pegar transcripción cruda, sin IA). Así cada
-  # usuario conecta la IA que tenga sin tocar nada.
+  # "auto" detects in cascade: Ollama running → ANTHROPIC_API_KEY →
+  # OPENAI_API_KEY → none (paste the raw transcription, no AI). This way each
+  # user plugs in whatever AI they have without touching anything.
   backend: "auto"
-  # Fast-lane: dictados de ≤N palabras en modos con fast_lane (Organize) se
-  # pegan tal cual sin pasar por el LLM — Whisper ya puntúa bien frases cortas
-  # y se ahorran 2-6s. 0 = desactivado.
+  # Fast-lane: dictations of ≤N words in modes with fast_lane (Organize) are
+  # pasted as-is without going through the LLM — Whisper already punctuates
+  # short sentences well and 2-6s are saved. 0 = disabled.
   fast_lane_words: 9
-  # Reglas personales que se añaden al prompt de TODOS los modos (menos
-  # Verbatim). Ej: "Never use semicolons. My company is spelled Ucademy."
+  # Personal rules appended to the prompt of ALL modes (except
+  # Verbatim). E.g.: "Never use semicolons. My company is spelled Ucademy."
   custom_rules: ""
   # Ollama
   ollama:
     host: "http://localhost:11434"
-    # Sin modelo de fábrica: fijar uno a fuego presupone cuál tiene instalado
-    # el usuario (y si es ":cloud" exige una suscripción de Ollama que no todo
-    # el mundo tiene — así fue como el default roto pasó desapercibido).
-    # Se elige desde el menú AI engine → Ollama, que le pregunta a tu propio
-    # servidor qué modelos tienes y te deja escoger el tuyo.
+    # No factory-set model: hardcoding one presumes which one the user has
+    # installed (and if it is ":cloud" it requires an Ollama subscription not
+    # everyone has — that is how the broken default went unnoticed).
+    # It is chosen from the AI engine → Ollama menu, which asks your own
+    # server which models you have and lets you pick yours.
     model: ""
     temperature: 0.3
-    timeout: 60             # si el LLM no responde a tiempo se pega la transcripción
-                            # cruda. 60s, no 20: un dictado de 5 min es 5× más texto
-                            # que refinar, y al vencer el usuario lo vive como "la IA
-                            # dejó de funcionar en los dictados largos".
-  # Claude API (si ANTHROPIC_API_KEY está en env)
+    timeout: 60             # if the LLM does not answer in time, the raw transcription
+                            # is pasted. 60s, not 20: a 5-min dictation is 5× more text
+                            # to refine, and when it expires the user experiences it as
+                            # "the AI stopped working on long dictations".
+  # Claude API (if ANTHROPIC_API_KEY is in env)
   claude:
     model: "claude-sonnet-5"
     max_tokens: 4000
@@ -128,13 +128,13 @@ llm:
 # --- App ---
 app:
   default_mode: "ordenar"
-  language: null          # idioma de salida del refinador. null = conservar el
-                          # idioma hablado (lo normal). Fíjalo solo si quieres
-                          # que la salida sea siempre en un idioma concreto.
-  save_history: true      # guarda cada dictado en ~/.voooxly/history.jsonl
-                          # (0600, rota a 500 entradas) — alimenta Recent entre
-                          # sesiones y "Search history…". false = solo en memoria.
-  show_overlay: true      # HUD con transcripción en vivo
+  language: null          # output language of the refiner. null = keep the
+                          # spoken language (the usual). Set it only if you want
+                          # the output to always be in one specific language.
+  save_history: true      # saves each dictation to ~/.voooxly/history.jsonl
+                          # (0600, rotates at 500 entries) — feeds Recent across
+                          # sessions and "Search history…". false = memory only.
+  show_overlay: true      # HUD with live transcription
   overlay_position: "bottom-right"   # "bottom-right" | "top-right" | "center"
-  sounds: true            # clic sutil al empezar/terminar de grabar (menú: Settings → Sounds)
+  sounds: true            # subtle click when recording starts/stops (menu: Settings → Sounds)
   log_level: "INFO"

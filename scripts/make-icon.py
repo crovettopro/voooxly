@@ -1,12 +1,12 @@
-"""Generador del icono de Voooxly: la comilla editorial — el habla hecha texto.
+"""Voooxly icon generator: the editorial quotation mark — speech made text.
 
-Marca compartida con la landing (voooxly.com): comilla doble de
-apertura serif (Iowan Old Style, la misma familia del sitio) en color papel
-sobre squircle teal. Sustituye a las barras de onda v1, demasiado parecidas
-al logo de Wispr Flow.
+Brand shared with the landing page (voooxly.com): serif opening double
+quote (Iowan Old Style, the same family as the site) in paper color
+on a teal squircle. Replaces the v1 waveform bars, which looked too
+much like the Wispr Flow logo.
 
-Uso:
-  python scripts/make-icon.py preview   # PNG 512 de control → assets/preview/
+Usage:
+  python scripts/make-icon.py preview   # 512 control PNG → assets/preview/
   python scripts/make-icon.py build     # .icns + menubar template → assets/
 """
 from __future__ import annotations
@@ -20,18 +20,18 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "assets"
 
-# Paleta de marca (la de la landing)
-TEAL_TOP = (16, 122, 105)      # esquina sup-izq, un punto más luminoso
-TEAL_BOTTOM = (8, 84, 72)      # esquina inf-dcha
+# Brand palette (the landing page's)
+TEAL_TOP = (16, 122, 105)      # top-left corner, a touch more luminous
+TEAL_BOTTOM = (8, 84, 72)      # bottom-right corner
 PAPER = (237, 240, 238)        # #EDF0EE
 
-# La misma serif que el sitio; Georgia como red de seguridad
+# The same serif as the site; Georgia as a safety net
 FONTS = [
     ("/System/Library/Fonts/Supplemental/Iowan Old Style.ttc", 0),
     ("/System/Library/Fonts/Supplemental/Georgia.ttf", 0),
 ]
 
-GLYPH = "“"  # comilla doble de apertura
+GLYPH = "“"  # opening double quotation mark
 
 
 def _font(px: int) -> ImageFont.FreeTypeFont:
@@ -54,12 +54,12 @@ def _gradient(size: int, c1, c2) -> Image.Image:
 
 
 def _glyph_layer(S: int, color, width_ratio: float) -> Image.Image:
-    """Capa transparente con la comilla centrada ÓPTICAMENTE.
+    """Transparent layer with the quote centered OPTICALLY.
 
-    Las métricas del glyph “ mienten según la fuente (vive pegado al
-    ascender), así que no se confía en textbbox para colocar: se dibuja en
-    un lienzo sobrado, se recorta a la tinta REAL (alpha) y esa caja se pega
-    centrada en el lienzo final. Inmune a rarezas de métrica.
+    The “ glyph's metrics lie depending on the font (it sits glued to the
+    ascender), so textbbox is not trusted for placement: draw on an
+    oversized canvas, crop to the REAL ink (alpha) and paste that box
+    centered on the final canvas. Immune to metric quirks.
     """
     big = S * 3
     scratch = Image.new("RGBA", (big, big), (0, 0, 0, 0))
@@ -69,7 +69,7 @@ def _glyph_layer(S: int, color, width_ratio: float) -> Image.Image:
     if box is None:
         raise SystemExit("La fuente no tiene tinta para el glyph “")
     ink = scratch.crop(box)
-    # escalar la tinta al ancho objetivo conservando proporción
+    # scale the ink to the target width preserving aspect ratio
     target_w = int(S * width_ratio)
     target_h = int(ink.height * target_w / ink.width)
     ink = ink.resize((target_w, target_h), Image.LANCZOS)
@@ -79,7 +79,7 @@ def _glyph_layer(S: int, color, width_ratio: float) -> Image.Image:
 
 
 def draw_icon(size: int) -> Image.Image:
-    S = 1024  # se dibuja a 1024 y se reescala (antialias)
+    S = 1024  # drawn at 1024 and rescaled down (antialias)
     icon = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     grad = _gradient(S, TEAL_TOP, TEAL_BOTTOM).convert("RGBA")
     mask = Image.new("L", (S, S), 0)
@@ -92,9 +92,9 @@ def draw_icon(size: int) -> Image.Image:
 
 
 def draw_menubar(scale: int) -> Image.Image:
-    """Glyph template: comilla negra sobre alpha; macOS lo tiñe él solo."""
+    """Glyph template: black quote on alpha; macOS tints it by itself."""
     S = 22 * scale
-    big = _glyph_layer(22 * 8, (0, 0, 0), 0.62)  # se dibuja grande y se baja
+    big = _glyph_layer(22 * 8, (0, 0, 0), 0.62)  # drawn big and scaled down
     return big.resize((S, S), Image.LANCZOS)
 
 
@@ -102,9 +102,9 @@ REC_RED = (226, 68, 60)
 
 
 def draw_menubar_rec(scale: int) -> Image.Image:
-    """Punto rojo de grabación (NO template: se muestra en color).
+    """Red recording dot (NOT a template: shown in color).
 
-    Supersampling 4×: un círculo pequeño dibujado a tamaño final sale dentado.
+    4× supersampling: a small circle drawn at final size comes out jagged.
     """
     S = 22 * scale
     big = S * 4

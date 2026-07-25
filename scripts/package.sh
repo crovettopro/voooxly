@@ -1,7 +1,7 @@
 #!/bin/bash
-# Empaqueta Voooxly para compartir con otros Macs:
+# Packages Voooxly to share with other Macs:
 #   dist/Voooxly-vX.Y.Z-share.zip  →  Voooxly.app + install.sh + README.txt
-# El receptor descomprime y ejecuta:  bash install.sh
+# The recipient unzips and runs:  bash install.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -24,10 +24,10 @@ xattr -cr "$SHARE/Voooxly.app"
 cp scripts/install-app.sh "$SHARE/install.sh"
 chmod +x "$SHARE/install.sh"
 
-# --- Firma de distribución + notarización (si hay Developer ID) ---
-# Con cert "Developer ID Application" + credencial notarytool, el receptor
-# instala con doble click sin avisos de Gatekeeper. Sin ellos, el zip sale
-# igualmente y el receptor usa install.sh (re-firma ad-hoc local).
+# --- Distribution signing + notarization (if a Developer ID exists) ---
+# With a "Developer ID Application" cert + notarytool credential, the recipient
+# installs with a double click and no Gatekeeper warnings. Without them, the zip
+# is produced anyway and the recipient uses install.sh (local ad-hoc re-sign).
 DEVID="$(security find-identity -v -p codesigning 2>/dev/null | grep -o '"Developer ID Application: [^"]*"' | head -1 | tr -d '"' || true)"
 NOTARY_PROFILE="${NOTARY_PROFILE:-voooxly}"
 if [ -n "$DEVID" ]; then

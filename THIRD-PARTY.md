@@ -7,7 +7,7 @@ depends on the following third-party work.
 
 | Component | License | Notes |
 |---|---|---|
-| [whisper.cpp](https://github.com/ggerganov/whisper.cpp) (`whisper-server`, `libwhisper`, `libggml*`) | MIT | Vendored from Homebrew by `scripts/bundle-whisper.sh`. Not committed to this repo — it is fetched and embedded at build time. |
+| [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (`whisper-server`, `libwhisper`, `libggml*`) | MIT | Vendored from Homebrew by `scripts/bundle-whisper.sh`. Not committed to this repo — it is fetched and embedded at build time. |
 | [Whisper large-v3-turbo](https://huggingface.co/ggerganov/whisper.cpp) model weights | MIT (OpenAI Whisper) | Downloaded to `~/.voooxly/models/` on first run, never redistributed by us. |
 
 ## Python dependencies
