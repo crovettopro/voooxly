@@ -28,6 +28,45 @@ def _strip_punct(w: str) -> str:
     return re.sub(r"^\W+|\W+$", "", w, flags=re.UNICODE)
 
 
+# --- Vía automática: guardas extra sobre corrections() ---------------------
+# Un error de ASR SUENA como lo que el usuario quería decir; una edición de
+# estilo no. Normalización fonética es-aware barata (sin dependencias) +
+# ratio de similitud: suficiente para separar "wisperflow"→"Wispr Flow"
+# (aprende) de "envía"→"manda" (silencio).
+_PHONETIC_SUBS = (
+    ("ph", "f"), ("qu", "k"), ("ch", "x"), ("ll", "y"), ("h", ""),
+    ("v", "b"), ("z", "s"), ("ge", "je"), ("gi", "ji"), ("ce", "se"),
+    ("ci", "si"), ("w", "u"), ("y", "i"), ("c", "k"),
+)
+_SOUNDS_ALIKE_MIN = 0.6
+
+
+def normalize_phonetic(s: str) -> str:
+    """Colapsa grafías que suenan igual en español (v/b, h muda, ll/y, qu/k…)."""
+    import unicodedata
+
+    t = unicodedata.normalize("NFD", (s or "").lower())
+    t = "".join(c for c in t if unicodedata.category(c) != "Mn")
+    t = re.sub(r"[^a-z]+", "", t)
+    for a, b in _PHONETIC_SUBS:
+        t = t.replace(a, b)
+    return re.sub(r"(.)\1+", r"\1", t)
+
+
+def sounds_alike(wrong: str, right: str) -> bool:
+    a, b = normalize_phonetic(wrong), normalize_phonetic(right)
+    if not a or not b:
+        return False
+    return difflib.SequenceMatcher(None, a, b).ratio() >= _SOUNDS_ALIKE_MIN
+
+
+def _is_common(word: str) -> bool:
+    from .langlock import COMMON_EN, COMMON_ES
+
+    w = (word or "").lower().strip()
+    return w in COMMON_ES or w in COMMON_EN
+
+
 def corrections(original: str, corrected: str) -> list[tuple[str, str]]:
     """Pares (mal, bien) que el usuario corrigió, aptos como reemplazos.
 
