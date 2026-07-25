@@ -30,12 +30,14 @@ def _setup_logging(level: str):
 
 
 def main():
-    p = argparse.ArgumentParser(prog="voooxly", description="Dictado local pro tipo Wispr Flow.")
-    p.add_argument("--check", action="store_true", help="Verifica deps y backends y sale.")
-    p.add_argument("--devices", action="store_true", help="Lista dispositivos de entrada y sale.")
+    p = argparse.ArgumentParser(
+        prog="voooxly", description="Pro-grade local dictation for macOS."
+    )
+    p.add_argument("--check", action="store_true", help="Check deps and backends, then exit.")
+    p.add_argument("--devices", action="store_true", help="List input devices and exit.")
     p.add_argument("--onboarding", action="store_true",
-                   help="Muestra el asistente de primer arranque y sale (para probarlo).")
-    p.add_argument("--log", default=None, help="Nivel de log (DEBUG/INFO/WARNING)")
+                   help="Show the first-launch wizard and exit (to try it out).")
+    p.add_argument("--log", default=None, help="Log level (DEBUG/INFO/WARNING)")
     args = p.parse_args()
 
     cfg = get_config()

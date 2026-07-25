@@ -152,9 +152,8 @@ cd web && vercel --prod
 ## Why the project is set up this way
 
 **Why not the Mac App Store.** Voooxly needs a global hotkey and to paste text
-into third-party apps; the App Store's mandatory sandbox forbids both. It is the
-same reason Wispr Flow, superwhisper and MacWhisper are distributed outside
-the store.
+into third-party apps; the App Store's mandatory sandbox forbids both. That is
+why serious dictation apps for macOS ship outside the store, this one included.
 
 **Why signing happens outside iCloud.** The repo lives in `~/Desktop`, which
 iCloud syncs, and iCloud keeps re-injecting extended attributes. Signing there
