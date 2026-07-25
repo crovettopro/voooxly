@@ -31,7 +31,7 @@ log = logging.getLogger("voooxly.updates")
 # de producción es voooxly.com (proyecto "voooxly" de crovettopro).
 APPCAST_URL = "https://voooxly.com/appcast.json"
 # Fuera del .app (ejecutando desde el repo) no hay Info.plist del que leer.
-FALLBACK_VERSION = "1.7.0"
+FALLBACK_VERSION = "1.8.0"
 
 # Re-chequeo periódico: la app vuelve a consultar cada CHECK_INTERVAL segundos
 # mientras esté abierta (además del check al arranque). 24 h cubre a quien la
@@ -305,10 +305,12 @@ def stage_install(dmg: Path, target_app: Path | None, pid: int) -> Path | None:
 # FALLBACK_VERSION (mismo commit): describe la versión que el usuario acaba
 # de estrenar, no la que viene.
 WHATS_NEW = """\
-• Updates now install themselves — no more dragging to Applications.
-• This "What's new" note appears after every update.
-• New guide: menu bar icon › How to use Voooxly.
-• Your shortcuts are now visible right in the menu bar."""
+• Voooxly now learns by itself: fix a word in the pasted text and it's
+  learned on your next dictation. Turn off in Settings if you prefer.
+• Much faster: transcription is now ~5x quicker on typical sentences.
+• Correct last dictation… in the menu teaches spellings on demand.
+• Habla español: full Spanish interface, guide and onboarding (automatic).
+• New: Dictation language menu — Voooxly locks onto your language by itself."""
 
 
 def should_show_whats_new(prefs: dict | None, current: str) -> bool:

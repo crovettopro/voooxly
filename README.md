@@ -24,7 +24,8 @@ Your voice never leaves your Mac.
 
 - **9 writing modes** — organize your rambling, draft replies, prompt AIs, translate ES↔EN, verbatim, and more. The LLM cleans up what you said; it never invents.
 - **100% local by design** — whisper.cpp on Apple Silicon. Optional AI polish via local Ollama, or bring your own Claude/OpenAI/Gemini key.
-- **Learns your words** — correct a dictation once, Voooxly spells it right forever.
+- **Learns your words by itself** — fix a word in the pasted text and Voooxly picks it up on your next dictation. No word lists to maintain. (Reads only the field it just pasted into, once, on-device — no screenshots, no tracking. Off switch in Settings.)
+- **Fast** — sub-second transcription for typical sentences on Apple Silicon (p50 ~0.6s in our benchmark; reproduce it yourself with `scripts/bench_latency.sh`).
 - **Live preview, hands-free latch, personal dictionary, history search, Spanish UI.**
 
 ## Install
