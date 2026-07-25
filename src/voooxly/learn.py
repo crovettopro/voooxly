@@ -195,6 +195,7 @@ def watch_field(
     acquire_deadline = clock() + acquire_s
     polls_left = int(window_s / poll_s) + 2  # hard cap: a frozen clock can't spin
     last_good = last_region = last_stable = None
+    base_region = None  # the paste as it landed, before the user touched it
     last_change = clock()
     misses = 0
     while polls_left > 0 and clock() < deadline:
@@ -224,12 +225,24 @@ def watch_field(
             sleep(poll_s)
             continue
         misses = 0
+        if base_region is None:
+            base_region = region
         if last_region is None or region != last_region:
             last_change = clock()  # still correcting
         else:
             last_stable = field  # read identical twice: confirmed quiet
         last_good, last_region = field, region
-        if last_stable is not None and (clock() - last_change) >= stable_s:
+        if (
+            # Freshly pasted text is ALWAYS quiet: the user has not started
+            # correcting yet. Without this clause the window met stable_s four
+            # seconds in and left with the pristine paste, before the user had
+            # even double-clicked the word — so every correction fell through
+            # to the next-dictation fallback, which is what this window exists
+            # to replace. Quiet has to mean "quiet AFTER a correction".
+            region != base_region
+            and last_stable is not None
+            and (clock() - last_change) >= stable_s
+        ):
             return field
         sleep(poll_s)
     return last_stable

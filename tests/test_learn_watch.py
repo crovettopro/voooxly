@@ -90,7 +90,10 @@ def test_typing_elsewhere_in_the_document_does_not_hold_the_window_open():
     """The debounce watches the pasted region, not the whole document: writing
     the next paragraph must not keep resetting it until the window burns out."""
     read = lecturas(
-        PREVIO + FIX, PREVIO + FIX + " sigo", PREVIO + FIX + " sigo escribiendo"
+        PREVIO + PEGADO,
+        PREVIO + FIX,
+        PREVIO + FIX + " sigo",
+        PREVIO + FIX + " sigo escribiendo",
     )
     out, reloj = _watch(read)
 
@@ -98,12 +101,23 @@ def test_typing_elsewhere_in_the_document_does_not_hold_the_window_open():
     assert reloj.t < 15.0
 
 
-def test_a_field_with_no_corrections_settles_and_teaches_nothing():
-    read = lecturas(PEGADO)
+def test_waits_for_the_correction_instead_of_settling_on_the_untouched_paste():
+    """The bug the first real run caught: freshly pasted text is ALWAYS quiet,
+    because the user has not started correcting yet. Ending the window as soon
+    as it has been quiet for stable_s meant leaving after 4 seconds with the
+    pristine paste — before the user had even double-clicked the word."""
+    read = lecturas(PEGADO, PEGADO, PEGADO, PEGADO, FIX)
     out, _ = _watch(read)
 
-    assert out == PEGADO
-    assert auto_corrections(PEGADO, out) == []
+    assert out == FIX
+
+
+def test_a_field_nobody_touches_is_watched_to_the_end_and_teaches_nothing():
+    read = lecturas(PEGADO)
+    out, reloj = _watch(read)
+
+    assert reloj.t >= 15.0  # esperó por si la corrección llegaba tarde
+    assert auto_corrections(PEGADO, out or "") == []
 
 
 # --- the precision rule: never learn from a state seen only once ----------
