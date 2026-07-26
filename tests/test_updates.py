@@ -377,14 +377,22 @@ def test_whats_new_describes_this_version_not_the_superseded_behaviour():
 
 def test_whats_new_is_shown_in_spanish_too():
     """The full Spanish interface is a headline claim; this pop-up is the first
-    thing a Spanish user sees after updating."""
+    thing a Spanish user sees after updating.
+
+    Asserted against i18n.ES rather than a word in the copy: the body is
+    rewritten wholesale every release, so pinning vocabulary from one version
+    makes this fail for the wrong reason on the next — which is what it did
+    going from 1.9.0 to 1.9.1. What must hold every release is that whatever
+    the copy currently says has a Spanish entry.
+    """
     from voooxly import i18n
 
+    assert updates.WHATS_NEW in i18n.ES, "the new WHATS_NEW has no Spanish translation"
     i18n.set_lang("es")
     try:
         traducido = i18n.t(updates.WHATS_NEW)
         assert traducido != updates.WHATS_NEW
-        assert "dictado" in traducido.lower()
+        assert traducido.strip()
     finally:
         i18n.set_lang("en")
 
@@ -454,3 +462,16 @@ def test_the_update_prompt_lead_sentence_is_translated_like_the_manual_check():
         )
     finally:
         i18n.set_lang("en")
+
+
+def test_whats_new_describes_what_1_9_1_actually_changed():
+    """1.9.1 is about the dictionary being correctable, so the pop-up has to
+    say it — nobody goes looking for a menu item they don't know exists.
+
+    Same failure mode this file already guards for 1.9.0: the string survives a
+    release unchanged and tells everyone about the previous version.
+    """
+    texto = updates.WHATS_NEW.lower()
+
+    assert "remove" in texto or "quitar" in texto
+    assert "ending" in texto or "plural" in texto

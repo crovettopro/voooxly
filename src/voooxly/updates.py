@@ -32,7 +32,7 @@ log = logging.getLogger("voooxly.updates")
 # domain is voooxly.com (crovettopro's "voooxly" project).
 APPCAST_URL = "https://voooxly.com/appcast.json"
 # Outside the .app (running from the repo) there's no Info.plist to read from.
-FALLBACK_VERSION = "1.9.0"
+FALLBACK_VERSION = "1.9.1"
 
 # Periodic re-check: the app queries again every CHECK_INTERVAL seconds
 # while it's open (besides the startup check). 24 h covers whoever leaves it
@@ -131,7 +131,7 @@ def check_status(
         if not remote or not dmg:
             return UPDATE_ERROR, None
         if is_newer(str(remote), local):
-            log.info("Update disponible: %s (instalada: %s)", remote, local)
+            log.info("Update available: %s (installed: %s)", remote, local)
             return UPDATE_AVAILABLE, {
                 "version": str(remote),
                 "url": str(dmg),
@@ -173,7 +173,7 @@ def download(
         part.replace(dest)
         if progress_cb:
             progress_cb(100)
-        log.info("Update descargada: %s", dest)
+        log.info("Update downloaded: %s", dest)
         return dest
     except Exception as e:
         log.warning("Update download failed: %s", e)
@@ -328,12 +328,12 @@ def stage_install(dmg: Path, target_app: Path | None, pid: int) -> Path | None:
 # behaviour is worse than saying nothing. test_updates pins the one claim
 # this release retired.
 WHATS_NEW = """\
-• Corrections are learned on the spot: fix a word right after pasting and
-  Voooxly saves the spelling within seconds, with no second dictation.
-• A correction you make in a message you then send is no longer lost.
-• To do it, Voooxly reads the field it pasted into for a few seconds, on
-  your Mac — never password fields, nothing kept but the correction.
-• Off any time in Settings › Learn from my corrections."""
+• Voooxly no longer learns a correction that only changes a word's ending:
+  turning "email" into "emails" is grammar, not spelling.
+• New: Settings › Remove from dictionary… shows everything Voooxly has
+  learned and takes any entry out. Until now nothing could.
+• Removing a spelling also stops it steering the next transcription.
+• Corrections are still learned on the spot, seconds after you paste."""
 
 
 def should_show_whats_new(prefs: dict | None, current: str) -> bool:

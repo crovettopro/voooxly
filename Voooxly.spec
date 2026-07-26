@@ -100,8 +100,8 @@ app = BUNDLE(
         "CFBundleName": "Voooxly",
         "CFBundleDisplayName": "Voooxly",
         "CFBundleIdentifier": "com.eduardocrovetto.voooxly",
-        "CFBundleVersion": "1.9.0",
-        "CFBundleShortVersionString": "1.9.0",
+        "CFBundleVersion": "1.9.1",
+        "CFBundleShortVersionString": "1.9.1",
         "LSMinimumSystemVersion": "13.0",
         "LSUIElement": True,        # menu bar app: no Dock, no main menu
         "NSMicrophoneUsageDescription": "Voooxly needs the microphone to transcribe your voice.",

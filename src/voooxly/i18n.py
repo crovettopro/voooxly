@@ -159,20 +159,19 @@ ES = {
     # The body of that same pop-up (updates.WHATS_NEW). Keyed on the whole
     # block: it is release copy, rewritten wholesale every version, and
     # splitting it into bullets would only invite half of it to go stale.
-    "• Corrections are learned on the spot: fix a word right after pasting and\n"
-    "  Voooxly saves the spelling within seconds, with no second dictation.\n"
-    "• A correction you make in a message you then send is no longer lost.\n"
-    "• To do it, Voooxly reads the field it pasted into for a few seconds, on\n"
-    "  your Mac — never password fields, nothing kept but the correction.\n"
-    "• Off any time in Settings › Learn from my corrections.":
-        "• Las correcciones se aprenden al momento: corrige una palabra justo\n"
-        "  después de pegar y Voooxly guarda la ortografía en segundos, sin\n"
-        "  necesidad de otro dictado.\n"
-        "• Lo que corriges en un mensaje que luego envías ya no se pierde.\n"
-        "• Para eso, Voooxly lee unos segundos el campo en el que ha pegado, en\n"
-        "  tu Mac — nunca campos de contraseña, no guarda nada salvo la corrección.\n"
-        "• Puedes desactivarlo cuando quieras en Ajustes › Aprender de mis "
-        "correcciones.",
+    "• Voooxly no longer learns a correction that only changes a word's ending:\n"
+    "  turning \"email\" into \"emails\" is grammar, not spelling.\n"
+    "• New: Settings › Remove from dictionary… shows everything Voooxly has\n"
+    "  learned and takes any entry out. Until now nothing could.\n"
+    "• Removing a spelling also stops it steering the next transcription.\n"
+    "• Corrections are still learned on the spot, seconds after you paste.":
+        "• Voooxly ya no aprende una corrección que solo cambia el final de una\n"
+        "  palabra: pasar de «email» a «emails» es gramática, no ortografía.\n"
+        "• Nuevo: Ajustes › Quitar del diccionario… enseña todo lo que Voooxly ha\n"
+        "  aprendido y quita cualquier entrada. Hasta ahora no había forma.\n"
+        "• Al quitar una grafía deja también de influir en la transcripción.\n"
+        "• Las correcciones se siguen aprendiendo al momento, segundos después "
+        "de pegar.",
     # --- frequent dialogs ---
     "Nothing to correct": "Nada que corregir",
     "Dictate something first.": "Dicta algo primero.",

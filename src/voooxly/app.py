@@ -915,7 +915,7 @@ class VoooxlyApp(rumps.App):
         # osascript takes 100-300ms and must not delay the mic capture.
         if self.cfg.get("audio.pause_media", True):
             threading.Thread(target=self._pause_media, daemon=True).start()
-        log.info("Grabando…")
+        log.info("Recording…")
 
     def _pause_media(self):
         try:
