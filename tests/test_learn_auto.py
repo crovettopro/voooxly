@@ -99,3 +99,57 @@ def test_auto_learn_from_with_illegible_field_does_not_touch_dictionary(tmp_path
     dic = tmp_path / "dictionary.json"
     assert auto_learn_from(PEGADO, "", path=dic) == []
     assert not dic.exists()
+
+
+# --- Inflection guard ------------------------------------------------------
+# A correction that only adds or drops the tail of a word ("email" → "emails")
+# is how the sentence is built, not how the word is spelled. Learning it turns
+# a one-off edit into a permanent global replacement — and there is no way to
+# undo one from the app.
+
+FRASE = "Le mandé el email al client y adjunté el prompt del informe"
+
+
+def test_adding_a_trailing_letter_is_not_learned():
+    for singular, plural in (("email", "emails"), ("client", "clients"),
+                             ("prompt", "prompts")):
+        campo = FRASE.replace(singular, plural)
+        assert auto_corrections(FRASE, campo) == [], f"{singular} → {plural}"
+
+
+def test_dropping_a_trailing_letter_is_not_learned_either():
+    # The user dictates the plural and fixes it to the singular: same edit,
+    # opposite direction, equally fatal as a global replacement.
+    plural_frase = FRASE.replace("email", "emails")
+    assert auto_corrections(plural_frase, FRASE) == []
+
+
+def test_a_two_letter_plural_ending_is_not_learned():
+    # "es" is the plural for consonant endings in both languages.
+    for singular, plural in (("client", "clientes"), ("prompt", "promptes")):
+        campo = FRASE.replace(singular, plural)
+        assert auto_corrections(FRASE, campo) == [], f"{singular} → {plural}"
+
+
+def test_a_spanish_cognate_typed_over_an_english_word_is_not_learned():
+    # "Deploy" → "Deploya" is the same shape: the word plus a tail.
+    pegado = "Vamos a Deploy el viernes por la tarde sin prisas"
+    assert auto_corrections(pegado, pegado.replace("Deploy", "Deploya")) == []
+
+
+def test_the_names_it_exists_for_are_still_learned():
+    # The guard must not cost the feature its actual job. None of these is a
+    # word plus a tail: the letters change inside.
+    casos = (
+        ("Quedé con Krobeto para revisar el informe", "Krobeto", "Crovetto"),
+        ("Se lo mandé a Ana esta misma mañana temprano", "Ana", "Anna"),
+        ("El informe de wisperflow llega mañana por la tarde", "wisperflow", "Wispr Flow"),
+    )
+    for pegado, mal, bien in casos:
+        assert auto_corrections(pegado, pegado.replace(mal, bien)) == [(mal, bien)]
+
+
+def test_a_long_tail_is_still_a_real_correction():
+    # "Vixi" → "Vixiees" adds three letters: a mishearing, not an inflection.
+    pegado = "Hablé con Vixi sobre el presupuesto del año que viene"
+    assert auto_corrections(pegado, pegado.replace("Vixi", "Vixiees")) == [("Vixi", "Vixiees")]

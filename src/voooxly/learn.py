@@ -68,6 +68,33 @@ def _is_common(word: str) -> bool:
     return w in COMMON_ES or w in COMMON_EN
 
 
+# The longest tail that still reads as an inflection rather than a different
+# word: "s" and "es" are the plural endings in both languages, and a single
+# letter is also how a Spanish cognate lands on an English verb ("deploy" →
+# "deploya"). Three letters or more ("Vixi" → "Vixiees") is a mishearing again.
+_MAX_INFLECTION_TAIL = 2
+
+
+def _is_inflection(wrong: str, right: str) -> bool:
+    """True when one of the two words is just the other plus a short tail.
+
+    Adding or dropping the end of a word ("email" → "emails") is about how the
+    sentence is built, not how the word is spelled — a pronunciation-shaped
+    edit, not a dictionary one. It is also one of the most frequent edits there
+    is, and as a replacement it is global and permanent: every later dictation
+    of "email" would come out "emails", and nothing in the app removes an
+    entry. So the automatic path declines to learn it.
+
+    Only the automatic path. "Correct last dictation" still obeys the user:
+    there they asked for this exact pair on purpose.
+    """
+    a, b = (wrong or "").lower().strip(), (right or "").lower().strip()
+    if not a or not b or a == b:
+        return False
+    short, long = (a, b) if len(a) < len(b) else (b, a)
+    return long.startswith(short) and len(long) - len(short) <= _MAX_INFLECTION_TAIL
+
+
 def corrections(original: str, corrected: str) -> list[tuple[str, str]]:
     """(wrong, right) pairs the user corrected, suitable as replacements.
 
@@ -129,6 +156,8 @@ def auto_corrections(pasted: str, field_text: str) -> list[tuple[str, str]]:
             continue  # style edit, not a hearing error
         if _is_common(wrong) or all(_is_common(w) for w in right.split()):
             continue  # a common word as a global replacement is a bomb
+        if _is_inflection(wrong, right):
+            continue  # a plural is grammar, not spelling
         fuera.append((wrong, right))
     return fuera
 
