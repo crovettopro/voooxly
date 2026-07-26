@@ -143,14 +143,17 @@ Y despliega con el script del repo `voooxly-web`, no con `vercel --prod` a mano:
 cd ../voooxly-web && ./deploy.sh
 ```
 
-Desde 1.9.0 el botón de descarga sirve `/Voooxly.dmg` **desde voooxly.com**, no
-un redirect a GitHub, así que el DMG es un fichero estático del deploy. Eso
-significa que un deploy sin copiar el DMG nuevo dejaría la web repartiendo una
-build vieja mientras el appcast anuncia la nueva, sin que nadie lo note.
-`deploy.sh` monta el DMG, compara su `CFBundleShortVersionString` con la
-`version` del appcast y **se niega a desplegar si no coinciden**; también
-comprueba Gatekeeper antes y los bytes servidos después. `--dry-run` hace las
-comprobaciones sin desplegar.
+`deploy.sh` **se niega a desplegar si el appcast anuncia una versión que GitHub
+todavía no ha publicado** — que es la forma de romper esto: la web diría "1.10.0
+disponible" y tanto el botón como el actualizador acabarían en un 404. También
+avisa si tu DMG local no es esa versión, y comprueba después que
+`voooxly.com/download` acaba de verdad en la release correcta. `--dry-run` hace
+las comprobaciones sin desplegar.
+
+Los 28 MB los sirve **GitHub Releases**, no Vercel: no tiene límite de tráfico y
+su `download_count` es la métrica del lanzamiento. `voooxly.com/download` y
+`/Voooxly.dmg` son redirects a `releases/latest/download/Voooxly.dmg`, así que
+apuntan solos a la última versión y no hay que tocarlos en cada release.
 
 > **Gate for the release that ships the post-paste learning window.** The site
 > copy for it is already written (the "Learns your words by itself" card and the
