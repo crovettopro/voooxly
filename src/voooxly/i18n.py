@@ -64,6 +64,8 @@ MENU_STRINGS = [
     "They're in the Recent submenu — click one to copy it.",
     # --- "Not added" (_add_to_dictionary) ---
     "Not added",
+    # --- "Remove from dictionary…" (_remove_from_dictionary) ---
+    "Remove from dictionary…", "Not removed",
     # --- updates: check_now_message / About / dynamic menu item ---
     "Up to date", "Couldn't check", "Voooxly {ver} is available.",
     "You're running the latest version (Voooxly {local}).",
@@ -176,6 +178,14 @@ ES = {
     "Dictate something first.": "Dicta algo primero.",
     "Add to dictionary": "Añadir al diccionario",
     "Add": "Añadir",
+    # --- "Remove from dictionary…" (_remove_from_dictionary) ---
+    "Remove from dictionary…": "Quitar del diccionario…",
+    "Remove from dictionary": "Quitar del diccionario",
+    "Remove": "Quitar",
+    "Type the word to remove:": "Escribe la palabra que quieres quitar:",
+    "Not removed": "No se ha quitado",
+    "Dictionary": "Diccionario",
+    "The dictionary is empty.": "El diccionario está vacío.",
 
     # --- guide ("How to use Voooxly…") ---
     "How to use Voooxly": "Cómo usar Voooxly",

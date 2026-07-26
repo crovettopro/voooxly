@@ -164,3 +164,19 @@ def test_el_literal_de_ES_no_tiene_claves_duplicadas():
     keys = [k.value for k in es_dict.keys if isinstance(k, ast.Constant)]
     dupes = {k for k in keys if keys.count(k) > 1}
     assert not dupes, f"claves duplicadas en ES: {dupes}"
+
+
+def test_traduce_el_dialogo_de_quitar_del_diccionario():
+    # "Remove from dictionary…" is the way out of a wrong replacement, which
+    # rewrites every later dictation. A Spanish user has to be able to read it.
+    i18n.set_lang("es")
+    try:
+        assert i18n.t("Remove from dictionary…") == "Quitar del diccionario…"
+        assert i18n.t("Remove from dictionary") == "Quitar del diccionario"
+        assert i18n.t("Remove") == "Quitar"
+        assert i18n.t("Type the word to remove:") == "Escribe la palabra que quieres quitar:"
+        assert i18n.t("Not removed") == "No se ha quitado"
+        assert i18n.t("Dictionary") == "Diccionario"
+        assert i18n.t("The dictionary is empty.") == "El diccionario está vacío."
+    finally:
+        i18n.set_lang("en")

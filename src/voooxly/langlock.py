@@ -44,9 +44,9 @@ def detect_lang_es_en(text) -> str | None:
 
 
 def update_lock(streak: list[str], detected: str | None) -> tuple[list[str], str | None]:
-    """Racha de detecciones consecutivas iguales → lock al llegar a LOCK_AFTER.
+    """Streak of identical consecutive detections → lock once it reaches LOCK_AFTER.
 
-    Una detección ambigua (None) no rompe la racha: el silencio no es evidencia.
+    An ambiguous detection (None) does not break the streak: silence is not evidence.
     """
     if detected not in ("es", "en"):
         return (list(streak), None)

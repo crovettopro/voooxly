@@ -104,6 +104,58 @@ def add(entry: str, path: Path | None = None) -> str:
     return desc
 
 
+def remove(entry: str, path: Path | None = None) -> str:
+    """Take a replacement or a bias word out. Returns what was removed.
+
+    Raises ValueError when there is nothing by that name, so the menu can say
+    so instead of claiming success. Matching ignores capitalisation and accepts
+    the whole "wrong -> right" line, because what the user has in front of them
+    is the list that entries() printed.
+
+    Removing a replacement also drops the spelling it pointed at from `words`,
+    since add() put it there to bias the transcription — unless another
+    replacement still needs it. Leaving it behind is how a "removed" entry
+    keeps steering Whisper towards the very word you just deleted.
+    """
+    wanted = (entry or "").partition("->")[0].strip().lower()
+    if not wanted:
+        raise ValueError("Empty entry")
+    path = path or DICT_FILE
+    with _LOCK:
+        if not path.exists():
+            raise ValueError(f"“{entry.strip()}” is not in the dictionary")
+        data = load(path)
+        for wrong in list(data["replacements"]):
+            if wrong.lower() != wanted:
+                continue
+            right = data["replacements"].pop(wrong)
+            still_used = any(v == right for v in data["replacements"].values())
+            if not still_used:
+                data["words"] = [w for w in data["words"] if w != right]
+            _write_atomic(path, data)
+            return f"Removed: “{wrong}” → “{right}”"
+        for word in list(data["words"]):
+            if word.lower() != wanted:
+                continue
+            data["words"] = [w for w in data["words"] if w != word]
+            _write_atomic(path, data)
+            return f"Removed: “{word}”"
+    raise ValueError(f"“{entry.strip()}” is not in the dictionary")
+
+
+def entries(path: Path | None = None) -> str:
+    """Everything in the dictionary, one per line, for the removal window.
+
+    Seeing the list is half of the fix: a replacement rewrites every later
+    dictation, so "why does it keep writing that?" is only answerable if you
+    can look at what it learned.
+    """
+    data = load(path)
+    lineas = [f"{wrong} → {right}" for wrong, right in sorted(data["replacements"].items())]
+    solos = sorted(w for w in data["words"] if w not in set(data["replacements"].values()))
+    return "\n".join(lineas + solos)
+
+
 def stt_terms(path: Path | None = None) -> list[str]:
     """Terms for the Whisper initial prompt (words + correct spellings)."""
     data = load(path)

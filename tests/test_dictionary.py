@@ -2,6 +2,7 @@
 final text. A replacement must be surgical — whole word, without eating
 substrings ("marta" does not touch "Smartphone") — and a broken file never gets in the way.
 """
+import json
 import threading
 import time
 
@@ -113,3 +114,79 @@ def test_corrupt_file_does_not_break(tmp_path):
     # and add() repairs it by writing a new valid one
     dictionary.add("Voooxly", p)
     assert dictionary.stt_terms(p) == ["Voooxly"]
+
+
+# --- remove ----------------------------------------------------------------
+# Until now nothing could take an entry out. A replacement is global and
+# permanent, so a wrong one (auto-learned or mistyped) rewrote every later
+# dictation with no way back short of editing the JSON by hand.
+
+def _dic(tmp_path, data):
+    p = tmp_path / "dictionary.json"
+    p.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    return p
+
+
+def test_remove_takes_out_the_replacement_and_its_bias_word(tmp_path):
+    # add() writes the right spelling into words too, so remove() has to clean
+    # both: leaving "Explora" behind keeps biasing Whisper towards producing it.
+    p = _dic(tmp_path, {"words": ["Explora", "Ucademy"], "replacements": {"Explore": "Explora"}})
+    dictionary.remove("Explore", p)
+    data = dictionary.load(p)
+    assert data["replacements"] == {}
+    assert data["words"] == ["Ucademy"]
+
+
+def test_remove_keeps_the_bias_word_if_another_replacement_still_needs_it(tmp_path):
+    p = _dic(tmp_path, {
+        "words": ["Vixiees"],
+        "replacements": {"Vixi": "Vixiees", "Vixis": "Vixiees"},
+    })
+    dictionary.remove("Vixi", p)
+    data = dictionary.load(p)
+    assert data["replacements"] == {"Vixis": "Vixiees"}
+    assert data["words"] == ["Vixiees"]
+
+
+def test_remove_takes_out_a_plain_bias_word(tmp_path):
+    p = _dic(tmp_path, {"words": ["hubspot", "presu"], "replacements": {}})
+    dictionary.remove("hubspot", p)
+    assert dictionary.load(p)["words"] == ["presu"]
+
+
+def test_remove_ignores_capitalisation(tmp_path):
+    # The user reads "Explore" off the list and types "explore".
+    p = _dic(tmp_path, {"words": ["Explora"], "replacements": {"Explore": "Explora"}})
+    dictionary.remove("explore", p)
+    assert dictionary.load(p)["replacements"] == {}
+
+
+def test_remove_accepts_the_whole_line_as_shown(tmp_path):
+    # Symmetric with add(): pasting back "Explore -> Explora" has to work.
+    p = _dic(tmp_path, {"words": ["Explora"], "replacements": {"Explore": "Explora"}})
+    dictionary.remove("Explore -> Explora", p)
+    assert dictionary.load(p)["replacements"] == {}
+
+
+def test_remove_of_something_absent_says_so_and_changes_nothing(tmp_path):
+    p = _dic(tmp_path, {"words": ["Ucademy"], "replacements": {"Explore": "Explora"}})
+    with pytest.raises(ValueError):
+        dictionary.remove("nothing-like-this", p)
+    data = dictionary.load(p)
+    assert data["replacements"] == {"Explore": "Explora"} and data["words"] == ["Ucademy"]
+
+
+def test_remove_on_a_missing_file_does_not_create_one(tmp_path):
+    p = tmp_path / "dictionary.json"
+    with pytest.raises(ValueError):
+        dictionary.remove("whatever", p)
+    assert not p.exists()
+
+
+def test_entries_lists_what_is_in_there_for_the_menu(tmp_path):
+    # The remove window shows this: seeing the bad entry is how you find out
+    # the dictionary is why your dictation keeps coming out wrong.
+    p = _dic(tmp_path, {"words": ["Ucademy"], "replacements": {"Explore": "Explora"}})
+    listado = dictionary.entries(p)
+    assert "Explore → Explora" in listado
+    assert "Ucademy" in listado

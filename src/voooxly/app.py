@@ -546,6 +546,9 @@ class VoooxlyApp(rumps.App):
         self.sounds_item = rumps.MenuItem(i18n.t("Sounds"), callback=self._toggle_sounds)
         self.sounds_item.state = 1 if self._sounds else 0
         self.dict_item = rumps.MenuItem(i18n.t("Add to dictionary…"), callback=self._add_to_dictionary)
+        self.dict_remove_item = rumps.MenuItem(
+            i18n.t("Remove from dictionary…"), callback=self._remove_from_dictionary
+        )
         # Auto-learn: learn from the corrections made to the pasted text.
         self.auto_learn_item = rumps.MenuItem(
             i18n.t("Learn from my corrections"), callback=self._toggle_auto_learn
@@ -554,6 +557,7 @@ class VoooxlyApp(rumps.App):
         settings.add(self.login_item)
         settings.add(self.sounds_item)
         settings.add(self.dict_item)
+        settings.add(self.dict_remove_item)
         settings.add(self.auto_learn_item)
 
         # "Shortcuts" submenu at the TOP level (Jeff's v1.6 feedback: the
@@ -1452,6 +1456,32 @@ class VoooxlyApp(rumps.App):
             return
         self.stt_prompt = self._build_stt_prompt()  # biases the next dictation already
         self._hud(desc, title="✓ Added to dictionary")
+
+    def _remove_from_dictionary(self, _sender):
+        # The list goes in the message on purpose: a wrong replacement rewrites
+        # every later dictation, and "why does it keep writing that?" is only
+        # answerable if you can see what it learned.
+        listado = dictionary.entries()
+        if not listado:
+            self._alert(i18n.t("Dictionary"), i18n.t("The dictionary is empty."))
+            return
+        resp = rumps.Window(
+            message=i18n.t("Type the word to remove:") + "\n\n" + listado,
+            title=i18n.t("Remove from dictionary"),
+            ok=i18n.t("Remove"),
+            cancel=i18n.t("Cancel"),
+            dimensions=(300, 24),
+        ).run()
+        entry = (resp.text or "").strip() if resp.clicked else ""
+        if not entry:
+            return
+        try:
+            desc = dictionary.remove(entry)
+        except ValueError as e:
+            self._alert(i18n.t("Not removed"), str(e))
+            return
+        self.stt_prompt = self._build_stt_prompt()  # stops biasing the next dictation
+        self._hud(desc, title="✓ Removed from dictionary")
 
     def _install_launch_agent(self) -> bool:
         try:
