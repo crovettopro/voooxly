@@ -46,7 +46,7 @@ def load(path: Path | None = None) -> dict:
     except FileNotFoundError:
         return {"words": [], "replacements": {}}
     except Exception as e:
-        log.warning("dictionary.json ilegible (%s): se ignora", e)
+        log.warning("dictionary.json unreadable (%s): ignoring it", e)
         return {"words": [], "replacements": {}}
 
 
