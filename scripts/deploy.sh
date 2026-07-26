@@ -17,7 +17,7 @@ APP=/Applications/Voooxly.app
 cd "$ROOT"
 # vendor/whisper is not tracked in git (Homebrew binaries): regenerated on the fly
 if [ -z "$(ls -A vendor/whisper 2>/dev/null)" ]; then
-  echo "→ vendor/whisper vacío: vendorizando whisper-server desde Homebrew…"
+  echo "→ vendor/whisper empty: vendoring whisper-server from Homebrew…"
   bash scripts/bundle-whisper.sh >/dev/null
 fi
 
@@ -45,7 +45,7 @@ if [ -n "$IDENTITY" ]; then
   echo "→ Firmando con '$IDENTITY' (firma estable)…"
   codesign --force --deep -s "$IDENTITY" "$APP"
 else
-  echo "→ Firmando ad-hoc (¡los permisos TCC se invalidarán! usa make-cert.sh)…"
+  echo "→ Ad-hoc signing (TCC permissions WILL be invalidated! use make-cert.sh)…"
   codesign --force --deep -s - "$APP"
 fi
 

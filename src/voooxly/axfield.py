@@ -55,7 +55,7 @@ def clip(text: str) -> str:
 
 
 def read_focused_text() -> str | None:
-    """Texto del elemento con foco, o None. Nunca lanza."""
+    """Text of the focused element, or None. Never raises."""
     if not _AX_OK:
         return None
     try:

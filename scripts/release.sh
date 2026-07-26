@@ -43,49 +43,49 @@ if [ "$DRY_RUN" = "1" ]; then
     ALT="$(security find-identity -v -p codesigning 2>/dev/null \
       | grep -v "Developer ID Application" | grep -o '"[^"]*"' | head -1 | tr -d '"' || true)"
     if [ -z "$ALT" ]; then
-      echo "ERROR: no hay identidad de firma local para el ensayo."
-      echo "       Créala con: ./scripts/make-cert.sh"
+      echo "ERROR: no local signing identity for the dry run."
+      echo "       Create one with: ./scripts/make-cert.sh"
       exit 1
     fi
-    echo "⚠️  No existe el certificado '$IDENTITY' — uso '$ALT' para el ensayo."
-    echo "    Para el nombre correcto: ./scripts/make-cert.sh"
+    echo "⚠️  Certificate '$IDENTITY' not found — using '$ALT' for the dry run."
+    echo "    For the right name: ./scripts/make-cert.sh"
     IDENTITY="$ALT"
   fi
-  echo "⚠️  DRY RUN: firma con '$IDENTITY' y sin notarizar. El DMG no es distribuible."
+  echo "⚠️  DRY RUN: signed with '$IDENTITY' and not notarized. The DMG is not distributable."
 else
   IDENTITY="$(security find-identity -v -p codesigning \
     | grep "Developer ID Application" | head -1 | sed -E 's/.*"(.*)"/\1/' || true)"
   if [ -z "$IDENTITY" ]; then
-    echo "ERROR: no hay certificado 'Developer ID Application' en el llavero."
-    echo "       Créalo en developer.apple.com — pasos en docs/RELEASING.md"
+    echo "ERROR: no 'Developer ID Application' certificate in the keychain."
+    echo "       Create it at developer.apple.com — steps in docs/RELEASING.md"
     exit 1
   fi
 
   if ! xcrun notarytool history --keychain-profile "$PROFILE" >/dev/null 2>&1; then
-    echo "ERROR: no existe el perfil de notarización '$PROFILE'."
+    echo "ERROR: notarization profile '$PROFILE' does not exist."
     echo "       xcrun notarytool store-credentials $PROFILE --apple-id <email> \\"
     echo "         --team-id <TEAMID> --password <app-specific-password>"
     exit 1
   fi
 fi
 
-[ -f "$ENTITLEMENTS" ] || { echo "ERROR: falta $ENTITLEMENTS"; exit 1; }
+[ -f "$ENTITLEMENTS" ] || { echo "ERROR: $ENTITLEMENTS is missing"; exit 1; }
 
 VERSION="$(grep -E '"CFBundleShortVersionString"' Voooxly.spec | head -1 | sed -E 's/.*: *"([^"]+)".*/\1/')"
-[ -n "$VERSION" ] || { echo "ERROR: no pude leer la versión de Voooxly.spec"; exit 1; }
+[ -n "$VERSION" ] || { echo "ERROR: could not read the version from Voooxly.spec"; exit 1; }
 
-echo "→ Identidad : $IDENTITY"
-echo "→ Versión   : $VERSION"
+echo "→ Identity : $IDENTITY"
+echo "→ Version  : $VERSION"
 echo
 
 # ---------- build ----------
 # vendor/whisper is not tracked in git (Homebrew binaries): regenerated on the fly
 if [ -z "$(ls -A "$ROOT/vendor/whisper" 2>/dev/null)" ]; then
-  echo "→ vendor/whisper vacío: vendorizando whisper-server desde Homebrew…"
+  echo "→ vendor/whisper empty: vendoring whisper-server from Homebrew…"
   bash "$ROOT/scripts/bundle-whisper.sh" >/dev/null
 fi
 
-echo "→ Compilando con PyInstaller…"
+echo "→ Building with PyInstaller…"
 rm -rf "$ROOT/dist/Voooxly.app"
 "$VENV/bin/pyinstaller" Voooxly.spec --noconfirm | tail -1
 
@@ -115,9 +115,9 @@ codesign --verify --deep --strict --verbose=2 "$APP"
 
 # ---------- app notarization ----------
 if [ "$DRY_RUN" = "1" ]; then
-  echo "→ (dry run: notarización de la app omitida)"
+  echo "→ (dry run: app notarization skipped)"
 else
-  echo "→ Notarizando la app (puede tardar unos minutos)…"
+  echo "→ Notarizing the app (this can take a few minutes)…"
   ZIP="$WORK/Voooxly-$VERSION.zip"
   rm -f "$ZIP"
   ditto -c -k --keepParent "$APP" "$ZIP"
@@ -147,43 +147,44 @@ SIZE="$(du -h "$DMG" | cut -f1)"
 
 if [ "$DRY_RUN" = "1" ]; then
   echo
-  echo "✅ DRY RUN completado: $DMG ($SIZE)"
-  echo "   La mecánica funciona. Para un DMG distribuible ejecuta sin --dry-run"
-  echo "   una vez tengas el certificado Developer ID (docs/RELEASING.md)."
+  echo "✅ DRY RUN complete: $DMG ($SIZE)"
+  echo "   The mechanics work. For a distributable DMG run without --dry-run"
+  echo "   once you have the Developer ID certificate (docs/RELEASING.md)."
   exit 0
 fi
 
-echo "→ Notarizando el DMG…"
+echo "→ Notarizing the DMG…"
 xcrun notarytool submit "$DMG" --keychain-profile "$PROFILE" --wait
 xcrun stapler staple "$DMG"
 
 # ---------- final verification ----------
 # This is literally what Gatekeeper runs on the Mac of whoever downloads it.
 echo
-echo "→ Verificación final (Gatekeeper):"
+echo "→ Final verification (Gatekeeper):"
 spctl -a -vvv -t install "$DMG"
 
 echo
-echo "✅ Listo: $DMG ($SIZE)"
+echo "✅ Done: $DMG ($SIZE)"
 echo
-echo "   Siguientes pasos:"
-echo "   1. Sube el DMG a GitHub Releases con el tag v$VERSION."
-echo "      OJO: el fichero tiene que LLAMARSE 'Voooxly.dmg', sin la versión."
+echo "   Next steps:"
+echo "   1. Upload the DMG to GitHub Releases under the tag v$VERSION."
+echo "      CAREFUL: the file must be NAMED 'Voooxly.dmg', with no version in it."
 echo ""
 echo "        cp \"$DMG\" \"$WORK/Voooxly.dmg\""
 echo "        gh release create v$VERSION \"$WORK/Voooxly.dmg\" --title \"Voooxly $VERSION\""
 echo ""
-echo "      NO sirve la sintaxis 'fichero#Voooxly.dmg' de gh: ese '#' pone una"
-echo "      ETIQUETA de display, no renombra el asset (comprobado en 1.1.0 —"
-echo "      subió como Voooxly-1.1.0.dmg y la URL daba 404). Hay que copiarlo"
-echo "      con el nombre bueno antes de subirlo."
+echo "      gh's 'file#Voooxly.dmg' syntax does NOT work: that '#' sets a display"
+echo "      LABEL, it does not rename the asset (proven in 1.1.0 — it went up as"
+echo "      Voooxly-1.1.0.dmg and the URL 404'd). It has to be copied under the"
+echo "      right name before uploading."
 echo ""
-echo "      appcast.json apunta a /releases/latest/download/Voooxly.dmg, un"
-echo "      nombre FIJO: si el asset se llama de otra forma, esa URL da 404 y"
-echo "      rompe la actualización de todos los que ya tienen la app."
-echo "   2. Actualiza appcast.json (repo voooxly-web) a la versión $VERSION y despliega."
-echo "      Rellena su campo \"notes\": es lo que enseña el pop-up de 'Update"
-echo "      available' ANTES de descargar."
-echo "   3. Comprueba que updates.WHATS_NEW (src/voooxly/updates.py) describe"
-echo "      ESTA versión: es el pop-up de 'What's new' que se enseña tras"
-echo "      instalarla. Se refresca en el mismo commit que sube la versión."
+echo "      appcast.json points at /releases/latest/download/Voooxly.dmg, a FIXED"
+echo "      name: if the asset is called anything else that URL 404s and breaks"
+echo "      the update for everyone who already has the app."
+echo "   2. Set appcast.json (voooxly-web repo) to version $VERSION and deploy with"
+echo "      'cd ../voooxly-web && ./deploy.sh' — it refuses to publish the site"
+echo "      ahead of the GitHub release. Fill in BOTH \"notes\" and \"notes_es\":"
+echo "      that is what the 'Update available' pop-up shows BEFORE downloading."
+echo "   3. Check that updates.WHATS_NEW (src/voooxly/updates.py) describes THIS"
+echo "      version: it is the 'What's new' pop-up shown after installing. It is"
+echo "      refreshed in the same commit that bumps the version."

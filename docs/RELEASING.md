@@ -137,23 +137,23 @@ Refresh `updates.WHATS_NEW` too (and its `i18n.ES` entry) **in the same commit
 that bumps the version**: that is the pop-up shown right after installing, and
 a test now fails if it still describes the behaviour the release retired.
 
-Y despliega con el script del repo `voooxly-web`, no con `vercel --prod` a mano:
+Then deploy with the script in the `voooxly-web` repo, not `vercel --prod` by hand:
 
 ```bash
 cd ../voooxly-web && ./deploy.sh
 ```
 
-`deploy.sh` **se niega a desplegar si el appcast anuncia una versión que GitHub
-todavía no ha publicado** — que es la forma de romper esto: la web diría "1.10.0
-disponible" y tanto el botón como el actualizador acabarían en un 404. También
-avisa si tu DMG local no es esa versión, y comprueba después que
-`voooxly.com/download` acaba de verdad en la release correcta. `--dry-run` hace
-las comprobaciones sin desplegar.
+`deploy.sh` **refuses to deploy if the appcast announces a version GitHub has not
+published yet** — which is how this breaks: the site would say "1.10.0 available"
+and both the button and the updater would land on a 404. It also warns if your
+local DMG is not that version, and afterwards checks that `voooxly.com/download`
+really does end at the right release. `--dry-run` runs the checks without
+deploying.
 
-Los 28 MB los sirve **GitHub Releases**, no Vercel: no tiene límite de tráfico y
-su `download_count` es la métrica del lanzamiento. `voooxly.com/download` y
-`/Voooxly.dmg` son redirects a `releases/latest/download/Voooxly.dmg`, así que
-apuntan solos a la última versión y no hay que tocarlos en cada release.
+The 28 MB are served by **GitHub Releases**, not Vercel: it has no traffic cap
+and its `download_count` is the launch metric. `voooxly.com/download` and
+`/Voooxly.dmg` are redirects to `releases/latest/download/Voooxly.dmg`, so they
+follow the newest version on their own and need no edit per release.
 
 > **Gate for the release that ships the post-paste learning window.** The site
 > copy for it is already written (the "Learns your words by itself" card and the

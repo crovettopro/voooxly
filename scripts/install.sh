@@ -48,7 +48,7 @@ PY
 else echo "==> 4) Modelo ya presente"; fi
 
 echo ""
-echo "==> Listo. Permisos que macOS te pedirá al arrancar:"
+echo "==> Done. Permissions macOS will ask for on first launch:"
 echo "    - Accesibilidad  (hotkey + paste)  → Sistema > Privacidad y seguridad > Accesibilidad"
 echo "    - Micrófono      (grabación)        → Sistema > Privacidad y seguridad > Micrófono"
 echo "    Arranca con:  ./scripts/launch.sh"

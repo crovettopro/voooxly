@@ -13,7 +13,7 @@ KEYCHAIN="$HOME/Library/Keychains/login.keychain-db"
 
 # does the identity already exist? then there is nothing to do
 if security find-identity -v -p codesigning 2>/dev/null | grep -q "$NAME"; then
-  echo "OK: la identidad '$NAME' ya existe en el llavero."
+  echo "OK: identity '$NAME' already exists in the keychain."
   exit 0
 fi
 
@@ -40,13 +40,13 @@ openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem \
 # We import key and cert as separate PEMs: the p12 fails depending on which
 # openssl generated it ("MAC verification failed" — ciphers the keychain
 # does not understand). With PEMs the keychain pairs them into the identity itself.
-echo "→ Importando clave privada al llavero (autorizada para codesign)…"
+echo "→ Importing the private key into the keychain (authorized for codesign)…"
 security import key.pem -k "$KEYCHAIN" -T /usr/bin/codesign
 
 echo "→ Importando certificado…"
 security import cert.pem -k "$KEYCHAIN"
 
-echo "→ Confiando el certificado para firma de código (saldrá un diálogo de contraseña)…"
+echo "→ Trusting the certificate for code signing (a password dialog will appear)…"
 security add-trusted-cert -p codeSign -k "$KEYCHAIN" cert.pem
 
 chmod 600 key.pem

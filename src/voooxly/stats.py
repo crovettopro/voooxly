@@ -56,11 +56,11 @@ def bump(words: int, seconds: float, path: Path | None = None) -> None:
 
 
 def bump_tokens(tokens: int, provider: str, path: Path | None = None) -> None:
-    """Acumula los tokens gastados en el LLM remoto.
+    """Accumulate the tokens spent on the remote LLM.
 
-    Sirve para que quien use un free tier (Groq) vea cuánto lleva consumido
-    sin salir de la app. Ollama no llega aquí: es local y no gasta cuota, y un
-    contador a 0 junto a "free tier" solo confunde.
+    It lets anyone on a free tier (Groq) see how much they have used without
+    leaving the app. Ollama never reaches here: it is local and burns no quota,
+    and a counter stuck at 0 next to "free tier" only confuses.
     """
     path = path or STATS_FILE
     try:

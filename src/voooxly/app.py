@@ -2096,7 +2096,7 @@ class VoooxlyApp(rumps.App):
             try:
                 self._overlay.build()
             except Exception as e:
-                log.warning("No se pudo construir el overlay: %s", e)
+                log.warning("Couldn't build the overlay: %s", e)
         # First launch (or revoked permission): the assistant explains what's
         # missing and guides each step. It goes here, on the main thread, because
         # NSWindow can't be instantiated off it. Non-blocking: the window coexists

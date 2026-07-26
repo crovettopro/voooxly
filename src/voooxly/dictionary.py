@@ -1,15 +1,16 @@
-"""Diccionario personal: nombres, marcas y jerga que Whisper escribe mal.
+"""Personal dictionary: names, brands and jargon Whisper spells wrong.
 
-Dos mecanismos que se complementan:
-- **words** → van al initial prompt del whisper-server y SESGAN la
-  transcripción hacia esas grafías ("Voooxly" en vez de "Boxli").
-- **replacements** → corrección determinista sobre el texto FINAL (palabra
-  completa, sin distinguir mayúsculas) para lo que Whisper sigue fallando
-  aunque esté en el prompt.
+Two mechanisms that complement each other:
+- **words** → go into the whisper-server initial prompt and BIAS the
+  transcription towards those spellings ("Voooxly" instead of "Boxli").
+- **replacements** → deterministic correction over the FINAL text (whole
+  word, case-insensitive) for what Whisper still gets wrong even when the
+  word is in the prompt.
 
-Vive en ~/.voooxly/dictionary.json (editable a mano) y se añade desde el
-menú: "wisperflow -> Wispr Flow" crea un reemplazo; "Ucademy" a secas, una
-palabra de sesgo. Best-effort siempre: un diccionario roto no estorba.
+It lives in ~/.voooxly/dictionary.json (hand-editable) and entries are added
+from the menu: "ucademi -> Ucademy" creates a replacement; a bare "Ucademy"
+adds a bias word. Best-effort throughout: a broken dictionary never gets in
+the way.
 """
 from __future__ import annotations
 
@@ -114,10 +115,11 @@ def stt_terms(path: Path | None = None) -> list[str]:
 
 
 def apply(text: str, path: Path | None = None) -> str:
-    """Aplica los reemplazos al texto final: palabra completa, sin distinguir
-    mayúsculas. Si la palabra "mala" empieza por mayúscula en el texto y el
-    reemplazo va en minúscula, se respeta la capitalización del reemplazo tal
-    cual está definido (el usuario escribió la grafía que quiere ver).
+    """Apply the replacements to the final text: whole word, case-insensitive.
+
+    If the "wrong" word starts with a capital in the text and the replacement
+    is lowercase, the replacement's own capitalisation wins, exactly as it is
+    defined — the user typed the spelling they want to see.
     """
     if not text:
         return text

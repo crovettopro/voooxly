@@ -24,4 +24,4 @@ fi
 nohup uv run voooxly >> "$LOG" 2>&1 &
 echo "Voooxly arrancado (PID $!). Log: $LOG"
 echo "Permisos: Sistema > Privacidad y seguridad > Accesibilidad + Micrófono."
-echo "Stop:  pkill -f 'uv run voooxly'  (o Cierra desde el menú 🎙)"
+echo "Stop:  pkill -f 'uv run voooxly'  (or Quit from the 🎙 menu)"

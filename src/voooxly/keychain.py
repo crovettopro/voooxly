@@ -1,10 +1,11 @@
-"""API keys en el llavero de macOS.
+"""API keys in the macOS keychain.
 
-Se usa el framework Security directamente (SecItemAdd/SecItemCopyMatching) y NO
-el binario /usr/bin/security: así la ACL del ítem queda ligada a Voooxly, que es
-quien lo crea y quien lo lee. Con el CLI el ítem pertenece a /usr/bin/security y
-macOS pide aprobar un diálogo al releerlo — es exactamente lo que le pasa a
-notarytool en este proyecto ("No Keychain password item found for profile").
+This uses the Security framework directly (SecItemAdd/SecItemCopyMatching) and
+NOT the /usr/bin/security binary: that way the item's ACL is bound to Voooxly,
+which is what creates it and what reads it. With the CLI the item belongs to
+/usr/bin/security and macOS puts up a dialog to approve every re-read — exactly
+what happens to notarytool in this project ("No Keychain password item found
+for profile").
 """
 from __future__ import annotations
 
@@ -28,7 +29,7 @@ def _base_query(account: str) -> dict:
 
 
 def get_key(account: str) -> str | None:
-    """Devuelve el secreto, o None si no existe (o si el llavero no colabora)."""
+    """Return the secret, or None if it doesn't exist (or the keychain won't play)."""
     try:
         import Security
 
@@ -51,7 +52,7 @@ def set_key(account: str, secret: str) -> bool:
     try:
         import Security
 
-        delete_key(account)  # SecItemAdd falla con duplicados; reemplazar es lo esperado
+        delete_key(account)  # SecItemAdd fails on duplicates; replacing is what's expected
         attrs = _base_query(account)
         attrs[Security.kSecValueData] = secret.encode("utf-8")
         status, _ = Security.SecItemAdd(attrs, None)

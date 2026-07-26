@@ -40,7 +40,7 @@ def _font(px: int) -> ImageFont.FreeTypeFont:
             return ImageFont.truetype(path, px, index=index)
         except OSError:
             continue
-    raise SystemExit("No hay serif del sistema disponible (Iowan/Georgia)")
+    raise SystemExit("No system serif available (Iowan/Georgia)")
 
 
 def _gradient(size: int, c1, c2) -> Image.Image:
@@ -67,7 +67,7 @@ def _glyph_layer(S: int, color, width_ratio: float) -> Image.Image:
     d.text((big // 2, big // 2), GLYPH, font=_font(S), fill=(*color, 255), anchor="mm")
     box = scratch.getbbox()
     if box is None:
-        raise SystemExit("La fuente no tiene tinta para el glyph “")
+        raise SystemExit("The font has no ink for the “ glyph")
     ink = scratch.crop(box)
     # scale the ink to the target width preserving aspect ratio
     target_w = int(S * width_ratio)

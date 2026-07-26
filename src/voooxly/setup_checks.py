@@ -34,11 +34,11 @@ class Check:
 
 
 def microphone_status() -> int:
-    """Estado crudo de AVAuthorizationStatus. 0=sin decidir, 2=denegado, 3=ok.
+    """Raw AVAuthorizationStatus. 0=undecided, 2=denied, 3=granted.
 
-    Se distingue de has_microphone() porque el onboarding necesita el matiz:
-    'sin decidir' abre el prompt del sistema; 'denegado' ya no vuelve a
-    preguntar y hay que mandar al usuario a Ajustes.
+    Kept apart from has_microphone() because onboarding needs the nuance:
+    'undecided' opens the system prompt; 'denied' will never ask again, so the
+    user has to be sent to System Settings.
     """
     try:
         from AVFoundation import AVCaptureDevice, AVMediaTypeAudio
@@ -62,7 +62,7 @@ def open_microphone_settings() -> None:
 
 
 def request_microphone(callback=None) -> None:
-    """Dispara el prompt del sistema. El callback recibe True/False desde otro hilo."""
+    """Fire the system prompt. The callback gets True/False from another thread."""
     try:
         from AVFoundation import AVCaptureDevice, AVMediaTypeAudio
 
@@ -93,7 +93,7 @@ def has_accessibility() -> bool:
 
 
 def open_accessibility_settings() -> None:
-    """Abre el panel exacto de Ajustes (no se puede conceder por API)."""
+    """Open the exact Settings pane (Accessibility cannot be granted via API)."""
     try:
         subprocess.run(["open", ACCESSIBILITY_PANE], check=False, timeout=5)
     except Exception as e:

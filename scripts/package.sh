@@ -12,7 +12,7 @@ ZIP="$ROOT/dist/Voooxly-v${VERSION}-share.zip"
 
 cd "$ROOT"
 if [ ! -d dist/Voooxly.app ]; then
-  echo "→ No hay build en dist/: compilando…"
+  echo "→ No build in dist/: compiling…"
   "$VENV/bin/pyinstaller" Voooxly.spec --noconfirm | tail -1
 fi
 
@@ -36,20 +36,20 @@ if [ -n "$DEVID" ]; then
     --entitlements "$ROOT/voooxly.entitlements" -s "$DEVID" "$SHARE/Voooxly.app"
   codesign --verify --deep --strict "$SHARE/Voooxly.app"
   if xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1; then
-    echo "→ Notarizando con Apple (puede tardar unos minutos)…"
+    echo "→ Notarizing with Apple (this can take a few minutes)…"
     NZIP="$(mktemp -d)/Voooxly-notarize.zip"
     ditto -c -k --keepParent "$SHARE/Voooxly.app" "$NZIP"
     xcrun notarytool submit "$NZIP" --keychain-profile "$NOTARY_PROFILE" --wait
     xcrun stapler staple "$SHARE/Voooxly.app"
     echo "→ Notarizado y grapado: instalación por doble click en cualquier Mac."
   else
-    echo "AVISO: firmado con Developer ID pero SIN notarizar (falta credencial notarytool)."
-    echo "Créala una vez con:"
+    echo "WARNING: signed with Developer ID but NOT notarized (notarytool credential missing)."
+    echo "Create it once with:"
     echo "  xcrun notarytool store-credentials $NOTARY_PROFILE \\"
     echo "    --apple-id TU_APPLE_ID --team-id TU_TEAM_ID --password APP_SPECIFIC_PASSWORD"
   fi
 else
-  echo "AVISO: sin cert 'Developer ID Application' en el llavero — el receptor usará install.sh."
+  echo "WARNING: no 'Developer ID Application' cert in the keychain — the recipient will use install.sh."
   echo "Créalo en developer.apple.com → Certificates → Developer ID Application (o Xcode → Settings → Accounts)."
 fi
 
@@ -84,4 +84,4 @@ EOF
 echo "→ Comprimiendo…"
 ditto -c -k --keepParent "$SHARE" "$ZIP"
 echo "LISTO: $ZIP ($(du -h "$ZIP" | cut -f1))"
-echo "Compártelo por AirDrop/Drive; el receptor: descomprimir → bash install.sh"
+echo "Share it via AirDrop/Drive; the recipient: unzip → bash install.sh"

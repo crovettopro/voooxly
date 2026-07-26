@@ -131,10 +131,10 @@ def system_language() -> str | None:
 
 
 def resolve_language(value: Any) -> str | None:
-    """Traduce el valor del config a un idioma efectivo.
+    """Turn the config value into an effective language.
 
-    "auto" -> idioma del sistema; None -> que Whisper lo detecte solo;
-    cualquier otra cosa -> tal cual (el usuario lo ha fijado a mano).
+    "auto" -> the system language; None -> let Whisper detect it on its own;
+    anything else -> as-is (the user pinned it by hand).
     """
     if isinstance(value, str) and value.strip().lower() == "auto":
         return system_language()
