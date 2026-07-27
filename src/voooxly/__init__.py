@@ -1,2 +1,2 @@
 """Voooxly: pro-grade local dictation for macOS."""
-__version__ = "1.9.1"
+__version__ = "1.9.2"

@@ -372,7 +372,7 @@ def test_whats_new_describes_this_version_not_the_superseded_behaviour():
     texto = updates.WHATS_NEW.lower()
 
     assert "next dictation" not in texto
-    assert "learn" in texto  # sigue siendo la cabecera de la versión
+    assert "grok" in texto  # la cabecera de ESTA versión, no la de la anterior
 
 
 def test_whats_new_is_shown_in_spanish_too():
@@ -464,14 +464,18 @@ def test_the_update_prompt_lead_sentence_is_translated_like_the_manual_check():
         i18n.set_lang("en")
 
 
-def test_whats_new_describes_what_1_9_1_actually_changed():
-    """1.9.1 is about the dictionary being correctable, so the pop-up has to
-    say it — nobody goes looking for a menu item they don't know exists.
+def test_whats_new_describes_what_1_9_2_actually_changed():
+    """1.9.2 adds an engine and REMOVES a menu item, so the pop-up has to say
+    both — a button vanishing without explanation reads as a bug, and nobody
+    goes looking for an engine they don't know is there.
 
-    Same failure mode this file already guards for 1.9.0: the string survives a
-    release unchanged and tells everyone about the previous version.
+    Same failure mode this file already guards for 1.9.0 and 1.9.1: the string
+    survives a release unchanged and tells everyone about the previous version.
     """
     texto = updates.WHATS_NEW.lower()
 
-    assert "remove" in texto or "quitar" in texto
-    assert "ending" in texto or "plural" in texto
+    assert "grok" in texto
+    assert "detect automatically" in texto or "detectar" in texto
+    # Whoever updates keeps their engine: saying so is what stops the removal
+    # from reading as "it lost my key".
+    assert "reconnect" in texto or "key" in texto

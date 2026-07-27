@@ -32,7 +32,7 @@ log = logging.getLogger("voooxly.updates")
 # domain is voooxly.com (crovettopro's "voooxly" project).
 APPCAST_URL = "https://voooxly.com/appcast.json"
 # Outside the .app (running from the repo) there's no Info.plist to read from.
-FALLBACK_VERSION = "1.9.1"
+FALLBACK_VERSION = "1.9.2"
 
 # Periodic re-check: the app queries again every CHECK_INTERVAL seconds
 # while it's open (besides the startup check). 24 h covers whoever leaves it
@@ -328,12 +328,11 @@ def stage_install(dmg: Path, target_app: Path | None, pid: int) -> Path | None:
 # behaviour is worse than saying nothing. test_updates pins the one claim
 # this release retired.
 WHATS_NEW = """\
-• Voooxly no longer learns a correction that only changes a word's ending:
-  turning "email" into "emails" is grammar, not spelling.
-• New: Settings › Remove from dictionary… shows everything Voooxly has
-  learned and takes any entry out. Until now nothing could.
-• Removing a spelling also stops it steering the next transcription.
-• Corrections are still learned on the spot, seconds after you paste."""
+• New AI engine: Grok (xAI). Pick it under AI engine › and the endpoint and
+  model come filled in — you only paste your key.
+• The "Detect automatically" button is gone. It read like a way back to
+  automatic and was really a way to lose the engine you had connected.
+• Your engine and your key stay exactly where they were: nothing to reconnect."""
 
 
 def should_show_whats_new(prefs: dict | None, current: str) -> bool:

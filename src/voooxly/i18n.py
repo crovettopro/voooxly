@@ -158,19 +158,16 @@ ES = {
     # The body of that same pop-up (updates.WHATS_NEW). Keyed on the whole
     # block: it is release copy, rewritten wholesale every version, and
     # splitting it into bullets would only invite half of it to go stale.
-    "• Voooxly no longer learns a correction that only changes a word's ending:\n"
-    "  turning \"email\" into \"emails\" is grammar, not spelling.\n"
-    "• New: Settings › Remove from dictionary… shows everything Voooxly has\n"
-    "  learned and takes any entry out. Until now nothing could.\n"
-    "• Removing a spelling also stops it steering the next transcription.\n"
-    "• Corrections are still learned on the spot, seconds after you paste.":
-        "• Voooxly ya no aprende una corrección que solo cambia el final de una\n"
-        "  palabra: pasar de «email» a «emails» es gramática, no ortografía.\n"
-        "• Nuevo: Ajustes › Quitar del diccionario… enseña todo lo que Voooxly ha\n"
-        "  aprendido y quita cualquier entrada. Hasta ahora no había forma.\n"
-        "• Al quitar una grafía deja también de influir en la transcripción.\n"
-        "• Las correcciones se siguen aprendiendo al momento, segundos después "
-        "de pegar.",
+    "• New AI engine: Grok (xAI). Pick it under AI engine › and the endpoint and\n"
+    "  model come filled in — you only paste your key.\n"
+    "• The \"Detect automatically\" button is gone. It read like a way back to\n"
+    "  automatic and was really a way to lose the engine you had connected.\n"
+    "• Your engine and your key stay exactly where they were: nothing to reconnect.":
+        "• Nuevo motor de IA: Grok (xAI). Se elige en Motor de IA › y el endpoint y\n"
+        "  el modelo vienen rellenos — tú solo pegas tu clave.\n"
+        "• El botón «Detectar automáticamente» ya no está. Parecía una forma de\n"
+        "  volver a automático y era una forma de perder el motor que tenías.\n"
+        "• Tu motor y tu clave siguen donde estaban: no hay que reconectar nada.",
     # --- frequent dialogs ---
     "Nothing to correct": "Nada que corregir",
     "Dictate something first.": "Dicta algo primero.",
