@@ -500,8 +500,12 @@ class VoooxlyApp(rumps.App):
             self.ai.add(mi)
             self._ai_items[prov_key] = mi
         self.ai.add(rumps.separator)
-        self.ai_auto_item = rumps.MenuItem(i18n.t("Detect automatically"), callback=self._reset_to_auto)
-        self.ai.add(self.ai_auto_item)
+        # No "Detect automatically" here on purpose: the auto cascade only
+        # knows Ollama and two environment variables, so pressing it threw
+        # away a working connection and left the user on raw text after the
+        # next restart (the key stays in the keychain, but with no saved
+        # selection nobody exports it). The cascade still runs by itself on
+        # first launch, which is where it belongs.
         self.ai_test_item = rumps.MenuItem(i18n.t("Test connection"), callback=self._test_ai)
         self.ai.add(self.ai_test_item)
         self.stats_item = rumps.MenuItem(i18n.t("Usage stats…"), callback=self._show_stats)
@@ -1835,19 +1839,6 @@ class VoooxlyApp(rumps.App):
         api_key = keychain.get_key(sel.provider.key) if sel.provider.needs_key else None
         ok, msg = refine.validate(sel, api_key)
         self._alert("Connection OK" if ok else "Connection failed", msg)
-
-    def _reset_to_auto(self, _sender):
-        """Returns control to the auto-detection cascade."""
-        from . import ai_settings
-
-        for clave in (ai_settings.CLAVE_PROVEEDOR, ai_settings.CLAVE_BASE_URL,
-                      ai_settings.CLAVE_MODELO):
-            self._prefs.pop(clave, None)
-        _save_prefs(self._prefs)
-        self.cfg._set_path("llm.backend", "auto")
-        b = refine.detect_backend(self.cfg, force=True)
-        self._update_ai_item(force=False)
-        self._alert("Back to automatic", f"Detected: {b}.")
 
     def _open_update(self, _sender):
         if not self._update_url or self._update_downloading:

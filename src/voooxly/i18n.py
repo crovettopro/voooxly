@@ -42,7 +42,7 @@ def t(s: str) -> str:
 
 # Menu strings that test_i18n requires to be translated.
 MENU_STRINGS = [
-    "Ready", "AI engine", "Detect automatically", "Test connection",
+    "Ready", "AI engine", "Test connection",
     "Usage stats…", "Quit Voooxly", "Update available", "About Voooxly",
     "Recent", "(empty)", "Settings", "Start at login", "Sounds",
     "Add to dictionary…", "Shortcuts", "Customize…", "Search history…",
@@ -86,7 +86,6 @@ ES = {
     # --- menu ---
     "Ready": "Listo",
     "AI engine": "Motor de IA",
-    "Detect automatically": "Detectar automáticamente",
     "Test connection": "Probar conexión",
     "Usage stats…": "Estadísticas de uso…",
     "Quit Voooxly": "Salir de Voooxly",

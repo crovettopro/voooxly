@@ -2,10 +2,15 @@
 
 from voooxly import providers
 
-# Curated MVP list: five providers, not one more.
-ESPERADOS = ("claude", "openai", "gemini", "groq", "ollama")
+# Curated list: six providers, not one more. Grok (xAI) joined for the 1.9.1
+# launch, and "xai" left RETIRADOS because of it — same company, brought back
+# on purpose under the key "grok".
+ESPERADOS = ("claude", "openai", "gemini", "groq", "grok", "ollama")
 # Retired on purpose when simplifying the menu: they must not reappear.
-RETIRADOS = ("openrouter", "deepseek", "mistral", "together", "xai", "custom")
+# "kimi" was studied for 1.9.1 and left out: Moonshot fixes `temperature` and
+# answers 400 to any other value, so it can't ride the shared _openai() path
+# unchanged (see the note in providers.py).
+RETIRADOS = ("openrouter", "deepseek", "mistral", "together", "custom", "kimi")
 
 
 def test_los_presets_esperados_existen():
@@ -13,7 +18,7 @@ def test_los_presets_esperados_existen():
         assert providers.get(key) is not None, key
 
 
-def test_la_lista_esta_curada_a_cinco():
+def test_la_lista_esta_curada():
     assert set(providers.PROVIDERS) == set(ESPERADOS)
 
 
@@ -27,12 +32,12 @@ def test_ollama_local_no_pide_key():
 
 
 def test_los_de_pago_piden_key():
-    for key in ("claude", "openai", "gemini", "groq"):
+    for key in ("claude", "openai", "gemini", "groq", "grok"):
         assert providers.get(key).needs_key is True, key
 
 
 def test_todo_lo_que_no_es_ollama_ni_claude_usa_el_camino_openai():
-    for key in ("openai", "gemini", "groq"):
+    for key in ("openai", "gemini", "groq", "grok"):
         assert providers.get(key).kind == "openai", key
     assert providers.get("ollama").kind == "ollama"
     assert providers.get("claude").kind == "claude"
@@ -45,6 +50,7 @@ def test_los_presets_con_url_fija_la_traen_rellena():
         "openai": "https://api.openai.com/v1",
         "gemini": "https://generativelanguage.googleapis.com/v1beta/openai/",
         "groq": "https://api.groq.com/openai/v1",
+        "grok": "https://api.x.ai/v1",
     }
     for key, expected in urls.items():
         assert providers.get(key).base_url == expected, key
@@ -62,7 +68,7 @@ def test_ollama_is_last_to_emphasize_it_in_menu():
 # --- curated models per provider (v1.4 feedback: pick model on connect) ---
 
 def test_each_cloud_provider_brings_curated_models_and_default_is_first():
-    for key in ("claude", "openai", "gemini", "groq"):
+    for key in ("claude", "openai", "gemini", "groq", "grok"):
         prov = providers.get(key)
         assert len(prov.models) >= 2, key
         assert prov.default_model == prov.models[0], key
@@ -84,6 +90,27 @@ def test_los_defaults_son_los_modelos_excelentes_de_la_v15():
     assert providers.get("openai").default_model == "gpt-5.6-luna"
     assert providers.get("gemini").default_model == "gemini-3.6-flash"
     assert providers.get("groq").default_model == "llama-3.3-70b-versatile"
+    assert providers.get("grok").default_model == "grok-4.20-0309-non-reasoning"
+
+
+def test_los_defaults_no_son_razonadores():
+    """Cleaning a dictation is not a thinking job: a reasoner as default
+    spends seconds before the first token with the user already waiting.
+    Every cloud default must be a fast tier."""
+    for key in ("openai", "gemini", "groq", "grok"):
+        modelo = providers.get(key).default_model
+        assert "reasoning" not in modelo or "non-reasoning" in modelo, key
+
+
+def test_grok_y_groq_no_se_pisan():
+    """One letter apart and two different companies: the day these two share
+    a URL, a key, or a label, somebody spends an evening on it."""
+    grok, groq = providers.get("grok"), providers.get("groq")
+    assert grok.base_url != groq.base_url
+    assert grok.label != groq.label
+    assert grok.name != groq.name
+    # The menu title reads the bare name: it has to disambiguate on its own.
+    assert "xAI" in grok.name
 
 
 def test_proveedor_desconocido_da_none():

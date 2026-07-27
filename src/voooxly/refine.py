@@ -69,6 +69,9 @@ def detect_backend(cfg=None, force: bool = False) -> str:
 # other is a flat 400 Bad Request (the actual failure with gpt-5-mini while
 # gpt-4.1-mini connected). Matched by prefix with a separator ("-" or ".") so
 # that "gpt-5.6-luna" counts and "gpt-4o" or "olmo-7b" don't.
+# Whoever adds a provider here: check its temperature first. Moonshot (Kimi)
+# fixes it per family and answers 400 to any other value, so it can't ride
+# this path unchanged — it was left out of the launch for exactly that.
 _RAZONADORES = ("gpt-5", "o1", "o3", "o4")
 
 
@@ -83,7 +86,7 @@ def _es_razonador(model: str) -> bool:
 def openai_payload(model: str, system: str, user: str, temp) -> dict:
     """Body of the POST /chat/completions. Pure module-level function so the
     contract stays nailed down in tests: reasoning models get the temperature
-    omitted; the rest (gpt-4*, llama, gemini) keep receiving it,
+    omitted; the rest (gpt-4*, llama, gemini, grok) keep receiving it,
     because taking it away would silently change their output."""
     body = {
         "model": model,

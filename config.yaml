@@ -106,9 +106,12 @@ llm:
   # "auto" detects in cascade: Ollama running → ANTHROPIC_API_KEY →
   # OPENAI_API_KEY → none (paste the raw transcription, no AI). This way each
   # user plugs in whatever AI they have without touching anything.
-  # Groq, Google Gemini and OpenRouter all speak the OpenAI protocol, so they
+  # Groq, Google Gemini and Grok (xAI) all speak the OpenAI protocol, so they
   # run under "openai" with their own base_url — pick them from the menu (AI
   # engine ›), which fills in the endpoint and model for you.
+  # The cascade only ever picks itself on a fresh install: once you choose an
+  # engine from the menu it is remembered, and there is no button to undo that
+  # choice — disconnecting means picking another engine.
   backend: "auto"
   # Fast-lane: dictations of ≤N words in modes with fast_lane (Organize) are
   # pasted as-is without going through the LLM — Whisper already punctuates

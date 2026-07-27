@@ -20,8 +20,17 @@ def test_los_razonadores_no_llevan_temperature():
 
 def test_el_resto_conserva_su_temperature():
     for m in ("gpt-4.1-mini", "gpt-4o-mini", "llama-3.3-70b-versatile",
-              "gemini-3.6-flash", "gemini-2.5-flash"):
+              "gemini-3.6-flash", "gemini-2.5-flash",
+              "grok-4.20-0309-non-reasoning", "grok-4.5", "grok-4.3"):
         assert _body(m)["temperature"] == 0.3, m
+
+
+def test_el_payload_no_lleva_campos_de_mas():
+    # Whatever goes in here travels to EVERY OpenAI-compatible provider:
+    # Groq, Gemini and Grok share this body. A vendor-specific field added
+    # for one of them is a 400 on the other three.
+    for m in ("gpt-4.1-mini", "grok-4.5", "gemini-3.6-flash"):
+        assert set(_body(m)) <= {"model", "messages", "temperature"}, m
 
 
 def test_el_payload_lleva_modelo_y_mensajes_en_orden():

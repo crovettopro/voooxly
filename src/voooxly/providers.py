@@ -96,6 +96,32 @@ PROVIDERS: dict[str, Provider] = {
         kind="openai",
         models=("gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-2.5-flash"),
     ),
+    # Grok, NOT Groq: the name is one letter away from the free preset right
+    # above and they are different companies. It goes in the menu as "Grok
+    # (xAI)" for the same reason "Ollama (local)" carries its parenthesis —
+    # picking the wrong one and wondering why your key is rejected is a
+    # miserable first five minutes.
+    "grok": Provider(
+        key="grok",
+        name="Grok (xAI)",
+        base_url="https://api.x.ai/v1",
+        # IDs verified on docs.x.ai/developers/models (jul-2026). The default
+        # is the explicitly NON-reasoning variant, same criterion as
+        # gpt-5.6-luna and gemini-3.6-flash: cleaning a dictation is not a
+        # thinking job, and a reasoner spends seconds before the first token
+        # while the user waits with the text already spoken. grok-4.5 (the
+        # flagship) and grok-4.3 (1M context) stay as alternatives for
+        # whoever prefers writing quality over latency.
+        default_model="grok-4.20-0309-non-reasoning",
+        needs_key=True,
+        kind="openai",
+        models=("grok-4.20-0309-non-reasoning", "grok-4.5", "grok-4.3"),
+    ),
+    # Kimi (Moonshot) was studied for this same launch and left out: it fixes
+    # `temperature` per family and answers 400 to any other value, and its
+    # K2.x models reason by default (k3 always, at maximum effort). It doesn't
+    # fit the shared _openai() path without touching the payload, and cleaning
+    # a dictation with a reasoner is paying latency for nothing.
     # Ollama (local) last: the option for whoever runs models on their own
     # machine. No default model (fixing one presumes which one is installed):
     # THEIR Ollama is asked (list_ollama_models) and they pick their own.
