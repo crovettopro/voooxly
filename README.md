@@ -17,7 +17,15 @@
   <img alt="engine" src="https://img.shields.io/badge/engine-whisper.cpp%20(local)-22c55e">
 </p>
 
-<!-- ![Demo](docs/img/demo.gif) — record before launch -->
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=kRN_2S7x3Rk">
+    <img src="https://img.youtube.com/vi/kRN_2S7x3Rk/maxresdefault.jpg" width="640" alt="Watch the Voooxly demo">
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=kRN_2S7x3Rk"><strong>▶ Watch the demo</strong></a>
+</p>
 
 ## How it works
 
